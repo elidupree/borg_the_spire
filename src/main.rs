@@ -1,6 +1,7 @@
 use std::io::{BufRead, Write};
 
 mod communication_mod_state;
+mod simulation_state;
 
 fn main() {
   println!("ready");
@@ -25,14 +26,17 @@ fn main() {
       let interpreted: Result<communication_mod_state::CommunicationState, _> =
         serde_json::from_str(&buffer);
       match interpreted {
-        Ok(_state) => writeln!(file, "received state from communication mod").unwrap(),
+        Ok(state) => {
+          writeln!(file, "received state from communication mod").unwrap();
+          let _simulation_state = state.game_state.as_ref().and_then (| game_state | simulation_state::CombatState::from_communication_mod (game_state, None));
+        },
         Err(err) => {
           writeln!(file, "received non-state from communication mod {:?}", err).unwrap();
           if !failed {
             writeln!(file, "data: {:?}", buffer).unwrap();
           }
           failed = true;
-        }
+        },
       }
     }
   }

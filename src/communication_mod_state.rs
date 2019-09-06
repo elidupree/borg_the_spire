@@ -43,6 +43,9 @@ pub struct CombatState {
   pub exhaust_pile: Vec<Card>,
   pub hand: Vec<Card>,
   pub limbo: Vec<Card>,
+  pub card_in_play: Option <Card>,
+  pub cards_discarded_this_turn: i32,
+  pub turn: i32,
   pub player: Player,
   pub monsters: Vec<Monster>,
 }
@@ -85,6 +88,8 @@ pub struct Monster {
   pub intent: String,
   #[serde(default)]
   pub move_id: i32,
+  pub last_move_id: Option<i32>,
+  pub second_last_move_id: Option<i32>,
   #[serde(default)]
   pub move_base_damage: i32,
   #[serde(default)]
