@@ -37,24 +37,76 @@ pub struct GameState {
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct CombatState {}
+pub struct CombatState {
+  pub draw_pile: Vec<Card>,
+  pub discard_pile: Vec<Card>,
+  pub exhaust_pile: Vec<Card>,
+  pub hand: Vec<Card>,
+  pub limbo: Vec<Card>,
+  pub player: Player,
+  pub monsters: Vec<Monster>,
+}
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Card {
-  name: String,
-  uuid: String,
+  pub name: String,
+  pub uuid: String,
   #[serde(default)]
-  misc: i32,
+  pub misc: i32,
   #[serde(default)]
-  is_playable: bool,
-  cost: i32,
-  upgrades: i32,
-  id: String,
+  pub is_playable: bool,
+  pub cost: i32,
+  pub upgrades: i32,
+  pub id: String,
   #[serde(rename = "type")]
-  card_type: String,
-  rarity: String,
-  has_target: bool,
-  exhausts: bool,
+  pub card_type: String,
+  pub rarity: String,
+  pub has_target: bool,
+  pub exhausts: bool,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct Player {
+  pub current_hp: i32,
+  pub max_hp: i32,
+  pub block: i32,
+  pub powers: Vec<Power>,
+  pub energy: i32,
+  pub orbs: Vec<Value>,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct Monster {
+  pub name: String,
+  pub id: String,
+  pub current_hp: i32,
+  pub max_hp: i32,
+  pub block: i32,
+  pub intent: String,
+  #[serde(default)]
+  pub move_id: i32,
+  #[serde(default)]
+  pub move_base_damage: i32,
+  #[serde(default)]
+  pub move_adjusted_damage: i32,
+  #[serde(default)]
+  pub move_hits: i32,
+  pub half_dead: bool,
+  pub is_gone: bool,
+  pub powers: Vec<Power>,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct Power {
+  pub id: String,
+  pub name: String,
+  pub amount: i32,
+  #[serde(default)]
+  pub damage: i32,
+  pub card: Option <Card>,
+  #[serde(default)]
+  pub misc: i32,
+  pub just_applied: bool,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
