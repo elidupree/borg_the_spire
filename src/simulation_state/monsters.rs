@@ -1,5 +1,5 @@
-use std::convert::From;
 use serde::{Deserialize, Serialize};
+use std::convert::From;
 
 use crate::simulation_state::*;
 
@@ -9,7 +9,7 @@ macro_rules! monsters {
     pub enum MonsterId {
       $($Variant,)*
     }
-    
+
     impl From<& str> for MonsterId {
       fn from (source: & str)->MonsterId {
         match source {

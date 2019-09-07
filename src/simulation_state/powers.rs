@@ -1,5 +1,5 @@
-use std::convert::From;
 use serde::{Deserialize, Serialize};
+use std::convert::From;
 
 use crate::simulation_state::*;
 
@@ -9,7 +9,7 @@ macro_rules! powers {
     pub enum PowerId {
       $($Variant,)*
     }
-    
+
     impl From<& str> for PowerId {
       fn from (source: & str)->PowerId {
         match source {

@@ -43,7 +43,7 @@ pub struct CombatState {
   pub exhaust_pile: Vec<Card>,
   pub hand: Vec<Card>,
   pub limbo: Vec<Card>,
-  pub card_in_play: Option <Card>,
+  pub card_in_play: Option<Card>,
   pub cards_discarded_this_turn: i32,
   pub turn: i32,
   pub player: Player,
@@ -108,7 +108,7 @@ pub struct Power {
   pub amount: i32,
   #[serde(default)]
   pub damage: i32,
-  pub card: Option <Card>,
+  pub card: Option<Card>,
   #[serde(default)]
   pub misc: i32,
   pub just_applied: bool,

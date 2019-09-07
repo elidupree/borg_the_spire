@@ -1,6 +1,7 @@
 use std::io::{BufRead, Write};
 
 mod communication_mod_state;
+mod simulation;
 mod simulation_state;
 
 fn main() {
@@ -28,15 +29,17 @@ fn main() {
       match interpreted {
         Ok(state) => {
           writeln!(file, "received state from communication mod").unwrap();
-          let _simulation_state = state.game_state.as_ref().and_then (| game_state | simulation_state::CombatState::from_communication_mod (game_state, None));
-        },
+          let _simulation_state = state.game_state.as_ref().and_then(|game_state| {
+            simulation_state::CombatState::from_communication_mod(game_state, None)
+          });
+        }
         Err(err) => {
           writeln!(file, "received non-state from communication mod {:?}", err).unwrap();
           if !failed {
             writeln!(file, "data: {:?}", buffer).unwrap();
           }
           failed = true;
-        },
+        }
       }
     }
   }

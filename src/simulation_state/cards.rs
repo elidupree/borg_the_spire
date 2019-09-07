@@ -1,10 +1,10 @@
-use std::convert::From;
 use serde::{Deserialize, Serialize};
+use std::convert::From;
 
 use crate::simulation_state::*;
 
-use self::CardType::{Attack, Skill, Power, Status, Curse};
-use self::Rarity::{Common, Uncommon, Rare, Basic, Special};
+use self::CardType::{Attack, Curse, Power, Skill, Status};
+use self::Rarity::{Basic, Common, Rare, Special, Uncommon};
 
 macro_rules! cards {
   ($([$id: expr, $Variant: ident, $card_type: expr, $rarity: expr, $cost: expr, $has_target: expr, {$($type_info: tt)*}],)*) => {
@@ -12,7 +12,7 @@ macro_rules! cards {
     pub enum CardId {
       $($Variant,)*
     }
-    
+
     impl From<& str> for CardId {
       fn from (source: & str)->CardId {
         match source {
@@ -21,7 +21,7 @@ macro_rules! cards {
         }
       }
     }
-    
+
     impl From <CardId> for CardInfo {
       fn from (source: CardId)->CardInfo {
         match source {
