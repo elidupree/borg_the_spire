@@ -93,12 +93,12 @@ pub struct Player {
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Monster {
-  pub original_index: usize,
   pub monster_id: MonsterId,
   pub innate_damage_amount: Option<i32>,
   pub ascension: i32,
   pub creature: Creature,
   pub move_history: Vec<i32>,
+  pub gone: bool,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -166,7 +166,6 @@ impl CombatState {
             None
           };
           Monster {
-            original_index: index,
             monster_id: MonsterId::from(&*monster.id),
             ascension: observed.ascension_level,
             move_history,
@@ -177,16 +176,20 @@ impl CombatState {
               block: monster.block,
               powers: monster.powers.iter().map(From::from).collect(),
             },
+            gone: monster.is_gone,
           }
         })
         .collect(),
     };
 
     if let Some(previous) = previous {
-      for monster in &previous.monsters {
-        for new_version in result.monsters.iter_mut() {
-          if new_version.original_index == monster.original_index {
-            new_version.innate_damage_amount = monster.innate_damage_amount;
+      for (monster, new_version) in previous.monsters.iter().zip (&mut result.monsters) {
+        if new_version.innate_damage_amount.is_none() {
+          new_version.innate_damage_amount = monster.innate_damage_amount;
+        }
+        else {
+          if new_version.innate_damage_amount != monster.innate_damage_amount {
+            eprintln!(" Unexpected change in innate damage amount: {:?} ", (monster, new_version));
           }
         }
       }
