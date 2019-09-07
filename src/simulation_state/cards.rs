@@ -1,10 +1,15 @@
 use serde::{Deserialize, Serialize};
 use std::convert::From;
 
+use crate::simulation::*;
 use crate::simulation_state::*;
 
 use self::CardType::{Attack, Curse, Power, Skill, Status};
 use self::Rarity::{Basic, Common, Rare, Special, Uncommon};
+
+pub trait CardBehavior {
+  fn play(self, state: &mut CombatState, runner: &mut impl Runner, target: usize);
+}
 
 macro_rules! cards {
   ($([$id: expr, $Variant: ident, $card_type: expr, $rarity: expr, $cost: expr, $has_target: expr, {$($type_info: tt)*}],)*) => {
@@ -40,6 +45,10 @@ macro_rules! cards {
           },)*
         }
       }
+    }
+
+    impl CardBehavior for CardId {
+      fn play (self, state: &mut CombatState, runner: &mut impl Runner, target: usize) {}
     }
   }
 }

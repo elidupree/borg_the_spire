@@ -19,6 +19,7 @@ pub struct CombatState {
   pub exhaust_pile: Vec<SingleCard>,
   pub hand: Vec<SingleCard>,
   pub limbo: Vec<SingleCard>,
+  pub card_in_play: Option<SingleCard>,
   pub player: Player,
   pub monsters: Vec<Monster>,
 }
@@ -112,6 +113,19 @@ pub struct Power {
   pub just_applied: bool,
 }
 
+impl Default for Power {
+  fn default() -> Power {
+    Power {
+      power_id: PowerId::Unknown,
+      amount: 0,
+      damage: 0,
+      card: None,
+      misc: 0,
+      just_applied: false,
+    }
+  }
+}
+
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Relic {
   name: String,
@@ -132,6 +146,7 @@ impl CombatState {
       exhaust_pile: combat.exhaust_pile.iter().map(From::from).collect(),
       hand: combat.hand.iter().map(From::from).collect(),
       limbo: combat.limbo.iter().map(From::from).collect(),
+      card_in_play: combat.card_in_play.as_ref().map(From::from),
       player: Player::from(&combat.player),
       monsters: combat
         .monsters
