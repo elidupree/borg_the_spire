@@ -1,7 +1,8 @@
+use std::collections::HashSet;
+
 use rand::{Rng, SeedableRng};
 use rand_xoshiro::Xoshiro256StarStar;
 use retain_mut::RetainMut;
-use std::any::Any;
 type Generator = Xoshiro256StarStar;
 
 pub use crate::simulation_state::cards::CardBehavior;
@@ -17,6 +18,19 @@ pub struct DefaultRunner {
   values: Vec<i32>,
 }
 
+impl DefaultRunner {
+  pub fn new() -> DefaultRunner {
+    DefaultRunner {
+      generator: Generator::from_seed(rand::random()),
+      values: Vec::new(),
+    }
+  }
+
+  pub fn into_generated_values(self) -> Vec<i32> {
+    self.values
+  }
+}
+
 impl Runner for DefaultRunner {
   fn gen<F: FnOnce(&mut Generator) -> i32>(&mut self, f: F) -> i32 {
     let result = (f)(&mut self.generator);
@@ -28,6 +42,15 @@ impl Runner for DefaultRunner {
 pub struct ReplayRunner<'a> {
   values: &'a [i32],
   position: usize,
+}
+
+impl<'a> ReplayRunner<'a> {
+  pub fn new(values: &'a [i32]) -> ReplayRunner {
+    ReplayRunner {
+      values,
+      position: 0,
+    }
+  }
 }
 
 impl<'a> Runner for ReplayRunner<'a> {
@@ -42,8 +65,23 @@ impl<'a> Runner for ReplayRunner<'a> {
   }
 }
 
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub enum Action {
+  PlayCard(usize, usize),
+  EndTurn,
+}
+
+impl Action {
+  pub fn apply(&self, state: &mut CombatState, runner: &mut impl Runner) {
+    match self {
+      Action::PlayCard(index, target) => state.play_card(runner, *index, *target),
+      Action::EndTurn => state.end_turn(runner),
+    }
+  }
+}
+
 impl Creature {
-  pub fn apply_power_amount(&mut self, power_id: PowerId, amount: i32) {
+  pub fn apply_power_amount(&mut self, power_id: PowerId, amount: i32, just_applied: bool) {
     let existing = self
       .powers
       .iter_mut()
@@ -54,6 +92,7 @@ impl Creature {
       self.powers.push(Power {
         power_id,
         amount,
+        just_applied,
         ..Default::default()
       });
     }
@@ -73,29 +112,36 @@ impl Creature {
 
   pub fn start_turn(&mut self) {
     self.block = 0;
-    self.powers.retain_mut(|power| match power.power_id {
-      PowerId::Vulnerable | PowerId::Weak | PowerId::Frail => {
-        power.amount -= 1;
-        power.amount > 0
-      }
-      _ => true,
-    });
   }
 
   pub fn finish_turn(&mut self) {
-    self.block = 0;
     for index in 0..self.powers.len() {
       match self.powers[index].power_id {
         PowerId::Ritual => {
           if self.powers[index].just_applied {
             self.powers[index].just_applied = false;
           } else {
-            self.apply_power_amount(PowerId::Strength, self.powers[index].amount);
+            self.apply_power_amount(PowerId::Strength, self.powers[index].amount, false);
           }
         }
         _ => (),
       }
     }
+  }
+
+  pub fn finish_round(&mut self) {
+    self.powers.retain_mut(|power| match power.power_id {
+      PowerId::Vulnerable | PowerId::Weak | PowerId::Frail => {
+        if power.just_applied {
+          power.just_applied = false;
+          true
+        } else {
+          power.amount -= 1;
+          power.amount > 0
+        }
+      }
+      _ => true,
+    });
   }
 
   pub fn adjusted_damage_received(&self, mut damage: i32) -> i32 {
@@ -110,13 +156,15 @@ impl Creature {
     if self.has_power(PowerId::Weak) {
       damage = (damage * 3) / 4;
     }
-    if damage <= 0 {return 0;}
+    if damage <= 0 {
+      return 0;
+    }
     damage
   }
 
   pub fn take_hit(&mut self, mut damage: i32) {
     damage = self.adjusted_damage_received(damage);
-    
+
     if self.block >= damage {
       self.block -= damage;
     } else {
@@ -133,13 +181,42 @@ impl Creature {
       });
     }
   }
-  
-  pub fn do_block (&mut self, amount: i32) {
-    if amount >0 {self.block += amount;}
+
+  pub fn do_block(&mut self, amount: i32) {
+    if amount > 0 {
+      self.block += amount;
+    }
   }
 }
 
 impl CombatState {
+  pub fn combat_over(&self) -> bool {
+    self.player.creature.hitpoints <= 0 || self.monsters.iter().all(|monster| monster.gone)
+  }
+
+  pub fn card_playable(&self, card_index: usize) -> bool {
+    let card = &self.hand[card_index];
+    card.cost >= -1 && self.player.energy >= card.cost
+  }
+
+  pub fn legal_actions(&self) -> Vec<Action> {
+    let mut result = Vec::with_capacity(10);
+    result.push(Action::EndTurn);
+    let mut cards = HashSet::new();
+    for (card_index, card) in self.hand.iter().enumerate() {
+      if cards.insert(card) && self.card_playable(card_index) {
+        if card.card_info.has_target {
+          for (monster_index, _monster) in self.monsters.iter().enumerate() {
+            result.push(Action::PlayCard(card_index, monster_index));
+          }
+        } else {
+          result.push(Action::PlayCard(card_index, 0));
+        }
+      }
+    }
+    result
+  }
+
   pub fn draw_card(&mut self, runner: &mut impl Runner) {
     if self.hand.len() == 10 {
       return;
@@ -163,7 +240,7 @@ impl CombatState {
     }
   }
 
-  pub fn finish_player_turn(&mut self, runner: &mut impl Runner) {
+  pub fn finish_player_turn(&mut self, _runner: &mut impl Runner) {
     for card in self.hand.drain(..) {
       if card.card_info.ethereal {
         self.exhaust_pile.push(card);
@@ -177,22 +254,30 @@ impl CombatState {
   pub fn end_turn(&mut self, runner: &mut impl Runner) {
     self.finish_player_turn(runner);
     for monster in self.monsters.iter_mut() {
-      if!monster.gone {monster.creature.start_turn();}
+      if !monster.gone {
+        monster.creature.start_turn();
+      }
     }
 
     for index in 0..self.monsters.len() {
-      if!self.monsters [index].gone {
-       self.enact_monster_intent(runner, index);
-      if self.player.creature.hitpoints <= 0 {
-        return;
-      }}
+      if !self.monsters[index].gone {
+        self.enact_monster_intent(runner, index);
+        if self.player.creature.hitpoints <= 0 {
+          return;
+        }
+      }
     }
 
     for monster in self.monsters.iter_mut() {
-      if!monster.gone { monster.creature.finish_turn();
-      monster.choose_next_intent(runner);
+      if !monster.gone {
+        monster.creature.finish_turn();
+        monster.creature.finish_round();
+        monster.choose_next_intent(runner);
       }
     }
+    self.player.creature.finish_round();
+
+    self.start_player_turn(runner);
   }
 
   pub fn play_card(&mut self, runner: &mut impl Runner, card_index: usize, target: usize) {
@@ -224,7 +309,7 @@ impl CombatState {
 
   pub fn monster_attacks_player(
     &mut self,
-    runner: &mut impl Runner,
+    _runner: &mut impl Runner,
     monster_index: usize,
     damage: i32,
     swings: i32,
@@ -240,10 +325,10 @@ impl CombatState {
       }
     }
   }
-  
-  pub fn player_attacks_monster (
+
+  pub fn player_attacks_monster(
     &mut self,
-    runner: &mut impl Runner,
+    _runner: &mut impl Runner,
     monster_index: usize,
     damage: i32,
     swings: i32,
@@ -259,23 +344,23 @@ impl CombatState {
       }
     }
   }
-  
-  pub fn player_attacks_all_monsters (
+
+  pub fn player_attacks_all_monsters(
     &mut self,
-    runner: &mut impl Runner,
+    _runner: &mut impl Runner,
     damage: i32,
     swings: i32,
   ) {
-    
     for _ in 0..swings {
       for monster in &mut self.monsters {
-      monster
-        .creature
-        .take_hit(self.player.creature.adjusted_damage_dealt(damage));
-      if monster.creature.hitpoints <= 0 {
-        monster.gone = true;
-        break;
-      }}
+        monster
+          .creature
+          .take_hit(self.player.creature.adjusted_damage_dealt(damage));
+        if monster.creature.hitpoints <= 0 {
+          monster.gone = true;
+          break;
+        }
+      }
     }
   }
 }

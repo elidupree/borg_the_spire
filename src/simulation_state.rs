@@ -151,8 +151,7 @@ impl CombatState {
       monsters: combat
         .monsters
         .iter()
-        .enumerate()
-        .map(|(index, monster)| {
+        .map(|monster| {
           let mut move_history = vec![monster.move_id];
           if let Some(previous) = monster.last_move_id {
             move_history.insert(0, previous);
@@ -183,15 +182,17 @@ impl CombatState {
     };
 
     if let Some(previous) = previous {
-      for (monster, new_version) in previous.monsters.iter().zip (&mut result.monsters) {
+      for (monster, new_version) in previous.monsters.iter().zip(&mut result.monsters) {
         if new_version.innate_damage_amount.is_none() {
           new_version.innate_damage_amount = monster.innate_damage_amount;
-        }
-        else {
-          if new_version.innate_damage_amount != monster.innate_damage_amount {
-            eprintln!(" Unexpected change in innate damage amount: {:?} ", (monster, new_version));
-          }
-        }
+        } /* else {
+            if new_version.innate_damage_amount != monster.innate_damage_amount {
+              eprintln!(
+                " Unexpected change in innate damage amount: {:?} ",
+                (monster, new_version)
+              );
+            }
+          }*/
       }
     }
     Some(result)

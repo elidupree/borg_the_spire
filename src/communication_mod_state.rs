@@ -111,6 +111,7 @@ pub struct Power {
   pub card: Option<Card>,
   #[serde(default)]
   pub misc: i32,
+  #[serde(default)]
   pub just_applied: bool,
 }
 

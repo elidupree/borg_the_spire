@@ -68,9 +68,11 @@ impl MonsterBehavior for Cultist {
     match intent {
       3 => {
         let monster = &mut state.monsters[monster_index];
-        monster
-          .creature
-          .apply_power_amount(PowerId::Ritual, if monster.ascension >= 17 { 4 } else { 3 });
+        monster.creature.apply_power_amount(
+          PowerId::Ritual,
+          if monster.ascension >= 17 { 4 } else { 3 },
+          true,
+        );
       }
       1 => {
         state.monster_attacks_player(runner, monster_index, 6, 1);
@@ -130,6 +132,7 @@ impl MonsterBehavior for RedLouse {
         monster.creature.apply_power_amount(
           PowerId::Strength,
           if monster.ascension >= 17 { 4 } else { 3 },
+          true,
         );
       }
       3 => {
@@ -154,7 +157,10 @@ impl MonsterBehavior for GreenLouse {
 
     match intent {
       4 => {
-        state.player.creature.apply_power_amount(PowerId::Weak, 2);
+        state
+          .player
+          .creature
+          .apply_power_amount(PowerId::Weak, 2, true);
       }
       3 => {
         state.monster_attacks_player(
@@ -171,17 +177,16 @@ impl MonsterBehavior for GreenLouse {
 
 impl MonsterBehavior for JawWorm {
   fn choose_next_intent(self, monster: &mut Monster, runner: &mut impl Runner) {
-  
     if monster.move_history.is_empty() {
       monster.move_history.push(1);
-      
-      return
+
+      return;
     }
-   monster.move_history.push(runner.gen(|generator| {
+    monster.move_history.push(runner.gen(|generator| {
       let num = generator.gen_range(0, 100);
-      if num <25 {
-        if monster.last_move (1) {
-          if generator.gen_bool (0.5625) {
+      if num < 25 {
+        if monster.last_move(1) {
+          if generator.gen_bool(0.5625) {
             2
           } else {
             3
@@ -191,7 +196,7 @@ impl MonsterBehavior for JawWorm {
         }
       } else if num < 55 {
         if monster.last_two_moves(3) {
-          if generator.gen_bool (0.357) {
+          if generator.gen_bool(0.357) {
             1
           } else {
             2
@@ -199,10 +204,9 @@ impl MonsterBehavior for JawWorm {
         } else {
           3
         }
-      }
-      else {
-        if monster.last_move (2) {
-          if generator.gen_bool (0.416) {
+      } else {
+        if monster.last_move(2) {
+          if generator.gen_bool(0.416) {
             1
           } else {
             3
@@ -215,20 +219,31 @@ impl MonsterBehavior for JawWorm {
   }
   fn enact_intent(self, state: &mut CombatState, runner: &mut impl Runner, monster_index: usize) {
     let intent = state.monster_intent(monster_index);
-    
+
     match intent {
       1 => {
         let ascension = state.monsters[monster_index].ascension;
-        state.monster_attacks_player(runner, monster_index, if ascension >= 2 {12} else {11}, 1);
-        state.player.creature.apply_power_amount(PowerId::Weak, 2);
+        state.monster_attacks_player(
+          runner,
+          monster_index,
+          if ascension >= 2 { 12 } else { 11 },
+          1,
+        );
       }
       2 => {
         let monster = &mut state.monsters[monster_index];
         monster.creature.apply_power_amount(
           PowerId::Strength,
-          if monster.ascension >= 17 {5} else if monster.ascension >= 2 {4} else {3},
+          if monster.ascension >= 17 {
+            5
+          } else if monster.ascension >= 2 {
+            4
+          } else {
+            3
+          },
+          false,
         );
-        monster.creature.block += if monster.ascension >= 17 {9} else {6};
+        monster.creature.block += if monster.ascension >= 17 { 9 } else { 6 };
       }
       3 => {
         state.monster_attacks_player(runner, monster_index, 7, 1);

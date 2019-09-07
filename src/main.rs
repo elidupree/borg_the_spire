@@ -1,6 +1,9 @@
-use std::io::{BufRead, Write};
+use std::io::BufRead;
+
+use std::time::{Duration, Instant};
 
 mod communication_mod_state;
+mod mcts;
 mod simulation;
 mod simulation_state;
 
@@ -8,13 +11,13 @@ fn main() {
   println!("ready");
   eprintln!("Hello BtS");
 
-  let mut file = std::fs::OpenOptions::new()
-    .create(true)
-    .append(true)
-    .open(r#"C:\Users\Eli\Documents\borg_the_spire_log"#)
-    .unwrap();
+  /*let mut file = std::fs::OpenOptions::new()
+  .create(true)
+  .append(true)
+  .open(r#"C:\Users\Eli\Documents\borg_the_spire_log"#)
+  .unwrap();*/
 
-  writeln!(file, "Hello BtS 2").unwrap();
+  //writeln!(file, "Hello BtS 2").unwrap();
 
   let input = std::io::stdin();
   let mut input = input.lock();
@@ -28,15 +31,31 @@ fn main() {
         serde_json::from_str(&buffer);
       match interpreted {
         Ok(state) => {
-          writeln!(file, "received state from communication mod").unwrap();
-          let _simulation_state = state.game_state.as_ref().and_then(|game_state| {
+          eprintln!("received state from communication mod");
+          let state = state.game_state.as_ref().and_then(|game_state| {
+            eprintln!(
+              "player energy: {:?}",
+              game_state.combat_state.as_ref().map(|cs| cs.player.energy)
+            );
             simulation_state::CombatState::from_communication_mod(game_state, None)
           });
+          if let Some(state) = state {
+            eprintln!("combat happening:\n{:#?}", state);
+            let mut tree = mcts::Tree::new(state);
+
+            let start = Instant::now();
+            while Instant::now() - start < Duration::from_millis(1000) {
+              for _ in 0..100 {
+                tree.search_step();
+              }
+            }
+            tree.print_stuff();
+          }
         }
         Err(err) => {
-          writeln!(file, "received non-state from communication mod {:?}", err).unwrap();
+          eprintln!("received non-state from communication mod {:?}", err);
           if !failed {
-            writeln!(file, "data: {:?}", buffer).unwrap();
+            eprintln!("data: {:?}", buffer);
           }
           failed = true;
         }

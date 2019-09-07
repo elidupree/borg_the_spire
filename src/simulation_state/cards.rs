@@ -8,7 +8,7 @@ use self::CardType::{Attack, Curse, Power, Skill, Status};
 use self::Rarity::{Basic, Common, Rare, Special, Uncommon};
 
 pub trait CardBehavior: Sized {
-  #[allow (unused)]
+  #[allow(unused)]
   fn play(self, state: &mut CombatState, runner: &mut impl Runner, target: usize) {}
 }
 
@@ -18,7 +18,7 @@ macro_rules! cards {
     pub enum CardId {
       $($Variant,)*
     }
-    
+
     $(#[derive(Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
     pub struct $Variant;)*
 
@@ -75,43 +75,51 @@ cards! {
 }
 
 impl CardBehavior for StrikeR {
-  fn play (self, state: &mut CombatState, runner: &mut impl Runner, target: usize) {
+  fn play(self, state: &mut CombatState, runner: &mut impl Runner, target: usize) {
     let card = state.card_in_play.clone().unwrap();
-    state.player_attacks_monster (runner, target, if card.upgrades >0 {9} else {6}, 1);
+    state.player_attacks_monster(runner, target, if card.upgrades > 0 { 9 } else { 6 }, 1);
   }
 }
 
 impl CardBehavior for Bash {
-  fn play (self, state: &mut CombatState, runner: &mut impl Runner, target: usize) {
+  fn play(self, state: &mut CombatState, runner: &mut impl Runner, target: usize) {
     let card = state.card_in_play.clone().unwrap();
-    state.player_attacks_monster (runner, target, if card.upgrades >0 {10} else {8}, 1);
-    state.monsters [target].creature.apply_power_amount (PowerId::Vulnerable, if card.upgrades >0 {3} else {2 });
+    state.player_attacks_monster(runner, target, if card.upgrades > 0 { 10 } else { 8 }, 1);
+    state.monsters[target].creature.apply_power_amount(
+      PowerId::Vulnerable,
+      if card.upgrades > 0 { 3 } else { 2 },
+      false,
+    );
   }
 }
 
 impl CardBehavior for DefendR {
-  fn play (self, state: &mut CombatState, _runner: &mut impl Runner, _target: usize) {
+  fn play(self, state: &mut CombatState, _runner: &mut impl Runner, _target: usize) {
     let card = state.card_in_play.clone().unwrap();
-    state.player.creature.do_block (if card.upgrades >0 {8} else {5});
+    state
+      .player
+      .creature
+      .do_block(if card.upgrades > 0 { 8 } else { 5 });
   }
 }
 
 impl CardBehavior for Corruption {
-  fn play (self, state: &mut CombatState, _runner: &mut impl Runner, _target: usize) {
-    
-  }
+  fn play(self, state: &mut CombatState, _runner: &mut impl Runner, _target: usize) {}
 }
 
 impl CardBehavior for Impervious {
-  fn play (self, state: &mut CombatState, _runner: &mut impl Runner, _target: usize) {
+  fn play(self, state: &mut CombatState, _runner: &mut impl Runner, _target: usize) {
     let card = state.card_in_play.clone().unwrap();
-    state.player.creature.do_block (if card.upgrades >0 {40} else {30});
+    state
+      .player
+      .creature
+      .do_block(if card.upgrades > 0 { 40 } else { 30 });
   }
 }
 impl CardBehavior for Cleave {
-  fn play (self, state: &mut CombatState, runner: &mut impl Runner, _target: usize) {
+  fn play(self, state: &mut CombatState, runner: &mut impl Runner, _target: usize) {
     let card = state.card_in_play.clone().unwrap();
-    state.player_attacks_all_monsters (runner, if card.upgrades >0 {11} else {8}, 1);
+    state.player_attacks_all_monsters(runner, if card.upgrades > 0 { 11 } else { 8 }, 1);
   }
 }
 
