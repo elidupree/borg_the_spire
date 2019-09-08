@@ -14,7 +14,7 @@ pub use cards::CardId;
 pub use monsters::MonsterId;
 pub use powers::PowerId;
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
 pub struct CombatState {
   pub draw_pile: Vec<SingleCard>,
   pub discard_pile: Vec<SingleCard>,
@@ -79,7 +79,7 @@ impl Default for CardInfo {
   }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
 pub struct Creature {
   pub hitpoints: i32,
   pub max_hitpoints: i32,
@@ -87,13 +87,13 @@ pub struct Creature {
   pub powers: Vec<Power>,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
 pub struct Player {
   pub creature: Creature,
   pub energy: i32,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
 pub struct Monster {
   pub monster_id: MonsterId,
   pub innate_damage_amount: Option<i32>,
@@ -103,7 +103,7 @@ pub struct Monster {
   pub gone: bool,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
 pub struct Power {
   pub power_id: PowerId,
   pub amount: i32,
