@@ -4,7 +4,7 @@ An AI/cyborg gameplay helper for Slay the Spire. Runs alongside Slay the Spire a
 
 Fair warning: This is a toy project for me, and I don't particularly expect to complete it or make it convenient for anyone but me to use.
 
-This crate compiles to an executable usable with (CommunicationMod)[https://github.com/ForgottenArbiter/CommunicationMod].
+This crate compiles to an executable usable with [CommunicationMod](https://github.com/ForgottenArbiter/CommunicationMod).
 
 To use:
 * `cargo build --release`
