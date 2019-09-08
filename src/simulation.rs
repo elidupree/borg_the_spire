@@ -81,7 +81,15 @@ pub fn replay_action (state: &mut CombatState, action: &Action, replay: & Replay
   action.apply(state, &mut runner);
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+impl CombatState {
+pub fn after_replay (&self, action: &Action, replay: & Replay)->CombatState {
+  let mut result = self.clone() ;
+  replay_action (&mut result, action, replay);
+  result
+}
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
 pub enum Action {
   PlayCard(usize, usize),
   EndTurn,

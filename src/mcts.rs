@@ -7,29 +7,29 @@ use crate::simulation::*;
 use crate::simulation_state::*;
 
 #[derive(Clone, Debug)]
-pub struct Tree {
-  initial_state: CombatState,
-  root: ChoiceNode,
+pub struct SearchTree {
+  pub initial_state: CombatState,
+  pub root: ChoiceNode,
 }
 
 #[derive(Clone, Debug)]
 pub struct ChoiceNode {
-  total_score: f64,
-  visits: usize,
-  actions: Vec<(Action, ActionResults)>,
+  pub total_score: f64,
+  pub visits: usize,
+  pub actions: Vec<(Action, ActionResults)>,
 }
 
 #[derive(Clone, Debug)]
 pub struct ActionResults {
-  total_score: f64,
-  visits: usize,
-  continuations: BTreeMap<Replay, ChoiceNode>,
+  pub total_score: f64,
+  pub visits: usize,
+  pub continuations: BTreeMap<Replay, ChoiceNode>,
 }
 
 #[derive(Clone, Debug)]
 pub struct CombatResult {
-  score: f64,
-  hitpoints_left: i32,
+  pub score: f64,
+  pub hitpoints_left: i32,
 }
 
 impl CombatResult {
@@ -55,20 +55,20 @@ impl CombatResult {
 }
 
 impl ActionResults {
-  fn new() -> ActionResults {
+  pub fn new() -> ActionResults {
     ActionResults {
       visits: 0,
       total_score: 0.0,
       continuations: BTreeMap::new(),
     }
   }
-  fn max_continuations(&self) -> usize {
+  pub fn max_continuations(&self) -> usize {
     ((self.visits as f64).log2() + 1.5) as usize
   }
 }
 
 impl ChoiceNode {
-  fn new() -> ChoiceNode {
+  pub fn new() -> ChoiceNode {
     ChoiceNode {
       visits: 0,
       total_score: 0.0,
@@ -101,9 +101,9 @@ pub fn play_out<Strategy: Fn(&CombatState) -> Action>(
   }
 }
 
-impl Tree {
-  pub fn new(initial_state: CombatState) -> Tree {
-    Tree {
+impl SearchTree {
+  pub fn new(initial_state: CombatState) -> SearchTree {
+    SearchTree {
       initial_state,
       root: ChoiceNode::new(),
     }
@@ -137,7 +137,7 @@ impl Tree {
 }
 
 impl ChoiceNode {
-  fn print_stuff(&self) {
+  pub fn print_stuff(&self) {
     eprintln!(
       "ChoiceNode {:.6} ({}), {} actions",
       self.total_score / self.visits as f64,
@@ -171,7 +171,7 @@ impl ChoiceNode {
     }
   }
 
-  fn search_step(&mut self, state: &mut CombatState) -> f64 {
+  pub fn search_step(&mut self, state: &mut CombatState) -> f64 {
     if state.combat_over() {
       return CombatResult::new(state).score;
     }
