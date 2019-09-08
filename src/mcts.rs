@@ -23,7 +23,7 @@ pub struct ChoiceNode {
 pub struct ActionResults {
   total_score: f64,
   visits: usize,
-  continuations: BTreeMap<Vec<i32>, ChoiceNode>,
+  continuations: BTreeMap<Replay, ChoiceNode>,
 }
 
 #[derive(Clone, Debug)]
@@ -124,10 +124,9 @@ impl Tree {
         results.total_score / results.visits as f64,
         results.visits
       );
-      if let Some((values, _)) = results.continuations.iter().next() {
-        let mut runner = ReplayRunner::new(values);
+      if let Some((replay, _)) = results.continuations.iter().next() {
         let mut state = self.initial_state.clone();
-        action.apply(&mut state, &mut runner);
+        replay_action (&mut state, action, replay);
 
         eprintln!("arbitrary result of this action: {:#?}", state);
       }
@@ -230,20 +229,19 @@ impl ChoiceNode {
     if results.continuations.len() < results.max_continuations() {
       let mut runner = DefaultRunner::new();
       candidate_action.apply(state, &mut runner);
-      let generated_values = runner.into_generated_values();
+      let generated_values = runner.into_replay();
       next_node = results
         .continuations
         .entry(generated_values)
         .or_insert_with(ChoiceNode::new);
     } else {
-      let (values, node) = results
+      let (replay, node) = results
         .continuations
         .iter_mut()
         .min_by_key(|(_, node)| node.visits)
         .unwrap();
 
-      let mut runner = ReplayRunner::new(values);
-      candidate_action.apply(state, &mut runner);
+      replay_action (state, candidate_action, replay);
       next_node = node;
     }
     let score = next_node.search_step(state);

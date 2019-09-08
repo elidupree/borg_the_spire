@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use serde::{Serialize, Deserialize};
 use rand::{Rng, SeedableRng};
 use rand_xoshiro::Xoshiro256StarStar;
 use retain_mut::RetainMut;
@@ -13,56 +14,71 @@ pub trait Runner {
   fn gen<F: FnOnce(&mut Generator) -> i32>(&mut self, f: F) -> i32;
 }
 
+#[derive (Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, Debug, Default)]
+pub struct Replay {
+  pub generated_values: Vec<i32>,
+}
+
+impl Replay {
+  fn new ()->Replay {Replay {generated_values: Vec::new()}}
+}
+
 pub struct DefaultRunner {
   generator: Generator,
-  values: Vec<i32>,
+  replay: Replay,
 }
 
 impl DefaultRunner {
   pub fn new() -> DefaultRunner {
     DefaultRunner {
       generator: Generator::from_seed(rand::random()),
-      values: Vec::new(),
+      replay: Replay::new(),
     }
   }
 
-  pub fn into_generated_values(self) -> Vec<i32> {
-    self.values
+  pub fn into_replay (self) ->Replay {
+    self.replay
   }
 }
 
 impl Runner for DefaultRunner {
   fn gen<F: FnOnce(&mut Generator) -> i32>(&mut self, f: F) -> i32 {
     let result = (f)(&mut self.generator);
-    self.values.push(result);
+    self.replay.generated_values.push(result);
     result
   }
 }
 
-pub struct ReplayRunner<'a> {
-  values: &'a [i32],
+pub struct ReplayRunner {
+  replay: Replay,
   position: usize,
 }
 
-impl<'a> ReplayRunner<'a> {
-  pub fn new(values: &'a [i32]) -> ReplayRunner {
+impl ReplayRunner {
+  pub fn new(replay: &Replay) -> ReplayRunner {
     ReplayRunner {
-      values,
+      replay: replay.clone(),
       position: 0,
     }
   }
 }
 
-impl<'a> Runner for ReplayRunner<'a> {
+impl Runner for ReplayRunner {
   fn gen<F: FnOnce(&mut Generator) -> i32>(&mut self, _f: F) -> i32 {
     let current = self.position;
     self.position += 1;
     self
-      .values
+      .replay
+      .generated_values
       .get(current)
       .expect("ReplayRunner was prompted for a more values than originally")
       .clone()
   }
+}
+
+pub fn replay_action (state: &mut CombatState, action: &Action, replay: & Replay) {
+  let mut runner = ReplayRunner::new(replay);
+  action.apply(state, &mut runner);
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
