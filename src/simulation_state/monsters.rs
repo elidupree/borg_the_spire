@@ -1,3 +1,5 @@
+#![allow (unused_variables)]
+
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::convert::From;

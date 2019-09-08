@@ -1,3 +1,5 @@
+#![allow (unused_variables)]
+
 use serde::{Deserialize, Serialize};
 use std::convert::From;
 
