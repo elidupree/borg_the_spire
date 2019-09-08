@@ -1,7 +1,7 @@
 use arrayvec::ArrayVec;
 use ordered_float::OrderedFloat;
 use rand::{seq::SliceRandom, Rng};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use crate::simulation::*;
 use crate::simulation_state::*;
@@ -23,7 +23,7 @@ pub struct ChoiceNode {
 pub struct ActionResults {
   total_score: f64,
   visits: usize,
-  continuations: HashMap<Vec<i32>, ChoiceNode>,
+  continuations: BTreeMap<Vec<i32>, ChoiceNode>,
 }
 
 #[derive(Clone, Debug)]
@@ -59,7 +59,7 @@ impl ActionResults {
     ActionResults {
       visits: 0,
       total_score: 0.0,
-      continuations: HashMap::new(),
+      continuations: BTreeMap::new(),
     }
   }
   fn max_continuations(&self) -> usize {
