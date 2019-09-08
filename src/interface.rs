@@ -10,8 +10,44 @@ use rocket::response::NamedFile;
 use rocket_contrib::json::Json;
 use typed_html::{html, text};
 use typed_html::dom::DOMTree ;
+use typed_html::elements:: FlowContent;
 
-use crate::{simulation_state, communication_mod_state};
+use crate::communication_mod_state;
+use crate::simulation_state::*;
+
+type Element = Box <dyn FlowContent <String>>;
+
+impl CombatState {
+  pub fn view (&self)->Element {
+    let monsters =self.monsters.iter().filter (| monster |!monster.gone).map (| monster | {
+            html! {
+              <div class="monster">
+                {text! ("{:?} i{} {}", monster.monster_id, monster.intent(), monster.creature)}
+              </div>
+            }
+          });
+    let hand =self.hand.iter().map (| card | {
+            html! {
+              <div class="card">
+                {text! ("{}", card)}
+              </div>
+            }
+          });
+    html! {
+      <div class="combat-state">
+        <div class="player">
+          {text! ("({}) {}", self.player.energy, self.player.creature)}
+        </div>
+        <div class="monsters">
+          {monsters}
+        </div>
+        <div class="hand">
+          {hand}
+        </div>
+      </div>
+    }
+  }
+}
 
 #[derive (Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
 pub struct InterfaceState {
@@ -21,7 +57,7 @@ pub struct InterfaceState {
 }
 
 pub struct ApplicationState {
-  combat_state: Option <simulation_state::CombatState>,
+  combat_state: Option <CombatState>,
 }
 
 pub struct RocketState {
@@ -31,10 +67,10 @@ pub struct RocketState {
 
 #[post ("/content", data = "<interface_state>")]
 fn content (interface_state: Json <InterfaceState>, rocket_state: State <RocketState>)->String {
-  let state_representation = format! ("{:?}", rocket_state.application_state.lock().unwrap().combat_state);
+  let state_representation = rocket_state.application_state.lock().unwrap().combat_state.as_ref().map (| state | state.view());
   let document: DOMTree <String> = html! {
     <div>
-      {text!(state_representation)}
+      {state_representation}
     </div>
   };
   document.to_string()
@@ -78,7 +114,7 @@ pub fn communication_thread (application_state: Arc <Mutex <ApplicationState>>) 
               "player energy: {:?}",
               game_state.combat_state.as_ref().map(|cs| cs.player.energy)
             );
-            simulation_state::CombatState::from_communication_mod(game_state, None)
+            CombatState::from_communication_mod(game_state, None)
           });
           if let Some(state) = state {
             

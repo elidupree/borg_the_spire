@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::convert::From;
 use std::sync::Arc;
+use std::fmt::{self, Display, Formatter};
 
 use crate::communication_mod_state as communication;
 
@@ -234,5 +235,41 @@ impl From<&communication::Player> for Player {
         powers: player.powers.iter().map(From::from).collect(),
       },
     }
+  }
+}
+
+impl Display for Creature {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    write!(f, "{}/{}", self.hitpoints, self.max_hitpoints)?;
+    if self.block > 0 {
+      write!(f, "(+{})", self.block)?;
+    }
+    for power in & self.powers {
+      write!(f, " {}", power)?;
+    }
+    Ok(())
+  }
+}
+
+impl Display for Power {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    write!(f, "{:?}", self. power_id)?;
+    if self.amount != 0 {
+      write!(f, "{}", self.amount)?;
+    }
+    if self.just_applied {
+      write!(f, "j")?;
+    }
+    Ok(())
+  }
+}
+
+impl Display for SingleCard {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    write!(f, "{:?}", self. card_info.id)?;
+    if self.upgrades >1 { write!(f, "+{}", self.upgrades)?;}
+    else if self.upgrades == 1 {write!(f, "+")?;}
+    write!(f, "({})", self. cost)?;
+    Ok(())
   }
 }
