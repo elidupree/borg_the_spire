@@ -16,7 +16,7 @@ pub struct Tree {
 pub struct ChoiceNode {
   total_score: f64,
   visits: usize,
-  actions: HashMap<Action, ActionResults>,
+  actions: Vec<(Action, ActionResults)>,
 }
 
 #[derive(Clone, Debug)]
@@ -72,7 +72,7 @@ impl ChoiceNode {
     ChoiceNode {
       visits: 0,
       total_score: 0.0,
-      actions: HashMap::new(),
+      actions: Vec::new(),
     }
   }
 }
@@ -181,8 +181,7 @@ impl ChoiceNode {
       for action in state.legal_actions() {
         self
           .actions
-          .entry(action)
-          .or_insert_with(ActionResults::new);
+          .push ((action, ActionResults::new()));
       }
 
       play_out(state, &mut DefaultRunner::new(), choose_action_naive);
@@ -191,20 +190,20 @@ impl ChoiceNode {
 
     self.visits += 1;
 
-    let candidate_action = if let Some((action, _)) = self
+    let (candidate_action, results) = if let Some(unexplored) = self
       .actions
-      .iter()
+      .iter_mut()
       .find(|(_action, results)| results.visits == 0)
     {
-      action.clone()
+      unexplored
     } else {
       // note: deviate from the usual MCTS formula by scaling the scores to the range [0,1],
       // so that it doesn't behave essentially randomly when there's only a small amount to gain
       // (e.g. a few hitpoints when you're guaranteed to win)
       let mut scores: ArrayVec<[_; 11]> = self
         .actions
-        .values()
-        .map(|results| OrderedFloat(results.total_score / results.visits as f64))
+        .iter()
+        .map(| (_action, results) | OrderedFloat(results.total_score / results.visits as f64))
         .collect();
       let max_score = scores.iter().max().unwrap().0;
       let min_score = scores.iter().min().unwrap().0;
@@ -213,18 +212,18 @@ impl ChoiceNode {
           *score = OrderedFloat((score.0 - min_score) / (max_score - min_score))
         }
       }
-      let ((action, _), _) = self
+      let log_self_visits =(self.visits as f64).ln() ;
+      self
         .actions
-        .iter()
+        .iter_mut()
         .zip(scores)
         .max_by_key(|((_action, results), score)| {
-          OrderedFloat(score.0 + (2.0 * (self.visits as f64).ln() / results.visits as f64).sqrt())
+          OrderedFloat(score.0 + (2.0 *log_self_visits/ results.visits as f64).sqrt())
         })
-        .unwrap();
-      action.clone()
+        .unwrap()
+        .0
     };
 
-    let mut results = self.actions.get_mut(&candidate_action).unwrap();
     results.visits += 1;
 
     let next_node;
