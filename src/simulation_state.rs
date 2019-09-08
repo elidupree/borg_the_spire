@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::convert::From;
 use std::sync::Arc;
 use std::fmt::{self, Display, Formatter};
+use rand::seq::SliceRandom;
 
 use crate::communication_mod_state as communication;
 
@@ -140,9 +141,11 @@ impl CombatState {
     previous: Option<&CombatState>,
   ) -> Option<CombatState> {
     let combat = observed.combat_state.as_ref()?;
-
+    let mut draw_pile: Vec<SingleCard> = combat.draw_pile.iter().map(From::from).collect();
+    // explicitly shuffle, just to make sure my AI doesn't accidentally cheat
+    draw_pile.shuffle (&mut rand::thread_rng());
     let mut result = CombatState {
-      draw_pile: combat.draw_pile.iter().map(From::from).collect(),
+      draw_pile,
       discard_pile: combat.discard_pile.iter().map(From::from).collect(),
       exhaust_pile: combat.exhaust_pile.iter().map(From::from).collect(),
       hand: combat.hand.iter().map(From::from).collect(),
