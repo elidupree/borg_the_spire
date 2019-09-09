@@ -1,3 +1,4 @@
 /target
 /modify_noticer
+/last_state.json
 **/*.rs.bk

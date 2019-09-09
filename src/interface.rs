@@ -182,6 +182,14 @@ pub struct ApplicationState {
   search_state: Option <SearchState>,
 }
 
+impl ApplicationState {
+  pub fn set_state (&mut self, state: CombatState) {
+    self.combat_state = Some (state.clone());
+                //self.search_tree = Some (SearchTree::new (state)) ;
+                self.search_state = Some (SearchState::new (state)) ;
+  }
+}
+
 pub struct RocketState {
   application_state: Arc <Mutex <ApplicationState>>,
   root_path: PathBuf,
@@ -221,7 +229,7 @@ fn media (file: PathBuf, rocket_state: State <RocketState>)->Option <NamedFile> 
   NamedFile::open (rocket_state.root_path.join ("static/media/").join (file)).ok()
 }
 
-pub fn communication_thread (application_state: Arc <Mutex <ApplicationState>>) {
+pub fn communication_thread (root_path: PathBuf, application_state: Arc <Mutex <ApplicationState>>) {
   let input = std::io::stdin();
   let input = input.lock();
   let mut failed = false;
@@ -244,10 +252,11 @@ pub fn communication_thread (application_state: Arc <Mutex <ApplicationState>>) 
           if let Some(state) = state {
             
             eprintln!("combat happening:\n{:#?}", state);
+            if let Ok (file) = std::fs::File::create (root_path.join ("last_state.json")) {
+    let _= serde_json::to_writer_pretty (std::io::BufWriter::new (file), & state);    
+  }
             let mut lock = application_state.lock();
-            lock.combat_state = Some (state.clone());
-            //lock.search_tree = Some (SearchTree::new (state)) ;
-            lock.search_state = Some (SearchState::new (state)) ;
+            lock.set_state (state);
             /*let mut tree = mcts::Tree::new(state);
 
             let start = Instant::now();
@@ -295,12 +304,19 @@ pub fn processing_thread (application_state: Arc <Mutex <ApplicationState>>) {
 }
 
 pub fn run(root_path: PathBuf) {
-  let application_state = ApplicationState {combat_state: None, search_tree: None, search_state: None};
+  let mut application_state = ApplicationState {combat_state: None, search_tree: None, search_state: None};
+  
+  if let Ok (file) = std::fs::File::open (root_path.join ("last_state.json")) {
+    if let Ok (state) = serde_json::from_reader (std::io::BufReader::new (file)) {
+      application_state.set_state (state);
+    }
+    
+  }
   
   let application_state = Arc::new (Mutex::new (application_state)) ;
   
-  std::thread::spawn ({let application_state = application_state.clone(); move | | {
-    communication_thread (application_state);
+  std::thread::spawn ({let root_path = root_path.clone(); let application_state = application_state.clone(); move | | {
+    communication_thread (root_path, application_state);
   }});
   
   std::thread::spawn ({let application_state = application_state.clone(); move | | {
