@@ -1,0 +1,169 @@
+use arrayvec::ArrayVec;
+use ordered_float::OrderedFloat;
+use rand::{seq::SliceRandom, Rng};
+use std::collections::{HashSet, VecDeque};
+
+use crate::simulation::*;
+use crate::simulation_state::*;
+
+pub trait Strategy {
+  fn choose_action (&self, state: & CombatState)->Action;
+}
+
+#[derive(Clone, Debug)]
+pub struct SearchState {
+  pub initial_state: CombatState,
+  pub visits: usize,
+  pub starting_points: Vec<StartingPoint>,
+}
+
+#[derive(Clone, Debug)]
+pub struct StartingPoint {
+  pub state: CombatState,
+  pub actions: Vec<Action>,
+  pub candidate_strategies: Vec<CandidateStrategy>,
+  pub visits: usize,
+}
+
+#[derive(Clone, Debug)]
+pub struct CandidateStrategy {
+  pub strategy: SomethingStrategy,
+  pub visits: usize,
+  pub total_score: f64,
+}
+
+
+#[derive(Clone, Debug)]
+pub struct SomethingStrategy {
+
+}
+
+impl Strategy for SomethingStrategy {
+  fn choose_action (&self, state: & CombatState)->Action {
+    unimplemented!()
+  }
+}
+
+pub fn new_random_strategy()->SomethingStrategy {
+  SomethingStrategy {}
+}
+
+pub fn collect_starting_points (state: CombatState, max_results: usize)->Vec <(CombatState, Vec<Action>)> {
+
+  let mut frontier = VecDeque::new();
+  let mut results = Vec::new();
+  let mut discovered_midpoints = HashSet::new();
+  frontier.push_back ((state, Vec::new()));
+  while let Some ((state, history)) = frontier.pop_front() {
+  
+  if discovered_midpoints.insert (state.clone()) {
+      let actions = state.legal_actions();
+  for action in actions {
+    let mut new_state = state.clone() ;
+    let mut runner = DefaultRunner::new();
+    action.apply (&mut new_state, &mut runner);
+    let mut new_history = history.clone() ;
+    new_history.push (action.clone()) ;
+    if runner.into_replay().generated_values.is_empty() && (results.len() + frontier.len()) < max_results {
+      frontier.push_back ((new_state, new_history)) ;
+    }
+    else {
+      results.push ((state.clone(), new_history));
+    }
+  }
+
+    }
+
+  
+  }
+  results
+}
+
+impl SearchState {
+  pub fn new(initial_state: CombatState) -> SearchState {
+    let mut starts = collect_starting_points (initial_state.clone(), 1000);
+    
+    SearchState {
+      initial_state,
+      visits: 0,
+      starting_points: starts.into_iter().map (| (state, actions) | StartingPoint {
+        state, actions,
+        candidate_strategies: Vec::new(),
+        visits: 0,
+      }).collect(),
+    }
+  }
+
+  pub fn search_step (&mut self) {
+    self.visits += 1;
+    for starting_point in &mut self.starting_points {
+      starting_point.search_step();
+    }
+  }
+}
+
+impl StartingPoint {
+  pub fn search_step (&mut self) {
+    self.visits += 1;
+    self.candidate_strategies.push (CandidateStrategy {
+strategy: new_random_strategy(), visits: 0, total_score: 0.0,
+});
+
+    for strategy in &mut self.candidate_strategies {
+      let mut state = self.state.clone();
+      play_out (&mut state, &mut DefaultRunner::new(), & strategy.strategy) ;
+      let result = CombatResult::new (& state) ;
+      strategy.total_score += result.score;
+      strategy.visits += 1;
+    }
+    
+    self.candidate_strategies.sort_by_key (| strategy | OrderedFloat (- strategy.total_score/strategy.visits as f64));
+    for (index, strategy) in self.candidate_strategies.iter_mut().enumerate() {
+      if strategy.visits <= index {
+        strategy.visits = usize::max_value();
+      }
+    }
+    self.candidate_strategies.retain (| strategy | strategy.visits != usize::max_value());
+  }
+}
+
+
+pub fn play_out<S: Strategy>(
+  state: &mut CombatState,
+  runner: &mut impl Runner,
+  strategy: & S,
+) {
+  while !state.combat_over() {
+    let action = strategy.choose_action (state);
+    action.apply(state, runner);
+  }
+}
+
+#[derive(Clone, Debug)]
+pub struct CombatResult {
+  pub score: f64,
+  pub hitpoints_left: i32,
+}
+
+impl CombatResult {
+  fn new(state: &CombatState) -> CombatResult {
+    if state.player.creature.hitpoints > 0 {
+      CombatResult {
+        score: 1.0 + state.player.creature.hitpoints as f64 * 0.0001,
+        hitpoints_left: state.player.creature.hitpoints,
+      }
+    } else {
+      CombatResult {
+        score: 0.0
+          - state
+            .monsters
+            .iter()
+            .map(|monster| monster.creature.hitpoints)
+            .sum::<i32>() as f64
+            * 0.000001,
+        hitpoints_left: 0,
+      }
+    }
+  }
+}
+

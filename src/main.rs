@@ -8,9 +8,10 @@ use std::path::PathBuf;
 //use std::time::{Duration, Instant};
 
 mod communication_mod_state;
-mod mcts;
-mod simulation;
 mod simulation_state;
+mod simulation;
+mod mcts;
+mod start_and_strategy_ai;
 mod interface;
 
 fn main() {
