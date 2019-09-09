@@ -16,7 +16,7 @@ pub trait CardBehavior: Sized {
 
 macro_rules! cards {
   ($([$id: expr, $Variant: ident, $card_type: expr, $rarity: expr, $cost: expr, $has_target: expr, {$($type_info: tt)*}],)*) => {
-    #[derive(Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
+    #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Debug)]
     pub enum CardId {
       $($Variant,)*
     }

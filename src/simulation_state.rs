@@ -2,7 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::convert::From;
 use std::sync::Arc;
 use std::fmt::{self, Display, Formatter};
-use rand::seq::SliceRandom;
+use std::hash::{Hash, Hasher};
+use derivative::Derivative;
 
 use crate::communication_mod_state as communication;
 
@@ -14,19 +15,39 @@ pub use cards::CardId;
 pub use monsters::MonsterId;
 pub use powers::PowerId;
 
-#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
+pub fn hash_cards_unordered <H: Hasher> (cards: & Vec<SingleCard>, hasher: &mut H) {
+  let mut sorted: Vec<_> = cards.iter().collect();
+  sorted.sort();
+  sorted.hash (hasher) ;
+}
+
+pub fn compare_cards_unordered(first: & Vec<SingleCard>, second: & Vec<SingleCard>)->bool {
+  let mut first_sorted: Vec<_> = first.iter().collect();
+  first_sorted.sort();
+  let mut second_sorted: Vec<_> = second.iter().collect();
+  second_sorted.sort();
+  first_sorted == second_sorted
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, Derivative)]
+#[derivative (PartialEq, Eq, Hash)]
 pub struct CombatState {
+  #[derivative (PartialEq (compare_with = "compare_cards_unordered"), Hash (hash_with = "hash_cards_unordered"))]
   pub draw_pile: Vec<SingleCard>,
+  #[derivative (PartialEq (compare_with = "compare_cards_unordered"), Hash (hash_with = "hash_cards_unordered"))]
   pub discard_pile: Vec<SingleCard>,
+  #[derivative (PartialEq (compare_with = "compare_cards_unordered"), Hash (hash_with = "hash_cards_unordered"))]
   pub exhaust_pile: Vec<SingleCard>,
+  #[derivative (PartialEq (compare_with = "compare_cards_unordered"), Hash (hash_with = "hash_cards_unordered"))]
   pub hand: Vec<SingleCard>,
+  #[derivative (PartialEq (compare_with = "compare_cards_unordered"), Hash (hash_with = "hash_cards_unordered"))]
   pub limbo: Vec<SingleCard>,
   pub card_in_play: Option<SingleCard>,
   pub player: Player,
   pub monsters: Vec<Monster>,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Debug)]
 pub struct SingleCard {
   pub misc: i32,
   pub cost: i32,
@@ -34,7 +55,7 @@ pub struct SingleCard {
   pub card_info: Arc<CardInfo>,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Debug)]
 pub enum CardType {
   Attack,
   Skill,
@@ -43,7 +64,7 @@ pub enum CardType {
   Curse,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Debug)]
 pub enum Rarity {
   Common,
   Uncommon,
@@ -52,7 +73,7 @@ pub enum Rarity {
   Special,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Debug)]
 pub struct CardInfo {
   pub id: CardId,
   pub card_type: CardType,
@@ -142,8 +163,8 @@ impl CombatState {
   ) -> Option<CombatState> {
     let combat = observed.combat_state.as_ref()?;
     let mut draw_pile: Vec<SingleCard> = combat.draw_pile.iter().map(From::from).collect();
-    // explicitly shuffle, just to make sure my AI doesn't accidentally cheat
-    draw_pile.shuffle (&mut rand::thread_rng());
+    // explicitly sort, partly to make sure my AI doesn't accidentally cheat
+    draw_pile.sort();
     let mut result = CombatState {
       draw_pile,
       discard_pile: combat.discard_pile.iter().map(From::from).collect(),
