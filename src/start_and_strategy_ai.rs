@@ -40,7 +40,16 @@ pub struct SomethingStrategy {
 
 impl Strategy for SomethingStrategy {
   fn choose_action (&self, state: & CombatState)->Action {
-    unimplemented!()
+    let legal_actions = state.legal_actions();
+
+  if legal_actions.len() == 1 || rand::thread_rng().gen_bool(0.00001) {
+    Action::EndTurn
+  } else {
+    legal_actions[1..]
+      .choose(&mut rand::thread_rng())
+      .unwrap()
+      .clone()
+  }
   }
 }
 
@@ -48,6 +57,7 @@ pub fn new_random_strategy()->SomethingStrategy {
   SomethingStrategy {}
 }
 
+// This could use refinement on several issues – right now it incorrectly categorizes some deterministic actions as nondeterministic (e.g. drawing the one card left in your deck), and fails to deduplicate some identical sequences (e.g. strike-defend versus defend-strike when the second action triggers something nondeterministic like unceasing top – action.apply() skips right past the identical intermediate state)
 pub fn collect_starting_points (state: CombatState, max_results: usize)->Vec <(CombatState, Vec<Action>)> {
 
   let mut frontier = VecDeque::new();
@@ -110,11 +120,13 @@ strategy: new_random_strategy(), visits: 0, total_score: 0.0,
 });
 
     for strategy in &mut self.candidate_strategies {
+      if (strategy.visits as f64) <(self.visits as f64).sqrt() + 2.0 {
       let mut state = self.state.clone();
       play_out (&mut state, &mut DefaultRunner::new(), & strategy.strategy) ;
       let result = CombatResult::new (& state) ;
       strategy.total_score += result.score;
       strategy.visits += 1;
+      }
     }
     
     self.candidate_strategies.sort_by_key (| strategy | OrderedFloat (- strategy.total_score/strategy.visits as f64));

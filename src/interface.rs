@@ -1,9 +1,10 @@
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::io::BufRead;
 use std::time::Duration;
 use std::ops::Add;
 use serde::{Serialize, Deserialize};
+use parking_lot::Mutex;
 use rocket::State;
 use rocket::config::{Config, Environment, LoggingLevel};
 use rocket::response::NamedFile;
@@ -17,8 +18,9 @@ use crate::communication_mod_state;
 use crate::simulation_state::*;
 use crate::simulation::*;
 use crate::mcts::*;
+use crate::start_and_strategy_ai::*;
 
-type Element = Box <dyn FlowContent <String>>;
+pub type Element = Box <dyn FlowContent <String>>;
 
 impl CombatState {
   pub fn view (&self)->Element {
@@ -136,6 +138,39 @@ impl ActionResults {
   }
 }
 
+impl SearchState {
+  pub fn view (&self)->Element {
+    let starting_points = self.starting_points.iter().map (| start | {
+      let scores = start.candidate_strategies.iter().map (| strategy | {
+        {text! ("average score {:.6} ({} visits)", strategy.total_score/strategy.visits as f64, strategy.visits)}
+      });
+      html! {
+        <div class="starting-point">
+          <div class="starting-point-heading">
+            {text! ("{} visits\n{:?}", start.visits, start.actions)}
+            {start.state.view()}
+          </div>
+          <div class="strategies">
+            {scores}
+          </div>
+        </div>
+      }
+    });
+    
+    html! {
+      <div class="search-state">
+        <div class="search-state-heading">
+          {text! ("{} visits", self.visits)}
+        </div>
+        <div class="starting-points">
+          {starting_points}
+        </div>
+      </div>
+    }
+
+  }
+}
+
 #[derive (Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
 pub struct InterfaceState {
   viewed_node: NodeIdentifier
@@ -144,6 +179,7 @@ pub struct InterfaceState {
 pub struct ApplicationState {
   combat_state: Option <CombatState>,
   search_tree: Option <SearchTree>,
+  search_state: Option <SearchState>,
 }
 
 pub struct RocketState {
@@ -153,9 +189,11 @@ pub struct RocketState {
 
 #[post ("/content", data = "<interface_state>")]
 fn content (interface_state: Json <InterfaceState>, rocket_state: State <RocketState>)->String {
-  let state_representation = rocket_state.application_state.lock().unwrap().search_tree.as_ref().map (| search_tree | search_tree.root.view(& search_tree.initial_state, NodeIdentifier::default(), & interface_state.viewed_node));
+  let tree_representation = rocket_state.application_state.lock().search_tree.as_ref().map (| search_tree | search_tree.root.view(& search_tree.initial_state, NodeIdentifier::default(), & interface_state.viewed_node));
+  let state_representation = rocket_state.application_state.lock().search_state.as_ref().map (| search_state | search_state.view());
   let document: DOMTree <String> = html! {
     <div>
+      {tree_representation}
       {state_representation}
     </div>
   };
@@ -206,9 +244,10 @@ pub fn communication_thread (application_state: Arc <Mutex <ApplicationState>>) 
           if let Some(state) = state {
             
             eprintln!("combat happening:\n{:#?}", state);
-            let mut lock = application_state.lock().unwrap();
+            let mut lock = application_state.lock();
             lock.combat_state = Some (state.clone());
-            lock.search_tree = Some (SearchTree::new (state)) ;
+            //lock.search_tree = Some (SearchTree::new (state)) ;
+            lock.search_state = Some (SearchState::new (state)) ;
             /*let mut tree = mcts::Tree::new(state);
 
             let start = Instant::now();
@@ -234,22 +273,29 @@ pub fn communication_thread (application_state: Arc <Mutex <ApplicationState>>) 
 
 pub fn processing_thread (application_state: Arc <Mutex <ApplicationState>>) {
   loop {
-    if let Some (search_tree) = &mut application_state.lock().unwrap().search_tree {
+    let mut guard = application_state.lock();
+    if let Some (search_tree) = &mut guard.search_tree {
       if search_tree.root.visits < 2_000_000 {
       for _ in 0..10 {
                 search_tree.search_step();
               }
               }
     }
-    //application_state.lock().unwrap().placeholder += 1;
+    else if let Some (search_state) = &mut guard.search_state {
+      if search_state.visits < 2_000_000_000 {
+      search_state.search_step();
+              }
+    }
+    //application_state.lock().placeholder += 1;
     else {
+      std::mem::drop (guard);
       std::thread::sleep (Duration::from_millis (100));
 }
   }
 }
 
 pub fn run(root_path: PathBuf) {
-  let application_state = ApplicationState {combat_state: None, search_tree: None};
+  let application_state = ApplicationState {combat_state: None, search_tree: None, search_state: None};
   
   let application_state = Arc::new (Mutex::new (application_state)) ;
   
