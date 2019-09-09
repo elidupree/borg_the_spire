@@ -192,7 +192,7 @@ fn content (interface_state: Json <InterfaceState>, rocket_state: State <RocketS
   let tree_representation = rocket_state.application_state.lock().search_tree.as_ref().map (| search_tree | search_tree.root.view(& search_tree.initial_state, NodeIdentifier::default(), & interface_state.viewed_node));
   let state_representation = rocket_state.application_state.lock().search_state.as_ref().map (| search_state | search_state.view());
   let document: DOMTree <String> = html! {
-    <div>
+    <div id="content">
       {tree_representation}
       {state_representation}
     </div>
