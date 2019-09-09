@@ -27,21 +27,21 @@ impl CombatState {
     let monsters =self.monsters.iter().filter (| monster |!monster.gone).map (| monster | {
             html! {
               <div class="monster">
-                {text! ("{:?} i{} {}", monster.monster_id, monster.intent(), monster.creature)}
+                {text! ("{:?} i{} {:?}", monster.monster_id, monster.intent(), monster.creature)}
               </div>
             }
           });
     let hand =self.hand.iter().map (| card | {
             html! {
               <div class="card">
-                {text! ("{}", card)}
+                {text! ("{:?}", card)}
               </div>
             }
           });
     html! {
       <div class="combat-state">
         <div class="player">
-          {text! ("({}) {}", self.player.energy, self.player.creature)}
+          {text! ("({}) {:?}", self.player.energy, self.player.creature)}
         </div>
         <div class="monsters">
           {monsters}

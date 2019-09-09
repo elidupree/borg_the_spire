@@ -89,16 +89,16 @@ pub fn after_replay (&self, action: &Action, replay: & Replay)->CombatState {
 }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Action {
-  PlayCard(usize, usize),
+  PlayCard(SingleCard, usize),
   EndTurn,
 }
 
 impl Action {
   pub fn apply(&self, state: &mut CombatState, runner: &mut impl Runner) {
     match self {
-      Action::PlayCard(index, target) => state.play_card(runner, *index, *target),
+      Action::PlayCard(card, target) => state.play_card(runner, card, *target),
       Action::EndTurn => state.end_turn(runner),
     }
   }
@@ -218,8 +218,7 @@ impl CombatState {
     self.player.creature.hitpoints <= 0 || self.monsters.iter().all(|monster| monster.gone)
   }
 
-  pub fn card_playable(&self, card_index: usize) -> bool {
-    let card = &self.hand[card_index];
+  pub fn card_playable(&self, card: &SingleCard) -> bool {
     card.cost >= -1 && self.player.energy >= card.cost
   }
 
@@ -227,14 +226,14 @@ impl CombatState {
     let mut result = Vec::with_capacity(10);
     result.push(Action::EndTurn);
     let mut cards = HashSet::new();
-    for (card_index, card) in self.hand.iter().enumerate() {
-      if cards.insert(card) && self.card_playable(card_index) {
+    for card in & self.hand {
+      if cards.insert(card) && self.card_playable(card) {
         if card.card_info.has_target {
           for (monster_index, _monster) in self.monsters.iter().enumerate() {
-            result.push(Action::PlayCard(card_index, monster_index));
+            result.push(Action::PlayCard(card.clone(), monster_index));
           }
         } else {
-          result.push(Action::PlayCard(card_index, 0));
+          result.push(Action::PlayCard(card.clone(), 0));
         }
       }
     }
@@ -304,7 +303,8 @@ impl CombatState {
     self.start_player_turn(runner);
   }
 
-  pub fn play_card(&mut self, runner: &mut impl Runner, card_index: usize, target: usize) {
+  pub fn play_card(&mut self, runner: &mut impl Runner, card: & SingleCard, target: usize) {
+    let card_index = self.hand.iter().position (|c |c == card).unwrap() ;
     let card = self.hand.remove(card_index);
     let card_id = card.card_info.id;
     self.player.energy -= card.cost;

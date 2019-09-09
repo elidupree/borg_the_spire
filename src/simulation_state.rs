@@ -1,11 +1,12 @@
 use serde::{Deserialize, Serialize};
 use std::convert::From;
 use std::sync::Arc;
-use std::fmt::{self, Display, Formatter};
+use std::fmt::{self, Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use derivative::Derivative;
 
 use crate::communication_mod_state as communication;
+use crate::simulation::*;
 
 pub mod cards;
 pub mod monsters;
@@ -47,7 +48,7 @@ pub struct CombatState {
   pub monsters: Vec<Monster>,
 }
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Debug)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct SingleCard {
   pub misc: i32,
   pub cost: i32,
@@ -100,7 +101,7 @@ impl Default for CardInfo {
   }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Creature {
   pub hitpoints: i32,
   pub max_hitpoints: i32,
@@ -124,7 +125,7 @@ pub struct Monster {
   pub gone: bool,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Power {
   pub power_id: PowerId,
   pub amount: i32,
@@ -262,20 +263,26 @@ impl From<&communication::Player> for Player {
   }
 }
 
-impl Display for Creature {
+impl SingleCard {
+  pub fn start_combat_cost (&self)->i32 {
+    if self.upgrades >0 {self.card_info.upgraded_cost} else {self.card_info.normal_cost}
+  }
+}
+
+impl Debug for Creature {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
     write!(f, "{}/{}", self.hitpoints, self.max_hitpoints)?;
     if self.block > 0 {
       write!(f, "(+{})", self.block)?;
     }
     for power in & self.powers {
-      write!(f, " {}", power)?;
+      write!(f, " {:?}", power)?;
     }
     Ok(())
   }
 }
 
-impl Display for Power {
+impl Debug for Power {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
     write!(f, "{:?}", self. power_id)?;
     if self.amount != 0 {
@@ -288,12 +295,38 @@ impl Display for Power {
   }
 }
 
-impl Display for SingleCard {
+impl Debug for SingleCard {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
     write!(f, "{:?}", self. card_info.id)?;
-    if self.upgrades >1 { write!(f, "+{}", self.upgrades)?;}
-    else if self.upgrades == 1 {write!(f, "+")?;}
-    write!(f, "({})", self. cost)?;
+    
+    
+    if self.upgrades == 1 {write!(f, "+")?;}
+    else if self.upgrades != 0 { write!(f, "+{}", self.upgrades)?;}
+    
+    if self.misc != 0 {
+      write!(f, "?{}", self.misc)?;
+    }
+    if self.cost != self.start_combat_cost () {
+      write!(f, "({})", self. cost)?;
+    }
     Ok(())
   }
 }
+
+
+impl Debug for Action {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    match self {
+      Action::EndTurn => write!(f, "EndTurn"),
+      Action::PlayCard (card, target) => {
+        if card.card_info.has_target {
+          write!(f, "{:?}@{}", card, target)
+        }
+        else {
+          write!(f, "{:?}", card)
+        }
+      }
+    }
+  }
+}
+
