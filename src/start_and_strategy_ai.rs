@@ -74,7 +74,7 @@ pub fn collect_starting_points (state: CombatState, max_results: usize)->Vec <(C
     action.apply (&mut new_state, &mut runner);
     let mut new_history = history.clone() ;
     new_history.push (action.clone()) ;
-    if runner.into_replay().generated_values.is_empty() && (results.len() + frontier.len()) < max_results {
+    if runner.into_replay().generated_values.is_empty() &&!new_state.combat_over() && (results.len() + frontier.len()) < max_results {
       frontier.push_back ((new_state, new_history)) ;
     }
     else {
@@ -109,18 +109,24 @@ impl SearchState {
     for starting_point in &mut self.starting_points {
       starting_point.search_step();
     }
+    self.starting_points.sort_by_key (| start | OrderedFloat (- start.score()));
   }
 }
 
 impl StartingPoint {
+  pub fn max_strategy_visits (&self)->usize {
+    ((self.visits as f64).sqrt() + 2.0) as usize
+  }
+  
   pub fn search_step (&mut self) {
     self.visits += 1;
+    let max_strategy_visits = self.max_strategy_visits();
     self.candidate_strategies.push (CandidateStrategy {
 strategy: new_random_strategy(), visits: 0, total_score: 0.0,
 });
 
     for strategy in &mut self.candidate_strategies {
-      if (strategy.visits as f64) <(self.visits as f64).sqrt() + 2.0 {
+      if strategy.visits <max_strategy_visits {
       let mut state = self.state.clone();
       play_out (&mut state, &mut DefaultRunner::new(), & strategy.strategy) ;
       let result = CombatResult::new (& state) ;
@@ -137,6 +143,12 @@ strategy: new_random_strategy(), visits: 0, total_score: 0.0,
     }
     self.candidate_strategies.retain (| strategy | strategy.visits != usize::max_value());
   }
+
+pub fn score (&self)->f64 {
+  self.candidate_strategies.iter().find (| strategy | strategy.visits == self.max_strategy_visits()).map (| strategy | {
+    strategy.total_score/strategy.visits as f64
+  }).unwrap_or (0.0)
+}
 }
 
 
