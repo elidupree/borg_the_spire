@@ -230,7 +230,7 @@ impl CombatState {
       if cards.insert(card) && self.card_playable(card) {
         if card.card_info.has_target {
           for (monster_index, _monster) in self.monsters.iter().enumerate() {
-            result.push(Action::PlayCard(card.clone(), monster_index));
+            if!monster.gone {result.push(Action::PlayCard(card.clone(), monster_index));}
           }
         } else {
           result.push(Action::PlayCard(card.clone(), 0));

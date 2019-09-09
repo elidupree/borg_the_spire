@@ -7,7 +7,7 @@ use crate::simulation::*;
 use crate::simulation_state::*;
 
 pub trait Strategy {
-  fn choose_action (&self, state: & CombatState)->Action;
+  fn choose_action (&self, state: & CombatState)->Vec<Action>;
 }
 
 #[derive(Clone, Debug)]
@@ -39,8 +39,8 @@ pub struct SomethingStrategy {
 }
 
 impl Strategy for SomethingStrategy {
-  fn choose_action (&self, state: & CombatState)->Action {
-    let legal_actions = state.legal_actions();
+  fn choose_action (&self, state: & CombatState)->Vec<Action> {
+    /*let legal_actions = state.legal_actions();
 
   if legal_actions.len() == 1 || rand::thread_rng().gen_bool(0.00001) {
     Action::EndTurn
@@ -49,7 +49,29 @@ impl Strategy for SomethingStrategy {
       .choose(&mut rand::thread_rng())
       .unwrap()
       .clone()
+  }*/
+  
+    let combos = collect_starting_points (state.clone(), 200);
+    let choices = combos.into_iter().map (| (mut state, actions) | {
+      actions.last().unwrap().apply (&mut state, &mut DefaultRunner::new());
+      let score = self.evaluate(& state);
+      (actions, score)
+    });
+    choices.max_by_key (| (_, score) | OrderedFloat (*score)).unwrap().0
   }
+}
+
+impl SomethingStrategy {
+  pub fn evaluate (&self, state: & CombatState)->f64 {
+    let mut result = 0.0;
+    result += state.player.creature.hitpoints as f64;
+    for monster in & state.monsters {
+      if!monster.gone {
+        result -= 3.0;
+        result -= monster.creature.hitpoints as f64*0.1;
+      }
+    }
+    result
   }
 }
 
@@ -128,6 +150,7 @@ strategy: new_random_strategy(), visits: 0, total_score: 0.0,
     for strategy in &mut self.candidate_strategies {
       if strategy.visits <max_strategy_visits {
       let mut state = self.state.clone();
+      self.actions.last().unwrap().apply (&mut state, &mut DefaultRunner::new());
       play_out (&mut state, &mut DefaultRunner::new(), & strategy.strategy) ;
       let result = CombatResult::new (& state) ;
       strategy.total_score += result.score;
@@ -158,8 +181,8 @@ pub fn play_out<S: Strategy>(
   strategy: & S,
 ) {
   while !state.combat_over() {
-    let action = strategy.choose_action (state);
-    action.apply(state, runner);
+    let actions = strategy.choose_action (state);
+    for action in actions {action.apply(state, runner);}
   }
 }
 
