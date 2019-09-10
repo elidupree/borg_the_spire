@@ -328,7 +328,7 @@ impl CombatState {
   }
 
   pub fn monster_intent(&self, monster_index: usize) -> i32 {
-    *self.monsters[monster_index].move_history.last().unwrap()
+    self.monsters[monster_index].intent()
   }
 
   pub fn monster_attacks_player(
@@ -398,6 +398,10 @@ impl Monster {
 
   pub fn intent(&self) -> i32 {
     *self.move_history.last().unwrap()
+  }
+  pub fn push_intent(&mut self, intent: i32) {
+    if self.move_history.len() == 3 {self.move_history.remove (0);}
+    self.move_history.push (intent);
   }
   pub fn last_move(&self, intent: i32) -> bool {
     self.move_history.last() == Some(&intent)

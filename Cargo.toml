@@ -10,13 +10,13 @@ serde_json = "1.0"
 rand = "0.7"
 rand_xoshiro = "0.4"
 ordered-float = "1.0"
-arrayvec = "0.4"
+arrayvec = { version = "0.4", features = ["serde-1"]}
 retain_mut = "0.1.0"
 rocket = "0.4.2"
 rocket_contrib = { version = "0.4.2", features = ["json"]}
 typed-html = "0.2.1"
 parking_lot = "0.9"
-derivative = "1.0"
+derivative = { git = "https://github.com/mcarton/rust-derivative" }
 
 [profile.dev]
 opt-level = 3

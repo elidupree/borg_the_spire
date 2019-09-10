@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::fmt::{self, Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use derivative::Derivative;
+use arrayvec::ArrayVec;
 
 use crate::communication_mod_state as communication;
 use crate::simulation::*;
@@ -16,13 +17,13 @@ pub use cards::CardId;
 pub use monsters::MonsterId;
 pub use powers::PowerId;
 
-pub fn hash_cards_unordered <H: Hasher> (cards: & Vec<SingleCard>, hasher: &mut H) {
+pub fn hash_cards_unordered <H: Hasher> (cards: &[SingleCard], hasher: &mut H) {
   let mut sorted: Vec<_> = cards.iter().collect();
   sorted.sort();
   sorted.hash (hasher) ;
 }
 
-pub fn compare_cards_unordered(first: & Vec<SingleCard>, second: & Vec<SingleCard>)->bool {
+pub fn compare_cards_unordered(first: & [SingleCard], second: & [SingleCard])->bool {
   let mut first_sorted: Vec<_> = first.iter().collect();
   first_sorted.sort();
   let mut second_sorted: Vec<_> = second.iter().collect();
@@ -40,12 +41,12 @@ pub struct CombatState {
   #[derivative (PartialEq (compare_with = "compare_cards_unordered"), Hash (hash_with = "hash_cards_unordered"))]
   pub exhaust_pile: Vec<SingleCard>,
   #[derivative (PartialEq (compare_with = "compare_cards_unordered"), Hash (hash_with = "hash_cards_unordered"))]
-  pub hand: Vec<SingleCard>,
+  pub hand: ArrayVec<[SingleCard; 10]>,
   #[derivative (PartialEq (compare_with = "compare_cards_unordered"), Hash (hash_with = "hash_cards_unordered"))]
   pub limbo: Vec<SingleCard>,
   pub card_in_play: Option<SingleCard>,
   pub player: Player,
-  pub monsters: Vec<Monster>,
+  pub monsters: ArrayVec<[Monster; 5]>,
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -74,15 +75,23 @@ pub enum Rarity {
   Special,
 }
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, Derivative)]
+#[derivative (PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CardInfo {
   pub id: CardId,
+  #[derivative (PartialEq="ignore", PartialOrd="ignore", Ord="ignore", Hash="ignore")]
   pub card_type: CardType,
+  #[derivative (PartialEq="ignore", PartialOrd="ignore", Ord="ignore", Hash="ignore")]
   pub rarity: Rarity,
+  #[derivative (PartialEq="ignore", PartialOrd="ignore", Ord="ignore", Hash="ignore")]
   pub normal_cost: i32,
+  #[derivative (PartialEq="ignore", PartialOrd="ignore", Ord="ignore", Hash="ignore")]
   pub upgraded_cost: i32,
+  #[derivative (PartialEq="ignore", PartialOrd="ignore", Ord="ignore", Hash="ignore")]
   pub ethereal: bool,
+  #[derivative (PartialEq="ignore", PartialOrd="ignore", Ord="ignore", Hash="ignore")]
   pub has_target: bool,
+  #[derivative (PartialEq="ignore", PartialOrd="ignore", Ord="ignore", Hash="ignore")]
   pub exhausts: bool,
 }
 
@@ -121,7 +130,7 @@ pub struct Monster {
   pub innate_damage_amount: Option<i32>,
   pub ascension: i32,
   pub creature: Creature,
-  pub move_history: Vec<i32>,
+  pub move_history: ArrayVec<[i32; 3]>,
   pub gone: bool,
 }
 
@@ -178,7 +187,8 @@ impl CombatState {
         .monsters
         .iter()
         .map(|monster| {
-          let mut move_history = vec![monster.move_id];
+          let mut move_history = ArrayVec::new();
+          move_history.push(monster.move_id);
           if let Some(previous) = monster.last_move_id {
             move_history.insert(0, previous);
           }

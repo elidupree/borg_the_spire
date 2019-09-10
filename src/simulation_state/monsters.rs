@@ -60,9 +60,9 @@ monsters! {
 impl MonsterBehavior for Cultist {
   fn choose_next_intent(self, monster: &mut Monster, runner: &mut impl Runner) {
     if monster.move_history.is_empty() {
-      monster.move_history.push(3);
+      monster.push_intent (3);
     } else {
-      monster.move_history.push(1);
+      monster.push_intent(1);
     }
   }
   fn enact_intent(self, state: &mut CombatState, runner: &mut impl Runner, monster_index: usize) {
@@ -86,7 +86,7 @@ impl MonsterBehavior for Cultist {
 
 impl MonsterBehavior for RedLouse {
   fn choose_next_intent(self, monster: &mut Monster, runner: &mut impl Runner) {
-    monster.move_history.push(runner.gen(|generator| {
+    monster.push_intent(runner.gen(|generator| {
       let num = generator.gen_range(0, 100);
       if monster.ascension >= 17 {
         if num < 25 {
@@ -180,11 +180,11 @@ impl MonsterBehavior for GreenLouse {
 impl MonsterBehavior for JawWorm {
   fn choose_next_intent(self, monster: &mut Monster, runner: &mut impl Runner) {
     if monster.move_history.is_empty() {
-      monster.move_history.push(1);
+      monster.push_intent(1);
 
       return;
     }
-    monster.move_history.push(runner.gen(|generator| {
+    monster.push_intent(runner.gen(|generator| {
       let num = generator.gen_range(0, 100);
       if num < 25 {
         if monster.last_move(1) {
