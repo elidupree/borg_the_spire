@@ -11,7 +11,6 @@ mod cow;
 mod communication_mod_state;
 mod simulation_state;
 mod simulation;
-mod mcts;
 mod start_and_strategy_ai;
 mod interface;
 
