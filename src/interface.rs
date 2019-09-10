@@ -56,15 +56,15 @@ impl CombatState {
 
 #[derive (Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug, Default)]
 pub struct NodeIdentifier {
-  pub action_choices: Vec<Action>,
+  pub choice_choices: Vec<Choice>,
   pub continuation_choices: Vec<Replay>,
 }
 
-impl Add <Action> for NodeIdentifier {
+impl Add <Choice> for NodeIdentifier {
   type Output = Self;
-  fn add (self, other: Action)->NodeIdentifier {
+  fn add (self, other: Choice)->NodeIdentifier {
     let mut result = self.clone();
-    result.action_choices.push (other);
+    result.choice_choices.push (other);
     result
   }
 }
@@ -81,15 +81,15 @@ impl Add <Replay> for NodeIdentifier {
 
 impl ChoiceNode {
   pub fn view (&self, state: & CombatState, my_id: NodeIdentifier, viewed_id: &NodeIdentifier)->Element {
-    let actions = if let Some(action) = viewed_id.action_choices.get (my_id.action_choices.len()) {
-      if let Some ((_, results)) = self.actions.iter().find (| (a,_results) | a == action) {
-        vec![results.view (state, action, my_id + action.clone(), viewed_id)]
+    let choices = if let Some(choice) = viewed_id.choice_choices.get (my_id.choice_choices.len()) {
+      if let Some ((_, results)) = self.choices.iter().find (| (a,_results) | a == choice) {
+        vec![results.view (state, choice, my_id + choice.clone(), viewed_id)]
       }
       else {Vec::new()}
     }
-    else if viewed_id.action_choices.len() + 1 > my_id.action_choices.len() {
-      self.actions.iter().filter (| (_, results) | results.visits >0).map (| (action, results) |
-        results.view (state, action, my_id.clone() + action.clone(), viewed_id)
+    else if viewed_id.choice_choices.len() + 1 > my_id.choice_choices.len() {
+      self.choices.iter().filter (| (_, results) | results.visits >0).map (| (choice, results) |
+        results.view (state, choice, my_id.clone() + choice.clone(), viewed_id)
       ).collect()
     }
     else {Vec::new()};
@@ -100,8 +100,8 @@ impl ChoiceNode {
           {text! ("Average score {:.6} ({} visits)", self.total_score/self.visits as f64, self.visits)}
         </div>
         {state.view()}
-        <div class="actions">
-          {actions}
+        <div class="choices">
+          {choices}
         </div>
       </div>
     }
@@ -109,26 +109,26 @@ impl ChoiceNode {
   }
 }
 
-impl ActionResults {
-  pub fn view (&self, state: & CombatState, action: & Action, my_id: NodeIdentifier, viewed_id: &NodeIdentifier)->Element {
+impl ChoiceResults {
+  pub fn view (&self, state: & CombatState, choice: & Choice, my_id: NodeIdentifier, viewed_id: &NodeIdentifier)->Element {
     
     let continuations = if let Some(replay) = viewed_id. continuation_choices.get (my_id. continuation_choices.len()) {
       if let Some (node) = self.continuations.get (replay) {
-        vec![node.view (& state.after_replay (action, replay), my_id + replay.clone(), viewed_id)]
+        vec![node.view (& state.after_replay (choice, replay), my_id + replay.clone(), viewed_id)]
       }
       else {Vec::new()}
     }
     else if viewed_id. continuation_choices.len() + 1 > my_id. continuation_choices.len() {
       self.continuations.iter().filter (| (_, node) | node.visits >0).map (| (replay, node) | 
-        node.view (& state.after_replay (action, replay), my_id.clone() + replay.clone(), viewed_id)
+        node.view (& state.after_replay (choice, replay), my_id.clone() + replay.clone(), viewed_id)
         ).collect()
     }
     else {Vec::new()};
     
     html! {
-      <div class="action-node">
-        <div class="action-node-heading">
-          {text! ("{:?}: average score {:.6} ({} visits)", action, self.total_score/self.visits as f64, self.visits)}
+      <div class="choice-node">
+        <div class="choice-node-heading">
+          {text! ("{:?}: average score {:.6} ({} visits)", choice, self.total_score/self.visits as f64, self.visits)}
         </div>
         <div class="continuations">
           {continuations}
@@ -147,7 +147,7 @@ impl SearchState {
       html! {
         <div class="starting-point">
           <div class="starting-point-heading">
-            {text! ("{} visits\n{:?}", start.visits, start.actions)}
+            {text! ("{} visits\n{:?}", start.visits, start.choices)}
             {start.state.view()}
           </div>
           <div class="strategies">

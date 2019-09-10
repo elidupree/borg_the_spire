@@ -7,7 +7,7 @@ use crate::simulation::*;
 use crate::simulation_state::*;
 
 pub trait Strategy {
-  fn choose_action (&self, state: & CombatState)->Vec<Action>;
+  fn choose_choice (&self, state: & CombatState)->Vec<Choice>;
 }
 
 #[derive(Clone, Debug)]
@@ -20,7 +20,7 @@ pub struct SearchState {
 #[derive(Clone, Debug)]
 pub struct StartingPoint {
   pub state: CombatState,
-  pub actions: Vec<Action>,
+  pub choices: Vec<Choice>,
   pub candidate_strategies: Vec<CandidateStrategy>,
   pub visits: usize,
 }
@@ -39,23 +39,23 @@ pub struct SomethingStrategy {
 }
 
 impl Strategy for SomethingStrategy {
-  fn choose_action (&self, state: & CombatState)->Vec<Action> {
-    /*let legal_actions = state.legal_actions();
+  fn choose_choice (&self, state: & CombatState)->Vec<Choice> {
+    /*let legal_choices = state.legal_choices();
 
-  if legal_actions.len() == 1 || rand::thread_rng().gen_bool(0.00001) {
-    Action::EndTurn
+  if legal_choices.len() == 1 || rand::thread_rng().gen_bool(0.00001) {
+    Choice::EndTurn
   } else {
-    legal_actions[1..]
+    legal_choices[1..]
       .choose(&mut rand::thread_rng())
       .unwrap()
       .clone()
   }*/
   
     let combos = collect_starting_points (state.clone(), 200);
-    let choices = combos.into_iter().map (| (mut state, actions) | {
-      actions.last().unwrap().apply (&mut state, &mut DefaultRunner::new());
+    let choices = combos.into_iter().map (| (mut state, choices) | {
+      choices.last().unwrap().apply (&mut state, &mut DefaultRunner::new());
       let score = self.evaluate(& state);
-      (actions, score)
+      (choices, score)
     });
     choices.max_by_key (| (_, score) | OrderedFloat (*score)).unwrap().0
   }
@@ -79,8 +79,8 @@ pub fn new_random_strategy()->SomethingStrategy {
   SomethingStrategy {}
 }
 
-// This could use refinement on several issues – right now it incorrectly categorizes some deterministic actions as nondeterministic (e.g. drawing the one card left in your deck), and fails to deduplicate some identical sequences (e.g. strike-defend versus defend-strike when the second action triggers something nondeterministic like unceasing top – action.apply() skips right past the identical intermediate state)
-pub fn collect_starting_points (state: CombatState, max_results: usize)->Vec <(CombatState, Vec<Action>)> {
+// This could use refinement on several issues – right now it incorrectly categorizes some deterministic choices as nondeterministic (e.g. drawing the one card left in your deck), and fails to deduplicate some identical sequences (e.g. strike-defend versus defend-strike when the second choice triggers something nondeterministic like unceasing top – choice.apply() skips right past the identical intermediate state)
+pub fn collect_starting_points (state: CombatState, max_results: usize)->Vec <(CombatState, Vec<Choice>)> {
 
   let mut frontier = VecDeque::new();
   let mut results = Vec::new();
@@ -89,13 +89,13 @@ pub fn collect_starting_points (state: CombatState, max_results: usize)->Vec <(C
   while let Some ((state, history)) = frontier.pop_front() {
   
   if discovered_midpoints.insert (state.clone()) {
-      let actions = state.legal_actions();
-  for action in actions {
+      let choices = state.legal_choices();
+  for choice in choices {
     let mut new_state = state.clone() ;
     let mut runner = DefaultRunner::new();
-    action.apply (&mut new_state, &mut runner);
+    choice.apply (&mut new_state, &mut runner);
     let mut new_history = history.clone() ;
-    new_history.push (action.clone()) ;
+    new_history.push (choice.clone()) ;
     if runner.into_replay().generated_values.is_empty() &&!new_state.combat_over() && (results.len() + frontier.len()) < max_results {
       frontier.push_back ((new_state, new_history)) ;
     }
@@ -118,8 +118,8 @@ impl SearchState {
     SearchState {
       initial_state,
       visits: 0,
-      starting_points: starts.into_iter().map (| (state, actions) | StartingPoint {
-        state, actions,
+      starting_points: starts.into_iter().map (| (state, choices) | StartingPoint {
+        state, choices,
         candidate_strategies: Vec::new(),
         visits: 0,
       }).collect(),
@@ -150,7 +150,7 @@ strategy: new_random_strategy(), visits: 0, total_score: 0.0,
     for strategy in &mut self.candidate_strategies {
       if strategy.visits <max_strategy_visits {
       let mut state = self.state.clone();
-      self.actions.last().unwrap().apply (&mut state, &mut DefaultRunner::new());
+      self.choices.last().unwrap().apply (&mut state, &mut DefaultRunner::new());
       play_out (&mut state, &mut DefaultRunner::new(), & strategy.strategy) ;
       let result = CombatResult::new (& state) ;
       strategy.total_score += result.score;
@@ -181,8 +181,8 @@ pub fn play_out<S: Strategy>(
   strategy: & S,
 ) {
   while !state.combat_over() {
-    let actions = strategy.choose_action (state);
-    for action in actions {action.apply(state, runner);}
+    let choices = strategy.choose_choice (state);
+    for choice in choices {choice.apply(state, runner);}
   }
 }
 

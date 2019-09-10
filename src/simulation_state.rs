@@ -4,11 +4,9 @@ use std::sync::Arc;
 use std::fmt::{self, Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use derivative::Derivative;
-use arrayvec::ArrayVec;
 
 use crate::communication_mod_state as communication;
 use crate::simulation::*;
-use crate::cow::Cow;
 
 pub mod cards;
 pub mod monsters;
@@ -18,13 +16,13 @@ pub use cards::CardId;
 pub use monsters::MonsterId;
 pub use powers::PowerId;
 
-pub fn hash_cards_unordered <H: Hasher> (cards: &[SingleCard], hasher: &mut H) {
+pub fn hash_cards_unordered <H: Hasher> (cards: & Vec<SingleCard>, hasher: &mut H) {
   let mut sorted: Vec<_> = cards.iter().collect();
   sorted.sort();
   sorted.hash (hasher) ;
 }
 
-pub fn compare_cards_unordered(first: & [SingleCard], second: & [SingleCard])->bool {
+pub fn compare_cards_unordered(first: & Vec<SingleCard>, second: & Vec<SingleCard>)->bool {
   let mut first_sorted: Vec<_> = first.iter().collect();
   first_sorted.sort();
   let mut second_sorted: Vec<_> = second.iter().collect();
@@ -36,18 +34,18 @@ pub fn compare_cards_unordered(first: & [SingleCard], second: & [SingleCard])->b
 #[derivative (PartialEq, Eq, Hash)]
 pub struct CombatState {
   #[derivative (PartialEq (compare_with = "compare_cards_unordered"), Hash (hash_with = "hash_cards_unordered"))]
-  pub draw_pile: Cow<Vec<SingleCard>>,
+  pub draw_pile: Vec<SingleCard>,
   #[derivative (PartialEq (compare_with = "compare_cards_unordered"), Hash (hash_with = "hash_cards_unordered"))]
-  pub discard_pile: Cow<Vec<SingleCard>>,
+  pub discard_pile: Vec<SingleCard>,
   #[derivative (PartialEq (compare_with = "compare_cards_unordered"), Hash (hash_with = "hash_cards_unordered"))]
-  pub exhaust_pile: Cow<Vec<SingleCard>>,
+  pub exhaust_pile: Vec<SingleCard>,
   #[derivative (PartialEq (compare_with = "compare_cards_unordered"), Hash (hash_with = "hash_cards_unordered"))]
-  pub hand: ArrayVec<[SingleCard; 10]>,
+  pub hand: Vec<SingleCard>,
   #[derivative (PartialEq (compare_with = "compare_cards_unordered"), Hash (hash_with = "hash_cards_unordered"))]
   pub limbo: Vec<SingleCard>,
   pub card_in_play: Option<SingleCard>,
   pub player: Player,
-  pub monsters: ArrayVec<[Monster; 5]>,
+  pub monsters: Vec<Monster>,
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -76,23 +74,15 @@ pub enum Rarity {
   Special,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, Derivative)]
-#[derivative (PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Debug)]
 pub struct CardInfo {
   pub id: CardId,
-  #[derivative (PartialEq="ignore", PartialOrd="ignore", Ord="ignore", Hash="ignore")]
   pub card_type: CardType,
-  #[derivative (PartialEq="ignore", PartialOrd="ignore", Ord="ignore", Hash="ignore")]
   pub rarity: Rarity,
-  #[derivative (PartialEq="ignore", PartialOrd="ignore", Ord="ignore", Hash="ignore")]
   pub normal_cost: i32,
-  #[derivative (PartialEq="ignore", PartialOrd="ignore", Ord="ignore", Hash="ignore")]
   pub upgraded_cost: i32,
-  #[derivative (PartialEq="ignore", PartialOrd="ignore", Ord="ignore", Hash="ignore")]
   pub ethereal: bool,
-  #[derivative (PartialEq="ignore", PartialOrd="ignore", Ord="ignore", Hash="ignore")]
   pub has_target: bool,
-  #[derivative (PartialEq="ignore", PartialOrd="ignore", Ord="ignore", Hash="ignore")]
   pub exhausts: bool,
 }
 
@@ -131,7 +121,7 @@ pub struct Monster {
   pub innate_damage_amount: Option<i32>,
   pub ascension: i32,
   pub creature: Creature,
-  pub move_history: ArrayVec<[i32; 3]>,
+  pub move_history: Vec<i32>,
   pub gone: bool,
 }
 
@@ -177,9 +167,9 @@ impl CombatState {
     // explicitly sort, partly to make sure my AI doesn't accidentally cheat
     draw_pile.sort();
     let mut result = CombatState {
-      draw_pile: Cow::new(draw_pile),
-      discard_pile: Cow::new(combat.discard_pile.iter().map(From::from).collect()),
-      exhaust_pile: Cow::new(combat.exhaust_pile.iter().map(From::from).collect()),
+      draw_pile,
+      discard_pile: combat.discard_pile.iter().map(From::from).collect(),
+      exhaust_pile: combat.exhaust_pile.iter().map(From::from).collect(),
       hand: combat.hand.iter().map(From::from).collect(),
       limbo: combat.limbo.iter().map(From::from).collect(),
       card_in_play: combat.card_in_play.as_ref().map(From::from),
@@ -188,8 +178,7 @@ impl CombatState {
         .monsters
         .iter()
         .map(|monster| {
-          let mut move_history = ArrayVec::new();
-          move_history.push(monster.move_id);
+          let mut move_history = vec![monster.move_id];
           if let Some(previous) = monster.last_move_id {
             move_history.insert(0, previous);
           }
@@ -278,16 +267,6 @@ impl SingleCard {
   pub fn start_combat_cost (&self)->i32 {
     if self.upgrades >0 {self.card_info.upgraded_cost} else {self.card_info.normal_cost}
   }
-  
-  pub fn create (id: CardId)->SingleCard {
-    let info = CardInfo::from (id);
-    SingleCard {
-      misc: 0,
-      cost: info.normal_cost,
-      upgrades: 0,
-      card_info: Arc::new(info),
-    }
-  }
 }
 
 impl Debug for Creature {
@@ -335,11 +314,11 @@ impl Debug for SingleCard {
 }
 
 
-impl Debug for Action {
+impl Debug for Choice {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
     match self {
-      Action::EndTurn => write!(f, "EndTurn"),
-      Action::PlayCard (card, target) => {
+      Choice::EndTurn => write!(f, "EndTurn"),
+      Choice::PlayCard (card, target) => {
         if card.card_info.has_target {
           write!(f, "{:?}@{}", card, target)
         }

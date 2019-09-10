@@ -76,30 +76,30 @@ impl Runner for ReplayRunner {
   }
 }
 
-pub fn replay_action (state: &mut CombatState, action: &Action, replay: & Replay) {
+pub fn replay_choice (state: &mut CombatState, choice: &Choice, replay: & Replay) {
   let mut runner = ReplayRunner::new(replay);
-  action.apply(state, &mut runner);
+  choice.apply(state, &mut runner);
 }
 
 impl CombatState {
-pub fn after_replay (&self, action: &Action, replay: & Replay)->CombatState {
+pub fn after_replay (&self, choice: &Choice, replay: & Replay)->CombatState {
   let mut result = self.clone() ;
-  replay_action (&mut result, action, replay);
+  replay_choice (&mut result, choice, replay);
   result
 }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum Action {
+pub enum Choice {
   PlayCard(SingleCard, usize),
   EndTurn,
 }
 
-impl Action {
+impl Choice {
   pub fn apply(&self, state: &mut CombatState, runner: &mut impl Runner) {
     match self {
-      Action::PlayCard(card, target) => state.play_card(runner, card, *target),
-      Action::EndTurn => state.end_turn(runner),
+      Choice::PlayCard(card, target) => state.play_card(runner, card, *target),
+      Choice::EndTurn => state.end_turn(runner),
     }
   }
 }
@@ -225,18 +225,18 @@ impl CombatState {
     card.cost >= -1 && self.player.energy >= card.cost
   }
 
-  pub fn legal_actions(&self) -> Vec<Action> {
+  pub fn legal_choices(&self) -> Vec<Choice> {
     let mut result = Vec::with_capacity(10);
-    result.push(Action::EndTurn);
+    result.push(Choice::EndTurn);
     let mut cards = HashSet::new();
     for card in & self.hand {
       if cards.insert(card) && self.card_playable(card) {
         if card.card_info.has_target {
           for (monster_index, monster) in self.monsters.iter().enumerate() {
-            if!monster.gone {result.push(Action::PlayCard(card.clone(), monster_index));}
+            if!monster.gone {result.push(Choice::PlayCard(card.clone(), monster_index));}
           }
         } else {
-          result.push(Action::PlayCard(card.clone(), 0));
+          result.push(Choice::PlayCard(card.clone(), 0));
         }
       }
     }

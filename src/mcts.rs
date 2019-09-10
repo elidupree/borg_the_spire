@@ -16,11 +16,11 @@ pub struct SearchTree {
 pub struct ChoiceNode {
   pub total_score: f64,
   pub visits: usize,
-  pub actions: Vec<(Action, ActionResults)>,
+  pub choices: Vec<(Choice, ChoiceResults)>,
 }
 
 #[derive(Clone, Debug)]
-pub struct ActionResults {
+pub struct ChoiceResults {
   pub total_score: f64,
   pub visits: usize,
   pub continuations: BTreeMap<Replay, ChoiceNode>,
@@ -54,9 +54,9 @@ impl CombatResult {
   }
 }
 
-impl ActionResults {
-  pub fn new() -> ActionResults {
-    ActionResults {
+impl ChoiceResults {
+  pub fn new() -> ChoiceResults {
+    ChoiceResults {
       visits: 0,
       total_score: 0.0,
       continuations: BTreeMap::new(),
@@ -72,32 +72,32 @@ impl ChoiceNode {
     ChoiceNode {
       visits: 0,
       total_score: 0.0,
-      actions: Vec::new(),
+      choices: Vec::new(),
     }
   }
 }
 
-fn choose_action_naive(state: &CombatState) -> Action {
-  let legal_actions = state.legal_actions();
+fn choose_choice_naive(state: &CombatState) -> Choice {
+  let legal_choices = state.legal_choices();
 
-  if legal_actions.len() == 1 || rand::thread_rng().gen_bool(0.00001) {
-    Action::EndTurn
+  if legal_choices.len() == 1 || rand::thread_rng().gen_bool(0.00001) {
+    Choice::EndTurn
   } else {
-    legal_actions[1..]
+    legal_choices[1..]
       .choose(&mut rand::thread_rng())
       .unwrap()
       .clone()
   }
 }
 
-pub fn play_out<Strategy: Fn(&CombatState) -> Action>(
+pub fn play_out<Strategy: Fn(&CombatState) -> Choice>(
   state: &mut CombatState,
   runner: &mut impl Runner,
   strategy: Strategy,
 ) {
   while !state.combat_over() {
-    let action = (strategy)(state);
-    action.apply(state, runner);
+    let choice = (strategy)(state);
+    choice.apply(state, runner);
   }
 }
 
@@ -115,20 +115,20 @@ impl SearchTree {
   }
 
   pub fn print_stuff(&self) {
-    let mut actions: Vec<_> = self.root.actions.iter().collect();
-    actions.sort_by_key(|(_action, results)| -(results.visits as i32));
-    for (action, results) in actions {
+    let mut choices: Vec<_> = self.root.choices.iter().collect();
+    choices.sort_by_key(|(_choice, results)| -(results.visits as i32));
+    for (choice, results) in choices {
       eprintln!(
         "{:?} {:.6} ({}) ",
-        action,
+        choice,
         results.total_score / results.visits as f64,
         results.visits
       );
       if let Some((replay, _)) = results.continuations.iter().next() {
         let mut state = self.initial_state.clone();
-        replay_action (&mut state, action, replay);
+        replay_choice (&mut state, choice, replay);
 
-        eprintln!("arbitrary result of this action: {:#?}", state);
+        eprintln!("arbitrary result of this choice: {:#?}", state);
       }
     }
 
@@ -139,19 +139,19 @@ impl SearchTree {
 impl ChoiceNode {
   pub fn print_stuff(&self) {
     eprintln!(
-      "ChoiceNode {:.6} ({}), {} actions",
+      "ChoiceNode {:.6} ({}), {} choices",
       self.total_score / self.visits as f64,
       self.visits,
-      self.actions.len()
+      self.choices.len()
     );
-    if let Some((action, results)) = self
-      .actions
+    if let Some((choice, results)) = self
+      .choices
       .iter()
-      .max_by_key(|(_action, results)| results.visits)
+      .max_by_key(|(_choice, results)| results.visits)
     {
       eprintln!(
         "Most tried: {:?} {:.6} ({}) ",
-        action,
+        choice,
         results.total_score / results.visits as f64,
         results.visits
       );
@@ -176,23 +176,23 @@ impl ChoiceNode {
       return CombatResult::new(state).score;
     }
 
-    if self.actions.is_empty() {
-      for action in state.legal_actions() {
+    if self.choices.is_empty() {
+      for choice in state.legal_choices() {
         self
-          .actions
-          .push ((action, ActionResults::new()));
+          .choices
+          .push ((choice, ChoiceResults::new()));
       }
 
-      play_out(state, &mut DefaultRunner::new(), choose_action_naive);
+      play_out(state, &mut DefaultRunner::new(), choose_choice_naive);
       return CombatResult::new(state).score;
     }
 
     self.visits += 1;
 
-    let (candidate_action, results) = if let Some(unexplored) = self
-      .actions
+    let (candidate_choice, results) = if let Some(unexplored) = self
+      .choices
       .iter_mut()
-      .find(|(_action, results)| results.visits == 0)
+      .find(|(_choice, results)| results.visits == 0)
     {
       unexplored
     } else {
@@ -200,9 +200,9 @@ impl ChoiceNode {
       // so that it doesn't behave essentially randomly when there's only a small amount to gain
       // (e.g. a few hitpoints when you're guaranteed to win)
       let mut scores: ArrayVec<[_; 11]> = self
-        .actions
+        .choices
         .iter()
-        .map(| (_action, results) | OrderedFloat(results.total_score / results.visits as f64))
+        .map(| (_choice, results) | OrderedFloat(results.total_score / results.visits as f64))
         .collect();
       let max_score = scores.iter().max().unwrap().0;
       let min_score = scores.iter().min().unwrap().0;
@@ -213,10 +213,10 @@ impl ChoiceNode {
       }
       let log_self_visits =(self.visits as f64).ln() ;
       self
-        .actions
+        .choices
         .iter_mut()
         .zip(scores)
-        .max_by_key(|((_action, results), score)| {
+        .max_by_key(|((_choice, results), score)| {
           OrderedFloat(score.0 + (2.0 *log_self_visits/ results.visits as f64).sqrt())
         })
         .unwrap()
@@ -228,7 +228,7 @@ impl ChoiceNode {
     let next_node;
     if results.continuations.len() < results.max_continuations() {
       let mut runner = DefaultRunner::new();
-      candidate_action.apply(state, &mut runner);
+      candidate_choice.apply(state, &mut runner);
       let generated_values = runner.into_replay();
       next_node = results
         .continuations
@@ -241,7 +241,7 @@ impl ChoiceNode {
         .min_by_key(|(_, node)| node.visits)
         .unwrap();
 
-      replay_action (state, candidate_action, replay);
+      replay_choice (state, candidate_choice, replay);
       next_node = node;
     }
     let score = next_node.search_step(state);
