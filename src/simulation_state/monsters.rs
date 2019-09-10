@@ -258,29 +258,230 @@ impl MonsterBehavior for JawWorm {
 }
 
 impl MonsterBehavior for AcidSlimeS {
-  fn choose_next_intent(self, monster: &mut Monster, runner: &mut impl Runner) {}
+  fn choose_next_intent(self, monster: &mut Monster, runner: &mut impl Runner) {
+    monster.push_intent(if let Some(last) = monster.move_history.last() {
+      3 - last
+    } else {
+      if monster.ascension >= 17 {
+        if monster.last_two_moves(1) {
+          1
+        } else {
+          2
+        }
+      } else {
+        runner.gen(|generator| {if generator.gen() {
+          1
+        } else {
+          2
+        }})
+      }
+
+    });
+
+  }
   fn enact_intent(self, state: &mut CombatState, runner: &mut impl Runner, monster_index: usize) {
     let intent = state.monster_intent(monster_index);
+    
+    match intent {
+      2 => {
+        state
+          .player
+          .creature
+          .apply_power_amount(PowerId::Weak, 1, true);
+      }
+      1 => {
+        let ascension = state.monsters[monster_index].ascension;
+        state.monster_attacks_player(
+          runner,
+          monster_index,
+          if ascension >= 2 { 4 } else { 3 },
+          1,
+        );
+      }
+      _ => eprintln!(" Unknown intent for AcidSlimeS: {:?} ", intent),
+    }
   }
 }
 
 impl MonsterBehavior for AcidSlimeM {
-  fn choose_next_intent(self, monster: &mut Monster, runner: &mut impl Runner) {}
+  fn choose_next_intent(self, monster: &mut Monster, runner: &mut impl Runner) {
+    monster.push_intent(runner.gen(|generator| {
+      let num = generator.gen_range(0, 100);
+    if monster.ascension >= 17 {
+      if num < 40 {
+        if monster.last_two_moves(1) {
+          if generator.gen() {
+            2
+          } else {
+            4
+          }
+        } else {
+          1
+        }
+      } else if num < 80 {
+        if monster.last_two_moves(2) {
+          if generator.gen_bool(0.5) {
+            1
+          } else {
+            4
+          }
+        } else {
+          2
+        }
+      } else {
+        if monster.last_move(4) {
+          if generator.gen_bool(0.4) {
+            1
+          } else {
+            2
+          }
+        } else {
+          4
+        }
+      }
+    }
+    else {
+      if num < 30 {
+        if monster.last_two_moves(1) {
+          if generator.gen() {
+            2
+          } else {
+            4
+          }
+        } else {
+          1
+        }
+      } else if num < 70 {
+        if monster.last_move(2) {
+          if generator.gen_bool(0.4) {
+            1
+          } else {
+            4
+          }
+        } else {
+          2
+        }
+      } else {
+        if monster.last_two_moves(4) {
+          if generator.gen_bool(0.4) {
+            1
+          } else {
+            2
+          }
+        } else {
+          4
+        }
+      }
+    }
+    
+    }));
+  }
   fn enact_intent(self, state: &mut CombatState, runner: &mut impl Runner, monster_index: usize) {
     let intent = state.monster_intent(monster_index);
+    
+    match intent {
+      1 => {
+        let ascension = state.monsters[monster_index].ascension;
+        state.monster_attacks_player(
+          runner,
+          monster_index,
+          if ascension >= 2 { 8 } else { 7 },
+          1,
+        );        
+        state.discard_pile.push (SingleCard::create (CardId::Slimed));
+      }
+      2 => {
+        let ascension = state.monsters[monster_index].ascension;
+        state.monster_attacks_player(
+          runner,
+          monster_index,
+          if ascension >= 2 { 12 } else { 10 },
+          1,
+        );
+      }
+      4 => {
+                state
+          .player
+          .creature
+          .apply_power_amount(PowerId::Weak, 1, true);
+      }
+      _ => eprintln!(" Unknown intent for JawWorm: {:?} ", intent),
+    }
+
   }
 }
 
 impl MonsterBehavior for SpikeSlimeS {
   fn choose_next_intent(self, monster: &mut Monster, runner: &mut impl Runner) {}
   fn enact_intent(self, state: &mut CombatState, runner: &mut impl Runner, monster_index: usize) {
-    let intent = state.monster_intent(monster_index);
+    let ascension = state.monsters[monster_index].ascension;
+    state.monster_attacks_player(
+          runner,
+          monster_index,
+          if ascension >= 2 { 6 } else { 5 },
+          1,
+        );
   }
 }
 
 impl MonsterBehavior for SpikeSlimeM {
-  fn choose_next_intent(self, monster: &mut Monster, runner: &mut impl Runner) {}
+  fn choose_next_intent(self, monster: &mut Monster, runner: &mut impl Runner) {
+    monster.push_intent(runner.gen(|generator| {
+      let num = generator.gen_range(0, 100);
+      if monster.ascension >= 17 {
+        if num < 30 {
+          if monster.last_two_moves(1) {
+            4
+          } else {
+            1
+          }
+        } else {
+          if monster.last_move(4) {
+            1
+          } else {
+            4
+          }
+        }
+      } else {
+        if num < 30 {
+          if monster.last_two_moves(1) {
+            4
+          } else {
+            1
+          }
+        } else {
+          if monster.last_two_moves(4) {
+            1
+          } else {
+            4
+          }
+        }
+      }
+    }));
+
+  }
   fn enact_intent(self, state: &mut CombatState, runner: &mut impl Runner, monster_index: usize) {
     let intent = state.monster_intent(monster_index);
+    
+    match intent {
+      4 => {
+        state
+          .player
+          .creature
+          .apply_power_amount(PowerId::Frail, 1, true);
+      }
+      1 => {
+        let ascension = state.monsters[monster_index].ascension;
+        state.monster_attacks_player(
+          runner,
+          monster_index,
+          if ascension >= 2 { 10 } else { 8 },
+          1,
+        );
+        
+        state.discard_pile.push (SingleCard::create (CardId::Slimed));
+      }
+      _ => eprintln!(" Unknown intent for AcidSlimeS: {:?} ", intent),
+    }
   }
 }

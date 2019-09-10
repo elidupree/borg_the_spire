@@ -206,7 +206,10 @@ impl Creature {
     }
   }
 
-  pub fn do_block(&mut self, amount: i32) {
+  pub fn do_block(&mut self, mut amount: i32) {
+    if self.has_power(PowerId::Frail) {
+      amount = (amount * 3) / 4;
+    }
     if amount > 0 {
       self.block += amount;
     }

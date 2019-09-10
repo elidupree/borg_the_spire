@@ -278,6 +278,16 @@ impl SingleCard {
   pub fn start_combat_cost (&self)->i32 {
     if self.upgrades >0 {self.card_info.upgraded_cost} else {self.card_info.normal_cost}
   }
+  
+  pub fn create (id: CardId)->SingleCard {
+    let info = CardInfo::from (id);
+    SingleCard {
+      misc: 0,
+      cost: info.normal_cost,
+      upgrades: 0,
+      card_info: Arc::new(info),
+    }
+  }
 }
 
 impl Debug for Creature {
