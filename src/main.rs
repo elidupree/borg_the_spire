@@ -7,6 +7,7 @@ use std::path::PathBuf;
 
 //use std::time::{Duration, Instant};
 
+mod cow;
 mod communication_mod_state;
 mod simulation_state;
 mod simulation;

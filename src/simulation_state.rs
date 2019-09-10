@@ -8,6 +8,7 @@ use arrayvec::ArrayVec;
 
 use crate::communication_mod_state as communication;
 use crate::simulation::*;
+use crate::cow::Cow;
 
 pub mod cards;
 pub mod monsters;
@@ -35,11 +36,11 @@ pub fn compare_cards_unordered(first: & [SingleCard], second: & [SingleCard])->b
 #[derivative (PartialEq, Eq, Hash)]
 pub struct CombatState {
   #[derivative (PartialEq (compare_with = "compare_cards_unordered"), Hash (hash_with = "hash_cards_unordered"))]
-  pub draw_pile: Vec<SingleCard>,
+  pub draw_pile: Cow<Vec<SingleCard>>,
   #[derivative (PartialEq (compare_with = "compare_cards_unordered"), Hash (hash_with = "hash_cards_unordered"))]
-  pub discard_pile: Vec<SingleCard>,
+  pub discard_pile: Cow<Vec<SingleCard>>,
   #[derivative (PartialEq (compare_with = "compare_cards_unordered"), Hash (hash_with = "hash_cards_unordered"))]
-  pub exhaust_pile: Vec<SingleCard>,
+  pub exhaust_pile: Cow<Vec<SingleCard>>,
   #[derivative (PartialEq (compare_with = "compare_cards_unordered"), Hash (hash_with = "hash_cards_unordered"))]
   pub hand: ArrayVec<[SingleCard; 10]>,
   #[derivative (PartialEq (compare_with = "compare_cards_unordered"), Hash (hash_with = "hash_cards_unordered"))]
@@ -176,9 +177,9 @@ impl CombatState {
     // explicitly sort, partly to make sure my AI doesn't accidentally cheat
     draw_pile.sort();
     let mut result = CombatState {
-      draw_pile,
-      discard_pile: combat.discard_pile.iter().map(From::from).collect(),
-      exhaust_pile: combat.exhaust_pile.iter().map(From::from).collect(),
+      draw_pile: Cow::new(draw_pile),
+      discard_pile: Cow::new(combat.discard_pile.iter().map(From::from).collect()),
+      exhaust_pile: Cow::new(combat.exhaust_pile.iter().map(From::from).collect()),
       hand: combat.hand.iter().map(From::from).collect(),
       limbo: combat.limbo.iter().map(From::from).collect(),
       card_in_play: combat.card_in_play.as_ref().map(From::from),
