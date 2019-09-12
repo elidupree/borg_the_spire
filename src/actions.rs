@@ -65,11 +65,12 @@ actions! {
   [DrawCards (pub i32);],
   [TakeHit {pub creature_index: CreatureIndex, base_damage: i32}],
   [ApplyPowerAmount {pub creature_index: CreatureIndex, pub power_id: PowerId, pub amount: i32, pub just_applied: bool}],
+  [Block {pub creature_index: CreatureIndex, pub amount: i32}],
+  [DiscardNewCard (pub SingleCard);],
 
   // generally card effects
   [AttackMonster {pub base_damage: i32, pub swings: i32, pub target: usize}],
   [AttackMonsters {pub base_damage: i32, pub swings: i32}],
-  [Block {pub creature_index: CreatureIndex, pub amount: i32}],
 
   // generally monster effects
   [InitializeMonsterInnateDamageAmount{pub monster_index: usize, pub range: (i32, i32)}],
@@ -275,8 +276,8 @@ impl Action for TakeHit {
       });
       if creature.hitpoints <= 0 {
         creature.hitpoints = 0;
-        if let CreatureIndex::Monster (monster_index) = self.creature_index {
-          runner.state_mut().monsters [monster_index].gone = true;
+        if let CreatureIndex::Monster(monster_index) = self.creature_index {
+          runner.state_mut().monsters[monster_index].gone = true;
         }
       }
     }
@@ -307,6 +308,12 @@ impl Action for Block {
   fn execute(&self, runner: &mut impl Runner) {
     let creature = runner.state_mut().get_creature_mut(self.creature_index);
     creature.do_block(self.amount);
+  }
+}
+
+impl Action for DiscardNewCard {
+  fn execute(&self, runner: &mut impl Runner) {
+    runner.state_mut().discard_pile.push(self.0.clone());
   }
 }
 

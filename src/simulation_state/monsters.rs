@@ -173,7 +173,7 @@ trait IntentEffectsContext {
     });
   }
   fn discard_status(&mut self, card_id: CardId, amount: i32) {
-    //TODO self.action (
+    self.action(DiscardNewCard(SingleCard::create(card_id)));
   }
 
   fn undefined_intent(&mut self) {}
