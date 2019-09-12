@@ -328,7 +328,7 @@ impl CombatState {
   }
 
   pub fn card_playable(&self, card: &SingleCard) -> bool {
-    card.cost >= -1 && self.player.energy >= card.cost
+    card.cost >= -1 && self.player.energy >= card.cost && card.card_info.id.playable (self)
   }
 
   pub fn legal_choices(&self) -> Vec<Choice> {
