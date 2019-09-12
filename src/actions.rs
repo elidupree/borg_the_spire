@@ -214,9 +214,6 @@ impl Action for ChooseMonsterIntent {
       let monster_id = monster.monster_id;
       monster.push_intent(random_value);
       monster_id.after_choosing_intent(runner, self.0);
-      if !runner.state().combat_over() {
-        runner.apply(&FinishMonsterTurn(self.0 + 1));
-      }
     }
   }
 }
