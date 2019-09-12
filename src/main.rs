@@ -1,18 +1,20 @@
-#![feature (proc_macro_hygiene,decl_macro)]
+#![feature(proc_macro_hygiene, decl_macro)]
 
-#[macro_use] extern crate rocket;
+#[macro_use]
+extern crate rocket;
 
 use std::path::PathBuf;
 //use std::io::BufRead;
 
 //use std::time::{Duration, Instant};
 
-mod cow;
+mod actions;
 mod communication_mod_state;
-mod simulation_state;
-mod simulation;
-mod start_and_strategy_ai;
+mod cow;
 mod interface;
+mod simulation;
+mod simulation_state;
+mod start_and_strategy_ai;
 
 fn main() {
   println!("ready");
@@ -25,9 +27,9 @@ fn main() {
   .unwrap();*/
 
   //writeln!(file, "Hello BtS 2").unwrap();
-  
+
   let arguments: Vec<String> = std::env::args().collect();
-  interface::run(PathBuf::from (arguments [1].clone()));
+  interface::run(PathBuf::from(arguments[1].clone()));
 
   /*let input = std::io::stdin();
   let mut input = input.lock();

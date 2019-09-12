@@ -1,10 +1,11 @@
+use derivative::Derivative;
 use serde::{Deserialize, Serialize};
 use std::convert::From;
-use std::sync::Arc;
 use std::fmt::{self, Debug, Formatter};
 use std::hash::{Hash, Hasher};
-use derivative::Derivative;
+use std::sync::Arc;
 
+use crate::actions::*;
 use crate::communication_mod_state as communication;
 use crate::simulation::*;
 
@@ -16,13 +17,13 @@ pub use cards::CardId;
 pub use monsters::MonsterId;
 pub use powers::PowerId;
 
-pub fn hash_cards_unordered <H: Hasher> (cards: & Vec<SingleCard>, hasher: &mut H) {
+pub fn hash_cards_unordered<H: Hasher>(cards: &Vec<SingleCard>, hasher: &mut H) {
   let mut sorted: Vec<_> = cards.iter().collect();
   sorted.sort();
-  sorted.hash (hasher) ;
+  sorted.hash(hasher);
 }
 
-pub fn compare_cards_unordered(first: & Vec<SingleCard>, second: & Vec<SingleCard>)->bool {
+pub fn compare_cards_unordered(first: &Vec<SingleCard>, second: &Vec<SingleCard>) -> bool {
   let mut first_sorted: Vec<_> = first.iter().collect();
   first_sorted.sort();
   let mut second_sorted: Vec<_> = second.iter().collect();
@@ -31,21 +32,39 @@ pub fn compare_cards_unordered(first: & Vec<SingleCard>, second: & Vec<SingleCar
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, Derivative)]
-#[derivative (PartialEq, Eq, Hash)]
+#[derivative(PartialEq, Eq, Hash)]
 pub struct CombatState {
-  #[derivative (PartialEq (compare_with = "compare_cards_unordered"), Hash (hash_with = "hash_cards_unordered"))]
+  #[derivative(
+    PartialEq(compare_with = "compare_cards_unordered"),
+    Hash(hash_with = "hash_cards_unordered")
+  )]
   pub draw_pile: Vec<SingleCard>,
-  #[derivative (PartialEq (compare_with = "compare_cards_unordered"), Hash (hash_with = "hash_cards_unordered"))]
+  #[derivative(
+    PartialEq(compare_with = "compare_cards_unordered"),
+    Hash(hash_with = "hash_cards_unordered")
+  )]
   pub discard_pile: Vec<SingleCard>,
-  #[derivative (PartialEq (compare_with = "compare_cards_unordered"), Hash (hash_with = "hash_cards_unordered"))]
+  #[derivative(
+    PartialEq(compare_with = "compare_cards_unordered"),
+    Hash(hash_with = "hash_cards_unordered")
+  )]
   pub exhaust_pile: Vec<SingleCard>,
-  #[derivative (PartialEq (compare_with = "compare_cards_unordered"), Hash (hash_with = "hash_cards_unordered"))]
+  #[derivative(
+    PartialEq(compare_with = "compare_cards_unordered"),
+    Hash(hash_with = "hash_cards_unordered")
+  )]
   pub hand: Vec<SingleCard>,
-  #[derivative (PartialEq (compare_with = "compare_cards_unordered"), Hash (hash_with = "hash_cards_unordered"))]
+  #[derivative(
+    PartialEq(compare_with = "compare_cards_unordered"),
+    Hash(hash_with = "hash_cards_unordered")
+  )]
   pub limbo: Vec<SingleCard>,
   pub card_in_play: Option<SingleCard>,
   pub player: Player,
   pub monsters: Vec<Monster>,
+
+  pub fresh_action_queue: Vec<DynAction>,
+  pub stale_action_stack: Vec<DynAction>,
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -173,6 +192,8 @@ impl CombatState {
       hand: combat.hand.iter().map(From::from).collect(),
       limbo: combat.limbo.iter().map(From::from).collect(),
       card_in_play: combat.card_in_play.as_ref().map(From::from),
+      fresh_action_queue: Vec::new(),
+      stale_action_stack: Vec::new(),
       player: Player::from(&combat.player),
       monsters: combat
         .monsters
@@ -264,12 +285,16 @@ impl From<&communication::Player> for Player {
 }
 
 impl SingleCard {
-  pub fn start_combat_cost (&self)->i32 {
-    if self.upgrades >0 {self.card_info.upgraded_cost} else {self.card_info.normal_cost}
+  pub fn start_combat_cost(&self) -> i32 {
+    if self.upgrades > 0 {
+      self.card_info.upgraded_cost
+    } else {
+      self.card_info.normal_cost
+    }
   }
-  
-  pub fn create (id: CardId)->SingleCard {
-    let info = CardInfo::from (id);
+
+  pub fn create(id: CardId) -> SingleCard {
+    let info = CardInfo::from(id);
     SingleCard {
       misc: 0,
       cost: info.normal_cost,
@@ -285,7 +310,7 @@ impl Debug for Creature {
     if self.block > 0 {
       write!(f, "(+{})", self.block)?;
     }
-    for power in & self.powers {
+    for power in &self.powers {
       write!(f, " {:?}", power)?;
     }
     Ok(())
@@ -294,7 +319,7 @@ impl Debug for Creature {
 
 impl Debug for Power {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-    write!(f, "{:?}", self. power_id)?;
+    write!(f, "{:?}", self.power_id)?;
     if self.amount != 0 {
       write!(f, "{}", self.amount)?;
     }
@@ -307,24 +332,25 @@ impl Debug for Power {
 
 impl Debug for SingleCard {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-    write!(f, "{:?}", self. card_info.id)?;
-    
-    
-    if self.upgrades == 1 {write!(f, "+")?;}
-    else if self.upgrades != 0 { write!(f, "+{}", self.upgrades)?;}
-    
+    write!(f, "{:?}", self.card_info.id)?;
+
+    if self.upgrades == 1 {
+      write!(f, "+")?;
+    } else if self.upgrades != 0 {
+      write!(f, "+{}", self.upgrades)?;
+    }
+
     if self.misc != 0 {
       write!(f, "?{}", self.misc)?;
     }
-    if self.cost != self.start_combat_cost () {
-      write!(f, "({})", self. cost)?;
+    if self.cost != self.start_combat_cost() {
+      write!(f, "({})", self.cost)?;
     }
     Ok(())
   }
 }
 
-
-impl Debug for Choice {
+/*impl Debug for Choice {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
     match self {
       Choice::EndTurn => write!(f, "EndTurn"),
@@ -338,5 +364,4 @@ impl Debug for Choice {
       }
     }
   }
-}
-
+}*/

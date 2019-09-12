@@ -5,7 +5,7 @@ use crate::simulation_state::*;
 
 macro_rules! powers {
   ($([$id: expr, $Variant: ident],)*) => {
-    #[derive(Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
+    #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Debug)]
     pub enum PowerId {
       $($Variant,)*
     }

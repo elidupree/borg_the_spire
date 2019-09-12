@@ -3,15 +3,94 @@
 use serde::{Deserialize, Serialize};
 use std::convert::From;
 
+use crate::actions::*;
 use crate::simulation::*;
 use crate::simulation_state::*;
 
 use self::CardType::{Attack, Curse, Power, Skill, Status};
 use self::Rarity::{Basic, Common, Rare, Special, Uncommon};
 
-pub trait CardBehavior: Sized {
+pub trait CardBehavior: Sized + Copy + Into<CardId> {
   #[allow(unused)]
-  fn play(self, state: &mut CombatState, runner: &mut impl Runner, target: usize) {}
+  fn behavior(self, context: &mut impl CardBehaviorContext) {}
+}
+
+pub trait CardBehaviorContext {
+  fn action(&mut self, action: impl Action);
+  fn target(&self) -> usize;
+  fn attack_target(&mut self, base_damage: i32, swings: i32) {
+    self.action(AttackMonster {
+      target: self.target(),
+      base_damage,
+      swings,
+    });
+  }
+  fn attack_monsters(&mut self, base_damage: i32, swings: i32) {
+    self.action(AttackMonsters {
+      base_damage,
+      swings,
+    });
+  }
+  fn power_monsters(&mut self, power_id: PowerId, amount: i32) {
+    for index in 0..self.state().monsters.len() {
+      self.action(ApplyPowerAmount {
+        creature_index: CreatureIndex::Monster(index),
+        power_id,
+        amount,
+        just_applied: false,
+      });
+    }
+  }
+  fn power_target(&mut self, power_id: PowerId, amount: i32) {
+    self.action(ApplyPowerAmount {
+      creature_index: CreatureIndex::Monster(self.target()),
+      power_id,
+      amount,
+      just_applied: false,
+    });
+  }
+  fn power_self(&mut self, power_id: PowerId, amount: i32) {
+    self.action(ApplyPowerAmount {
+      creature_index: CreatureIndex::Player,
+      power_id,
+      amount,
+      just_applied: false,
+    });
+  }
+  fn block(&mut self, amount: i32) {
+    self.action(Block {
+      creature_index: CreatureIndex::Player,
+      amount,
+    });
+  }
+  fn state(&self) -> &CombatState;
+  fn card(&self) -> &SingleCard {
+    self.state().card_in_play.as_ref().unwrap()
+  }
+  fn with_upgrade<T>(&self, upgraded: T, normal: T) -> T {
+    if self.card().upgrades > 0 {
+      upgraded
+    } else {
+      normal
+    }
+  }
+}
+
+pub struct PlayCardContext<'a, R> {
+  pub runner: &'a mut R,
+  pub target: usize,
+}
+
+impl<'a, R: Runner> CardBehaviorContext for PlayCardContext<'a, R> {
+  fn action(&mut self, action: impl Action) {
+    self.runner.apply(&action);
+  }
+  fn target(&self) -> usize {
+    self.target
+  }
+  fn state(&self) -> &CombatState {
+    self.runner.state()
+  }
 }
 
 macro_rules! cards {
@@ -22,7 +101,14 @@ macro_rules! cards {
     }
 
     $(#[derive(Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
-    pub struct $Variant;)*
+    pub struct $Variant;
+
+    impl From<$Variant> for CardId {
+      fn from (source: $Variant)->CardId {
+        CardId::$Variant
+      }
+    }
+)*
 
     impl From<& str> for CardId {
       fn from (source: & str)->CardId {
@@ -54,74 +140,62 @@ macro_rules! cards {
     }
 
     impl CardBehavior for CardId {
-      fn play (self, state: &mut CombatState, runner: &mut impl Runner, target: usize) {
+      fn behavior(self, context: &mut impl CardBehaviorContext){
         match self {
-          $(CardId::$Variant => $Variant.play (state, runner, target),)*
+          $(CardId::$Variant => $Variant.behavior (context),)*
         }
       }
     }
   }
 }
 
+pub const HAS_TARGET: bool = true;
+pub const NO_TARGET: bool = false;
+
 cards! {
-  ["Strike_R", StrikeR, Attack, Basic, 1, true, {}],
-  ["Bash", Bash, Attack, Basic, 2, true, {}],
-  ["Defend_R", DefendR, Attack, Basic, 1, false, {}],
-  ["Corruption", Corruption, Power, Uncommon, 3, false, {upgraded_cost: 2,}],
-  ["Impervious", Impervious, Skill, Rare, 2, false, {}],
-  ["Cleave", Cleave, Attack, Common, 1, false, {}],
-  ["Injury", Injury, Curse, Special, -2, false, {}],
-  ["AscendersBane", AscendersBane, Curse, Special, -2, false, {ethereal: true,}],
-  ["Dazed", Dazed, Status, Special, -2, false, {ethereal: true,}],
-  ["Slimed", Slimed, Status, Special, 1, false, {exhausts: true,}],
+  ["Strike_R", StrikeR, Attack, Basic, 1, HAS_TARGET, {}],
+  ["Bash", Bash, Attack, Basic, 2, HAS_TARGET, {}],
+  ["Defend_R", DefendR, Attack, Basic, 1, NO_TARGET, {}],
+  ["Corruption", Corruption, Power, Uncommon, 3, NO_TARGET, {upgraded_cost: 2,}],
+  ["Impervious", Impervious, Skill, Rare, 2, NO_TARGET, {}],
+  ["Cleave", Cleave, Attack, Common, 1, NO_TARGET, {}],
+  ["Injury", Injury, Curse, Special, -2, NO_TARGET, {}],
+  ["AscendersBane", AscendersBane, Curse, Special, -2, NO_TARGET, {ethereal: true,}],
+  ["Dazed", Dazed, Status, Special, -2, NO_TARGET, {ethereal: true,}],
+  ["Slimed", Slimed, Status, Special, 1, NO_TARGET, {exhausts: true,}],
 }
 
 impl CardBehavior for StrikeR {
-  fn play(self, state: &mut CombatState, runner: &mut impl Runner, target: usize) {
-    let card = state.card_in_play.clone().unwrap();
-    state.player_attacks_monster(runner, target, if card.upgrades > 0 { 9 } else { 6 }, 1);
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    context.attack_target(context.with_upgrade(9, 6), 1);
   }
 }
 
 impl CardBehavior for Bash {
-  fn play(self, state: &mut CombatState, runner: &mut impl Runner, target: usize) {
-    let card = state.card_in_play.clone().unwrap();
-    state.player_attacks_monster(runner, target, if card.upgrades > 0 { 10 } else { 8 }, 1);
-    state.monsters[target].creature.apply_power_amount(
-      PowerId::Vulnerable,
-      if card.upgrades > 0 { 3 } else { 2 },
-      false,
-    );
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    context.attack_target(context.with_upgrade(10, 8), 1);
+    context.power_target(PowerId::Vulnerable, context.with_upgrade(3, 2));
   }
 }
 
 impl CardBehavior for DefendR {
-  fn play(self, state: &mut CombatState, _runner: &mut impl Runner, _target: usize) {
-    let card = state.card_in_play.clone().unwrap();
-    state
-      .player
-      .creature
-      .do_block(if card.upgrades > 0 { 8 } else { 5 });
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    context.block(context.with_upgrade(8, 5));
   }
 }
 
 impl CardBehavior for Corruption {
-  fn play(self, state: &mut CombatState, _runner: &mut impl Runner, _target: usize) {}
+  fn behavior(self, context: &mut impl CardBehaviorContext) {}
 }
 
 impl CardBehavior for Impervious {
-  fn play(self, state: &mut CombatState, _runner: &mut impl Runner, _target: usize) {
-    let card = state.card_in_play.clone().unwrap();
-    state
-      .player
-      .creature
-      .do_block(if card.upgrades > 0 { 40 } else { 30 });
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    context.block(context.with_upgrade(40, 30));
   }
 }
 impl CardBehavior for Cleave {
-  fn play(self, state: &mut CombatState, runner: &mut impl Runner, _target: usize) {
-    let card = state.card_in_play.clone().unwrap();
-    state.player_attacks_all_monsters(runner, if card.upgrades > 0 { 11 } else { 8 }, 1);
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    context.attack_monsters(context.with_upgrade(11, 8), 1);
   }
 }
 
