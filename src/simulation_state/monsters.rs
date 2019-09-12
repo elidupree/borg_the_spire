@@ -104,7 +104,7 @@ pub struct Ascension(pub i32);
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Debug)]
 pub struct MaxRepeats(pub usize);
 
-trait IntentEffectsContext {
+pub trait IntentEffectsContext {
   fn action(&mut self, action: impl Action);
   fn state(&self) -> &CombatState;
   fn monster_index(&self) -> usize;

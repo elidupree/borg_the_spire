@@ -6,9 +6,7 @@ use std::ops::{Add, AddAssign, Mul};
 use std::fmt::Write;
 //use rand::{Rng, SeedableRng};
 use rand::seq::SliceRandom;
-use rand_xoshiro::Xoshiro256StarStar;
 use retain_mut::RetainMut;
-type Generator = Xoshiro256StarStar;
 
 use crate::actions::*;
 pub use crate::simulation_state::cards::CardBehavior;
@@ -102,12 +100,15 @@ pub enum Determinism {
 }
 
 pub trait Action: Clone + Into<DynAction> {
+  #[allow (unused)]
   fn determinism(&self, state: &CombatState) -> Determinism {
     Determinism::Deterministic
   }
+  #[allow (unused)]
   fn execute(&self, runner: &mut impl Runner) {
     panic!("an action didn't define the correct apply method for its determinism")
   }
+  #[allow (unused)]
   fn execute_random(&self, runner: &mut impl Runner, random_value: i32) {
     panic!("an action didn't define the correct apply method for its determinism")
   }
@@ -133,7 +134,7 @@ impl<'a> Runner for DefaultRunner<'a> {
       Determinism::Random(distribution) => {
         let random_value = distribution
           .0
-          .choose_weighted(&mut rand::thread_rng(), |(weight, value)| *weight)
+          .choose_weighted(&mut rand::thread_rng(), |(weight,_)| *weight)
           .unwrap()
           .1;
         action.execute_random(self, random_value);
@@ -205,7 +206,7 @@ impl<'a> Runner for DebugRunner<'a> {
       Determinism::Random(distribution) => {
         let random_value = distribution
           .0
-          .choose_weighted(&mut rand::thread_rng(), |(weight, value)| *weight)
+          .choose_weighted(&mut rand::thread_rng(), |(weight, _)| *weight)
           .unwrap()
           .1;
         action.execute_random(self, random_value);
