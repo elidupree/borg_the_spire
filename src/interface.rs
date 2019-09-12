@@ -100,12 +100,19 @@ pub struct InterfaceState {}
 pub struct ApplicationState {
   combat_state: Option<CombatState>,
   search_state: Option<SearchState>,
+  debug_log: String,
 }
 
 impl ApplicationState {
   pub fn set_state(&mut self, state: CombatState) {
-    self.combat_state = Some(state.clone());
-    self.search_state = Some(SearchState::new(state));
+    if self.combat_state.as_ref() != Some(&state) {
+      self.combat_state = Some(state.clone());
+      let mut playout_state = state.clone() ;
+      self.search_state = Some(SearchState::new(state));
+      let mut runner = DebugRunner::new (& mut playout_state);
+      play_out (&mut runner, & new_random_strategy()) ;
+      self.debug_log = runner.log;
+    }
   }
 }
 
@@ -116,15 +123,18 @@ pub struct RocketState {
 
 #[post("/content", data = "<interface_state>")]
 fn content(interface_state: Json<InterfaceState>, rocket_state: State<RocketState>) -> String {
-  let state_representation = rocket_state
+  let application_state = rocket_state
     .application_state
-    .lock()
+    .lock();
+
+  let state_representation = application_state
     .search_state
     .as_ref()
     .map(|search_state| search_state.view());
   let document: DOMTree<String> = html! {
     <div id="content">
       {state_representation}
+      <pre>{text! (&application_state.debug_log)}</pre>
     </div>
   };
   document.to_string()
@@ -219,6 +229,7 @@ pub fn run(root_path: PathBuf) {
   let mut application_state = ApplicationState {
     combat_state: None,
     search_state: None,
+    debug_log: String::new(),
   };
 
   if let Ok(file) = std::fs::File::open(root_path.join("last_state.json")) {

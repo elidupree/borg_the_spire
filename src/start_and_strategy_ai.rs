@@ -50,7 +50,7 @@ impl Strategy for SomethingStrategy {
 
     let combos = collect_starting_points(state.clone(), 200);
     let choices = combos.into_iter().map(|(mut state, choices)| {
-      run_until_unable (&mut DefaultRunner::new (&mut state));
+      run_until_unable(&mut DefaultRunner::new(&mut state));
       let score = self.evaluate(&state);
       (choices, score)
     });
@@ -189,11 +189,13 @@ impl StartingPoint {
 }
 
 pub fn play_out<S: Strategy>(runner: &mut impl Runner, strategy: &S) {
-  run_until_unable (runner) ;
+  run_until_unable(runner);
   while !runner.state().combat_over() {
     let choices = strategy.choose_choice(runner.state());
     for choice in choices {
-      choice.execute(runner);
+      assert!(runner.state().fresh_action_queue.is_empty()) ;
+      assert!(runner.state().stale_action_stack.is_empty()) ;
+      runner.apply(&choice);
     }
   }
 }

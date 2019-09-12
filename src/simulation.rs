@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use smallvec::{smallvec, SmallVec};
 use std::collections::HashSet;
 use std::ops::{Add, AddAssign, Mul};
+use std::fmt::Write;
 //use rand::{Rng, SeedableRng};
 use rand::seq::SliceRandom;
 use rand_xoshiro::Xoshiro256StarStar;
@@ -172,6 +173,46 @@ impl<'a> Runner for DeterministicRunner<'a> {
       Determinism::Random(distribution) => action.execute_random(self, distribution.0[0].1),
       Determinism::Choice => unreachable!(),
     }
+  }
+  fn state(&self) -> &CombatState {
+    self.state
+  }
+  fn state_mut(&mut self) -> &mut CombatState {
+    self.state
+  }
+}
+
+pub struct DebugRunner<'a> {
+  pub state: &'a mut CombatState,
+  pub log: String,
+}
+
+impl<'a> DebugRunner<'a> {
+  pub fn new(state: &'a mut CombatState) -> Self {
+  
+    DebugRunner {state, log: String::new()}
+  }
+}
+
+impl<'a> Runner for DebugRunner<'a> {
+  fn can_apply_impl(&self, action: &impl Action) -> bool {
+    action.determinism(self.state()) != Determinism::Choice
+  }
+  fn apply_impl(&mut self, action: &impl Action) {
+    writeln! (self.log, "Applying {:?} to state {:?}", action.clone().into(), self.state).unwrap();
+    match action.determinism(self.state()) {
+      Determinism::Deterministic => action.execute(self),
+      Determinism::Random(distribution) => {
+        let random_value = distribution
+          .0
+          .choose_weighted(&mut rand::thread_rng(), |(weight, value)| *weight)
+          .unwrap()
+          .1;
+        action.execute_random(self, random_value);
+      }
+      Determinism::Choice => unreachable!(),
+    }
+    writeln! (self.log, "Done applying {:?}; state is now {:?}", action.clone().into(), self.state).unwrap();
   }
   fn state(&self) -> &CombatState {
     self.state
