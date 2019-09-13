@@ -2,8 +2,8 @@ use derivative::Derivative;
 use serde::{Deserialize, Serialize};
 use smallvec::{smallvec, SmallVec};
 use std::collections::HashSet;
-use std::ops::{Add, AddAssign, Mul};
 use std::fmt::Write;
+use std::ops::{Add, AddAssign, Mul};
 //use rand::{Rng, SeedableRng};
 use rand::seq::SliceRandom;
 use retain_mut::RetainMut;
@@ -100,15 +100,15 @@ pub enum Determinism {
 }
 
 pub trait Action: Clone + Into<DynAction> {
-  #[allow (unused)]
+  #[allow(unused)]
   fn determinism(&self, state: &CombatState) -> Determinism {
     Determinism::Deterministic
   }
-  #[allow (unused)]
+  #[allow(unused)]
   fn execute(&self, runner: &mut impl Runner) {
     panic!("an action didn't define the correct apply method for its determinism")
   }
-  #[allow (unused)]
+  #[allow(unused)]
   fn execute_random(&self, runner: &mut impl Runner, random_value: i32) {
     panic!("an action didn't define the correct apply method for its determinism")
   }
@@ -134,7 +134,7 @@ impl<'a> Runner for DefaultRunner<'a> {
       Determinism::Random(distribution) => {
         let random_value = distribution
           .0
-          .choose_weighted(&mut rand::thread_rng(), |(weight,_)| *weight)
+          .choose_weighted(&mut rand::thread_rng(), |(weight, _)| *weight)
           .unwrap()
           .1;
         action.execute_random(self, random_value);
@@ -190,8 +190,10 @@ pub struct DebugRunner<'a> {
 
 impl<'a> DebugRunner<'a> {
   pub fn new(state: &'a mut CombatState) -> Self {
-  
-    DebugRunner {state, log: String::new()}
+    DebugRunner {
+      state,
+      log: String::new(),
+    }
   }
 }
 
@@ -200,7 +202,13 @@ impl<'a> Runner for DebugRunner<'a> {
     action.determinism(self.state()) != Determinism::Choice
   }
   fn apply_impl(&mut self, action: &impl Action) {
-    writeln! (self.log, "Applying {:?} to state {:?}", action.clone().into(), self.state).unwrap();
+    writeln!(
+      self.log,
+      "Applying {:?} to state {:?}",
+      action.clone().into(),
+      self.state
+    )
+    .unwrap();
     match action.determinism(self.state()) {
       Determinism::Deterministic => action.execute(self),
       Determinism::Random(distribution) => {
@@ -213,7 +221,13 @@ impl<'a> Runner for DebugRunner<'a> {
       }
       Determinism::Choice => unreachable!(),
     }
-    writeln! (self.log, "Done applying {:?}; state is now {:?}", action.clone().into(), self.state).unwrap();
+    writeln!(
+      self.log,
+      "Done applying {:?}; state is now {:?}",
+      action.clone().into(),
+      self.state
+    )
+    .unwrap();
   }
   fn state(&self) -> &CombatState {
     self.state
@@ -329,7 +343,7 @@ impl CombatState {
   }
 
   pub fn card_playable(&self, card: &SingleCard) -> bool {
-    card.cost >= -1 && self.player.energy >= card.cost && card.card_info.id.playable (self)
+    card.cost >= -1 && self.player.energy >= card.cost && card.card_info.id.playable(self)
   }
 
   pub fn legal_choices(&self) -> Vec<Choice> {

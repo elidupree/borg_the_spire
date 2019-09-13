@@ -8,6 +8,7 @@ use crate::simulation_state::*;
 
 pub struct IntentChoiceContext<'a> {
   pub state: &'a CombatState,
+  pub monster_index: usize,
   pub monster: &'a Monster,
   pub ascension: i32,
   num_distribution: Vec<(i32, Distribution)>,
@@ -27,6 +28,10 @@ impl<'a> IntentChoiceContext<'a> {
   pub fn if_num_leq(&mut self, threshold: i32, value: impl Into<Distribution>) {
     self.if_num_lt(threshold + 1, value);
   }
+  pub fn if_num_geq(&mut self, threshold: i32, value: impl Into<Distribution>) {
+    // hack, assume that no function checks both greater and less
+    self.if_num_lt(100 - threshold, value);
+  }
   pub fn else_num(&mut self, value: impl Into<Distribution>) {
     self.if_num_lt(100, value);
   }
@@ -39,18 +44,26 @@ impl<'a> IntentChoiceContext<'a> {
   pub fn last_intent(&self) -> Option<i32> {
     self.monster.move_history.last().cloned()
   }
+  pub fn state(&self) -> &CombatState {
+    &self.state
+  }
+  pub fn monster_index(&self) -> usize {
+    self.monster_index
+  }
 
-  pub fn nonrepeating(
+  pub fn did_repeats(&self, repeats: Repeats, intent: i32) -> bool {
+    self.monster.move_history.len() >= repeats.0
+      && self.monster.move_history[self.monster.move_history.len() - repeats.0..]
+        .iter()
+        .all(|historical| *historical == intent)
+  }
+  pub fn with_max_repeats(
     &self,
-    max_repeats: MaxRepeats,
+    max_repeats: Repeats,
     intent: i32,
     alternative: impl Into<Distribution>,
   ) -> Distribution {
-    if self.monster.move_history.len() >= max_repeats.0
-      && self.monster.move_history[self.monster.move_history.len() - max_repeats.0..]
-        .iter()
-        .all(|historical| *historical == intent)
-    {
+    if self.did_repeats(max_repeats, intent) {
       alternative.into()
     } else {
       intent.into()
@@ -87,6 +100,7 @@ pub fn intent_choice_distribution(state: &CombatState, monster_index: usize) -> 
   let mut context = IntentChoiceContext {
     state,
     monster,
+    monster_index,
     ascension: monster.ascension,
     num_distribution: Vec::new(),
   };
@@ -102,7 +116,7 @@ pub struct DoIntentContext<'a, R> {
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Debug)]
 pub struct Ascension(pub i32);
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Debug)]
-pub struct MaxRepeats(pub usize);
+pub struct Repeats(pub usize);
 
 pub trait IntentEffectsContext {
   fn action(&mut self, action: impl Action);
@@ -173,7 +187,9 @@ pub trait IntentEffectsContext {
     });
   }
   fn discard_status(&mut self, card_id: CardId, amount: i32) {
-    self.action(DiscardNewCard(SingleCard::create(card_id)));
+    for _ in 0..amount {
+      self.action(DiscardNewCard(SingleCard::create(card_id)));
+    }
   }
 
   fn undefined_intent(&mut self) {}
@@ -261,6 +277,18 @@ monsters! {
   ["AcidSlime_M", AcidSlimeM],
   ["SpikeSlime_S", SpikeSlimeS],
   ["SpikeSlime_M", SpikeSlimeM],
+  ["FungiBeast", FungiBeast],
+  ["Looter", Looter],
+  ["SlaverBlue", SlaverBlue],
+  ["SlaverRed", SlaverRed],
+  ["GremlinWarrior", MadGremlin],
+  ["GremlinThief", SneakyGremlin],
+  ["GremlinWizard", GremlinWizard],
+  ["GremlinFat", FatGremlin],
+  ["GremlinTsundere", ShieldGremlin],
+  ["Sentry", Sentry],
+  ["GremlinNob", GremlinNob],
+  ["Lagavulin", Lagavulin],
 }
 
 impl MonsterBehavior for Cultist {
@@ -278,9 +306,9 @@ impl MonsterBehavior for Cultist {
 
 impl MonsterBehavior for RedLouse {
   fn make_intent_distribution(self, context: &mut IntentChoiceContext) {
-    let max_buff_repeats = MaxRepeats(context.with_ascension(Ascension(17), 1, 2));
-    context.if_num_lt(25, context.nonrepeating(max_buff_repeats, 4, 3));
-    context.else_num(context.nonrepeating(MaxRepeats(2), 3, 4));
+    let max_buff_repeats = Repeats(context.with_ascension(Ascension(17), 1, 2));
+    context.if_num_lt(25, context.with_max_repeats(max_buff_repeats, 4, 3));
+    context.else_num(context.with_max_repeats(Repeats(2), 3, 4));
   }
   fn after_choosing_intent(self, runner: &mut impl Runner, monster_index: usize) {
     if runner.state().monster_intent(monster_index) == 3 {
@@ -328,13 +356,13 @@ impl MonsterBehavior for JawWorm {
     }
     context.if_num_lt(
       25,
-      context.nonrepeating(MaxRepeats(1), 1, Distribution::split(0.5625, 2, 3)),
+      context.with_max_repeats(Repeats(1), 1, Distribution::split(0.5625, 2, 3)),
     );
     context.if_num_lt(
       55,
-      context.nonrepeating(MaxRepeats(2), 3, Distribution::split(0.357, 1, 2)),
+      context.with_max_repeats(Repeats(2), 3, Distribution::split(0.357, 1, 2)),
     );
-    context.else_num(context.nonrepeating(MaxRepeats(1), 1, Distribution::split(0.416, 1, 3)));
+    context.else_num(context.with_max_repeats(Repeats(1), 1, Distribution::split(0.416, 1, 3)));
   }
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
     match context.intent() {
@@ -376,23 +404,23 @@ impl MonsterBehavior for AcidSlimeM {
     if context.ascension() >= 17 {
       context.if_num_lt(
         40,
-        context.nonrepeating(MaxRepeats(2), 1, Distribution::split(0.5, 2, 4)),
+        context.with_max_repeats(Repeats(2), 1, Distribution::split(0.5, 2, 4)),
       );
       context.if_num_lt(
         80,
-        context.nonrepeating(MaxRepeats(2), 2, Distribution::split(0.5, 1, 4)),
+        context.with_max_repeats(Repeats(2), 2, Distribution::split(0.5, 1, 4)),
       );
-      context.else_num(context.nonrepeating(MaxRepeats(1), 4, Distribution::split(0.4, 1, 2)));
+      context.else_num(context.with_max_repeats(Repeats(1), 4, Distribution::split(0.4, 1, 2)));
     } else {
       context.if_num_lt(
         30,
-        context.nonrepeating(MaxRepeats(2), 1, Distribution::split(0.5, 2, 4)),
+        context.with_max_repeats(Repeats(2), 1, Distribution::split(0.5, 2, 4)),
       );
       context.if_num_lt(
         70,
-        context.nonrepeating(MaxRepeats(1), 2, Distribution::split(0.4, 1, 4)),
+        context.with_max_repeats(Repeats(1), 2, Distribution::split(0.4, 1, 4)),
       );
-      context.else_num(context.nonrepeating(MaxRepeats(2), 4, Distribution::split(0.4, 1, 2)));
+      context.else_num(context.with_max_repeats(Repeats(2), 4, Distribution::split(0.4, 1, 2)));
     }
   }
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
@@ -422,9 +450,9 @@ impl MonsterBehavior for SpikeSlimeS {
 
 impl MonsterBehavior for SpikeSlimeM {
   fn make_intent_distribution(self, context: &mut IntentChoiceContext) {
-    let max_debuff_repeats = MaxRepeats(context.with_ascension(Ascension(17), 1, 2));
-    context.if_num_lt(30, context.nonrepeating(MaxRepeats(2), 1, 4));
-    context.else_num(context.nonrepeating(max_debuff_repeats, 4, 1));
+    let max_debuff_repeats = Repeats(context.with_ascension(Ascension(17), 1, 2));
+    context.if_num_lt(30, context.with_max_repeats(Repeats(2), 1, 4));
+    context.else_num(context.with_max_repeats(max_debuff_repeats, 4, 1));
   }
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
     match context.intent() {
@@ -433,6 +461,238 @@ impl MonsterBehavior for SpikeSlimeM {
         context.discard_status(CardId::Slimed, 1);
       }
       4 => context.power_player(PowerId::Frail, 1),
+      _ => context.undefined_intent(),
+    }
+  }
+}
+
+impl MonsterBehavior for FungiBeast {
+  fn make_intent_distribution(self, context: &mut IntentChoiceContext) {
+    context.if_num_lt(60, context.with_max_repeats(Repeats(2), 1, 2));
+    context.else_num(context.with_max_repeats(Repeats(1), 2, 1));
+  }
+  fn intent_effects(self, context: &mut impl IntentEffectsContext) {
+    match context.intent() {
+      1 => context.attack(6, 1),
+      2 => context.power_self(
+        PowerId::Strength,
+        context.with_ascension(Ascension(17), 4, 3),
+      ),
+      _ => context.undefined_intent(),
+    }
+  }
+}
+impl MonsterBehavior for Looter {
+  fn make_intent_distribution(self, context: &mut IntentChoiceContext) {
+    //TODO
+    context.always(1);
+  }
+  fn intent_effects(self, context: &mut impl IntentEffectsContext) {
+    match context.intent() {
+      1 => context.attack(6, 1),
+      _ => context.undefined_intent(),
+    }
+  }
+}
+impl MonsterBehavior for SlaverBlue {
+  fn make_intent_distribution(self, context: &mut IntentChoiceContext) {
+    if !context.did_repeats(Repeats(2), 1) {
+      context.if_num_geq(40, 1);
+    }
+
+    let max_rake_repeats = Repeats(context.with_ascension(Ascension(17), 1, 2));
+    context.else_num(context.with_max_repeats(max_rake_repeats, 4, 1));
+  }
+  fn intent_effects(self, context: &mut impl IntentEffectsContext) {
+    match context.intent() {
+      1 => context.attack(context.with_ascension(Ascension(2), 6, 5), 1),
+      4 => {
+        context.attack(context.with_ascension(Ascension(2), 8, 7), 1);
+        context.power_player(PowerId::Weak, context.with_ascension(Ascension(17), 2, 1));
+      }
+      _ => context.undefined_intent(),
+    }
+  }
+}
+impl MonsterBehavior for SlaverRed {
+  fn make_intent_distribution(self, context: &mut IntentChoiceContext) {
+    if context.first_move() {
+      context.always(1);
+      return;
+    }
+
+    if false
+    //TODO did not entangle
+    {
+      context.if_num_geq(75, 2);
+    } else if !context.did_repeats(Repeats(2), 1) {
+      context.if_num_geq(55, 1);
+    }
+
+    let max_scrape_repeats = Repeats(context.with_ascension(Ascension(17), 1, 2));
+    context.else_num(context.with_max_repeats(max_scrape_repeats, 3, 1));
+  }
+  fn intent_effects(self, context: &mut impl IntentEffectsContext) {
+    match context.intent() {
+      1 => context.attack(context.with_ascension(Ascension(2), 14, 13), 1),
+      2 => context.power_player(PowerId::Entangled, 1),
+      3 => {
+        context.attack(context.with_ascension(Ascension(2), 9, 8), 1);
+        context.power_player(
+          PowerId::Vulnerable,
+          context.with_ascension(Ascension(17), 2, 1),
+        );
+      }
+      _ => context.undefined_intent(),
+    }
+  }
+}
+impl MonsterBehavior for MadGremlin {
+  fn make_intent_distribution(self, context: &mut IntentChoiceContext) {
+    context.always(1);
+  }
+  fn intent_effects(self, context: &mut impl IntentEffectsContext) {
+    match context.intent() {
+      1 => context.attack(context.with_ascension(Ascension(2), 5, 4), 1),
+      _ => context.undefined_intent(),
+    }
+  }
+}
+impl MonsterBehavior for SneakyGremlin {
+  fn make_intent_distribution(self, context: &mut IntentChoiceContext) {
+    context.always(1);
+  }
+  fn intent_effects(self, context: &mut impl IntentEffectsContext) {
+    match context.intent() {
+      1 => context.attack(context.with_ascension(Ascension(2), 10, 9), 1),
+      _ => context.undefined_intent(),
+    }
+  }
+}
+impl MonsterBehavior for GremlinWizard {
+  fn make_intent_distribution(self, context: &mut IntentChoiceContext) {
+    if context.state().turn_number >= 3
+      && (context.ascension() >= 17 || (context.state().turn_number % 4) == 3)
+    {
+      context.always(1);
+    } else {
+      context.always(2);
+    }
+  }
+  fn intent_effects(self, context: &mut impl IntentEffectsContext) {
+    match context.intent() {
+      1 => context.attack(context.with_ascension(Ascension(2), 30, 25), 1),
+      2 => (),
+      _ => context.undefined_intent(),
+    }
+  }
+}
+impl MonsterBehavior for FatGremlin {
+  fn make_intent_distribution(self, context: &mut IntentChoiceContext) {
+    context.always(2);
+  }
+  fn intent_effects(self, context: &mut impl IntentEffectsContext) {
+    match context.intent() {
+      2 => {
+        context.attack(context.with_ascension(Ascension(2), 5, 4), 1);
+        context.power_player(PowerId::Weak, 1);
+        if context.ascension() >= 17 {
+          context.power_player(PowerId::Frail, 1);
+        }
+      }
+      _ => context.undefined_intent(),
+    }
+  }
+}
+impl MonsterBehavior for ShieldGremlin {
+  fn make_intent_distribution(self, context: &mut IntentChoiceContext) {
+    if context
+      .state()
+      .monsters
+      .iter()
+      .filter(|monster| !monster.gone)
+      .count()
+      > 1
+    {
+      context.always(1);
+    } else {
+      context.always(2);
+    }
+  }
+  fn intent_effects(self, context: &mut impl IntentEffectsContext) {
+    match context.intent() {
+      1 => {
+        let amount = context.with_ascensions(Ascension(17), 11, Ascension(2), 8, 7);
+        //TODO
+      }
+      2 => context.attack(context.with_ascension(Ascension(2), 8, 6), 1),
+      _ => context.undefined_intent(),
+    }
+  }
+}
+impl MonsterBehavior for Sentry {
+  fn make_intent_distribution(self, context: &mut IntentChoiceContext) {
+    if let Some(last_intent) = context.last_intent() {
+      context.always(7 - last_intent);
+    } else {
+      if context.monster_index() % 2 == 0 {
+        context.always(3);
+      } else {
+        context.always(4);
+      }
+    }
+  }
+  fn intent_effects(self, context: &mut impl IntentEffectsContext) {
+    match context.intent() {
+      3 => context.discard_status(CardId::Dazed, context.with_ascension(Ascension(18), 3, 2)),
+      4 => context.attack(context.with_ascension(Ascension(3), 10, 9), 1),
+      _ => context.undefined_intent(),
+    }
+  }
+}
+impl MonsterBehavior for GremlinNob {
+  fn make_intent_distribution(self, context: &mut IntentChoiceContext) {
+    if context.first_move() {
+      context.always(3);
+      return;
+    }
+
+    if context.ascension() >= 18 {
+      if (context.state().turn_number % 3) == 2 {
+        context.always(2);
+      } else {
+        context.always(1);
+      }
+    } else {
+      context.if_num_lt(33, 2);
+      context.else_num(context.with_max_repeats(Repeats(2), 1, 2));
+    }
+  }
+  fn intent_effects(self, context: &mut impl IntentEffectsContext) {
+    match context.intent() {
+      1 => context.attack(context.with_ascension(Ascension(3), 16, 14), 1),
+      2 => {
+        context.attack(context.with_ascension(Ascension(3), 8, 6), 1);
+        context.power_player(PowerId::Vulnerable, 2);
+      }
+      3 => context.power_self(PowerId::Enrage, context.with_ascension(Ascension(18), 3, 2)),
+      _ => context.undefined_intent(),
+    }
+  }
+}
+impl MonsterBehavior for Lagavulin {
+  fn make_intent_distribution(self, context: &mut IntentChoiceContext) {
+    // TODOsleepy
+    context.always(context.with_max_repeats(Repeats(2), 3, 1));
+  }
+  fn intent_effects(self, context: &mut impl IntentEffectsContext) {
+    match context.intent() {
+      1 => {
+        let amount = context.with_ascension(Ascension(18), -2, -1);
+        context.power_player(PowerId::Dexterity, amount);
+        context.power_player(PowerId::Strength, amount);
+      }
+      3 => context.attack(context.with_ascension(Ascension(3), 20, 18), 1),
       _ => context.undefined_intent(),
     }
   }

@@ -26,7 +26,15 @@ powers! {
   ["Frail", Frail],
   ["Weakened", Weak],
   ["Strength", Strength],
+  ["Dexterity", Dexterity],
+
   ["Ritual", Ritual],
   ["Curl Up", CurlUp],
+  ["Thievery", Thievery],
+  ["SporeCloud", SporeCloud],
+  ["Entangled", Entangled],
+  ["Angry", Angry],
+  ["Anger", Enrage],
+
   ["Unknown", Unknown],
 }

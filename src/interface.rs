@@ -107,10 +107,10 @@ impl ApplicationState {
   pub fn set_state(&mut self, state: CombatState) {
     if self.combat_state.as_ref() != Some(&state) {
       self.combat_state = Some(state.clone());
-      let mut playout_state = state.clone() ;
+      let mut playout_state = state.clone();
       self.search_state = Some(SearchState::new(state));
-      let mut runner = DebugRunner::new (& mut playout_state);
-      play_out (&mut runner, & new_random_strategy()) ;
+      let mut runner = DebugRunner::new(&mut playout_state);
+      play_out(&mut runner, &new_random_strategy());
       self.debug_log = runner.log;
     }
   }
@@ -123,9 +123,7 @@ pub struct RocketState {
 
 #[post("/content", data = "<interface_state>")]
 fn content(interface_state: Json<InterfaceState>, rocket_state: State<RocketState>) -> String {
-  let application_state = rocket_state
-    .application_state
-    .lock();
+  let application_state = rocket_state.application_state.lock();
 
   let state_representation = application_state
     .search_state

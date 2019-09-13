@@ -62,6 +62,7 @@ pub struct CombatState {
   pub card_in_play: Option<SingleCard>,
   pub player: Player,
   pub monsters: Vec<Monster>,
+  pub turn_number: i32,
 
   pub fresh_action_queue: Vec<DynAction>,
   pub stale_action_stack: Vec<DynAction>,
@@ -195,6 +196,7 @@ impl CombatState {
       fresh_action_queue: Vec::new(),
       stale_action_stack: Vec::new(),
       player: Player::from(&combat.player),
+      turn_number: combat.turn,
       monsters: combat
         .monsters
         .iter()

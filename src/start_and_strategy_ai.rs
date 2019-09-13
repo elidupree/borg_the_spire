@@ -193,8 +193,8 @@ pub fn play_out<S: Strategy>(runner: &mut impl Runner, strategy: &S) {
   while !runner.state().combat_over() {
     let choices = strategy.choose_choice(runner.state());
     for choice in choices {
-      assert!(runner.state().fresh_action_queue.is_empty()) ;
-      assert!(runner.state().stale_action_stack.is_empty()) ;
+      assert!(runner.state().fresh_action_queue.is_empty());
+      assert!(runner.state().stale_action_stack.is_empty());
       runner.apply(&choice);
     }
   }
