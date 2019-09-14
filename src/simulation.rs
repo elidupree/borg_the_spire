@@ -13,26 +13,6 @@ pub use crate::simulation_state::cards::CardBehavior;
 pub use crate::simulation_state::monsters::MonsterBehavior;
 use crate::simulation_state::*;
 
-pub trait Runner {
-  fn can_apply_impl(&self, action: &impl Action) -> bool;
-  fn can_apply(&self, action: &impl Action) -> bool {
-    self.can_apply_impl(action) && !self.state().combat_over()
-  }
-  fn apply_impl(&mut self, action: &impl Action);
-  fn apply(&mut self, action: &impl Action) {
-    if self.state().fresh_action_queue.is_empty() && self.can_apply(action) {
-      self.apply_impl(action);
-    } else {
-      self
-        .state_mut()
-        .fresh_action_queue
-        .push(action.clone().into());
-    }
-  }
-  fn state(&self) -> &CombatState;
-  fn state_mut(&mut self) -> &mut CombatState;
-}
-
 #[derive(Clone, PartialEq, Serialize, Deserialize, Debug, Derivative)]
 pub struct Distribution(pub SmallVec<[(f64, i32); 4]>);
 impl From<i32> for Distribution {
@@ -90,6 +70,17 @@ pub enum CreatureIndex {
   Monster(usize),
 }
 
+#[derive (Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, Debug)]
+pub enum DamageType {
+  Normal, Thorns, HitpointLoss
+}
+
+#[derive (Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, Debug)]
+pub struct DamageInfo {
+  pub damage_type: DamageType,
+  pub owner: CreatureIndex,
+}
+
 #[derive(Clone, PartialEq, Serialize, Deserialize, Debug, Derivative)]
 #[derivative(Default)]
 pub enum Determinism {
@@ -105,139 +96,85 @@ pub trait Action: Clone + Into<DynAction> {
     Determinism::Deterministic
   }
   #[allow(unused)]
-  fn execute(&self, runner: &mut impl Runner) {
+  fn execute(&self, runner: &mut Runner) {
     panic!("an action didn't define the correct apply method for its determinism")
   }
   #[allow(unused)]
-  fn execute_random(&self, runner: &mut impl Runner, random_value: i32) {
+  fn execute_random(&self, runner: &mut Runner, random_value: i32) {
     panic!("an action didn't define the correct apply method for its determinism")
   }
 }
 
-pub struct DefaultRunner<'a> {
-  state: &'a mut CombatState,
+
+pub struct Runner <'a> {
+  state: & 'a mut CombatState,
+  allow_random: bool,
+  debug: bool,
+  log: String
 }
 
-impl<'a> DefaultRunner<'a> {
-  pub fn new(state: &'a mut CombatState) -> Self {
-    DefaultRunner { state }
-  }
-}
+impl <'a> Runner <'a> {
+  pub fn new (state: & 'a mut CombatState, allow_random: bool, debug: bool)->Self {Runner {state, allow_random, debug, log: String::new()}}
 
-impl<'a> Runner for DefaultRunner<'a> {
-  fn can_apply_impl(&self, action: &impl Action) -> bool {
-    action.determinism(self.state()) != Determinism::Choice
-  }
-  fn apply_impl(&mut self, action: &impl Action) {
-    match action.determinism(self.state()) {
-      Determinism::Deterministic => action.execute(self),
-      Determinism::Random(distribution) => {
-        let random_value = distribution
-          .0
-          .choose_weighted(&mut rand::thread_rng(), |(weight, _)| *weight)
-          .unwrap()
-          .1;
-        action.execute_random(self, random_value);
-      }
-      Determinism::Choice => unreachable!(),
-    }
-  }
-  fn state(&self) -> &CombatState {
-    self.state
-  }
-  fn state_mut(&mut self) -> &mut CombatState {
-    self.state
-  }
-}
-
-pub struct DeterministicRunner<'a> {
-  state: &'a mut CombatState,
-}
-
-impl<'a> DeterministicRunner<'a> {
-  pub fn new(state: &'a mut CombatState) -> Self {
-    DeterministicRunner { state }
-  }
-}
-
-impl<'a> Runner for DeterministicRunner<'a> {
-  fn can_apply_impl(&self, action: &impl Action) -> bool {
-    match action.determinism(self.state()) {
+  pub fn can_apply_impl (&self, action: & impl Action)->bool {
+    match action.determinism (self.state()) {
       Determinism::Deterministic => true,
-      Determinism::Random(distribution) => distribution.0.len() == 1,
-      Determinism::Choice => false,
+      Determinism::Random (distribution) => self.allow_random || distribution.0.len() == 1,
+      Determinism::Choice => false
     }
   }
-  fn apply_impl(&mut self, action: &impl Action) {
-    match action.determinism(self.state()) {
-      Determinism::Deterministic => action.execute(self),
-      Determinism::Random(distribution) => action.execute_random(self, distribution.0[0].1),
-      Determinism::Choice => unreachable!(),
-    }
+  pub fn can_apply(&self, action: &impl Action) -> bool {
+    self.can_apply_impl(action) && !self.state().combat_over()
   }
-  fn state(&self) -> &CombatState {
-    self.state
-  }
-  fn state_mut(&mut self) -> &mut CombatState {
-    self.state
-  }
-}
-
-pub struct DebugRunner<'a> {
-  pub state: &'a mut CombatState,
-  pub log: String,
-}
-
-impl<'a> DebugRunner<'a> {
-  pub fn new(state: &'a mut CombatState) -> Self {
-    DebugRunner {
-      state,
-      log: String::new(),
-    }
-  }
-}
-
-impl<'a> Runner for DebugRunner<'a> {
-  fn can_apply_impl(&self, action: &impl Action) -> bool {
-    action.determinism(self.state()) != Determinism::Choice
-  }
-  fn apply_impl(&mut self, action: &impl Action) {
-    writeln!(
+  pub fn apply_impl (&mut self, action: & impl Action) {
+    if self.debug {
+      writeln!(
       self.log,
       "Applying {:?} to state {:?}",
       action.clone().into(),
       self.state
     )
     .unwrap();
-    match action.determinism(self.state()) {
-      Determinism::Deterministic => action.execute(self),
-      Determinism::Random(distribution) => {
-        let random_value = distribution
-          .0
-          .choose_weighted(&mut rand::thread_rng(), |(weight, _)| *weight)
-          .unwrap()
-          .1;
-        action.execute_random(self, random_value);
-      }
+    }
+    match action.determinism (self.state()) {
+      Determinism::Deterministic => action.execute (self),
+      Determinism::Random (distribution) => {
+        let random_value = distribution.0.choose_weighted (&mut rand::thread_rng(), | (weight, _) | *weight).unwrap().1;
+        action.execute_random (self, random_value);
+        },
       Determinism::Choice => unreachable!(),
     }
-    writeln!(
+    if self.debug {
+      writeln!(
       self.log,
       "Done applying {:?}; state is now {:?}",
       action.clone().into(),
       self.state
     )
     .unwrap();
+    }
   }
-  fn state(&self) -> &CombatState {
+  pub fn apply(&mut self, action: &impl Action) {
+    if self.state().fresh_action_queue.is_empty() && self.can_apply(action) {
+      self.apply_impl(action);
+    } else {
+      self
+        .state_mut()
+        .fresh_action_queue
+        .push(action.clone().into());
+    }
+  }
+  
+  pub fn state(&self) -> &CombatState {
     self.state
   }
-  fn state_mut(&mut self) -> &mut CombatState {
+  pub fn state_mut(&mut self) -> &mut CombatState {
     self.state
   }
+  pub fn debug_log (&self)->& str {& self.log}
 }
 
-pub fn run_until_unable(runner: &mut impl Runner) {
+pub fn run_until_unable (runner: &mut Runner) {
   loop {
     if runner.state().combat_over() {
       break;
@@ -267,7 +204,7 @@ pub enum Choice {
 }
 
 impl Choice {
-  pub fn apply(&self, state: &mut CombatState, runner: &mut impl Runner) {
+  pub fn apply(&self, state: &mut CombatState, runner: &mut Runner) {
     match self {
       Choice::PlayCard(card, target) => state.play_card(runner, card, *target),
       Choice::EndTurn => state.end_turn(runner),

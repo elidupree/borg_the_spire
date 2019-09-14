@@ -32,12 +32,12 @@ macro_rules! actions {
           $(DynAction::$Variant (value) => value.determinism (state),)*
         }
       }
-      fn execute(& self, runner: &mut impl Runner) {
+      fn execute(& self, runner: &mut Runner) {
         match self {
           $(DynAction::$Variant (value) => value.execute(runner),)*
         }
       }
-      fn execute_random (& self, runner: &mut impl Runner, random_value: i32) {
+      fn execute_random (& self, runner: &mut Runner, random_value: i32) {
         match self {
           $(DynAction::$Variant (value) => value.execute_random (runner, random_value),)*
         }
@@ -46,7 +46,8 @@ macro_rules! actions {
   }
 }
 
-//Note: not every `&mut state` or `&mut impl Runner` function needs to be a Action, but such a function needs to be a Action if it EITHER uses direct randomness OR needs to be possible to queue up due to coming immediately after something that might be nondeterministic.
+
+//Note: not every `&mut state` or `&mut Runner` function needs to be a Action, but such a function needs to be a Action if it EITHER uses direct randomness OR needs to be possible to queue up due to coming immediately after something that might be nondeterministic.
 
 actions! {
   // mainly used by the engine
@@ -65,20 +66,20 @@ actions! {
   [DrawCards (pub i32);],
   [TakeHit {pub creature_index: CreatureIndex, base_damage: i32}],
   [ApplyPowerAmount {pub creature_index: CreatureIndex, pub power_id: PowerId, pub amount: i32, pub just_applied: bool}],
-  [Block {pub creature_index: CreatureIndex, pub amount: i32}],
   [DiscardNewCard (pub SingleCard);],
 
   // generally card effects
   [AttackMonster {pub base_damage: i32, pub swings: i32, pub target: usize}],
   [AttackMonsters {pub base_damage: i32, pub swings: i32}],
-
+  [GainBlockAction {pub creature_index: CreatureIndex, pub amount: i32}],
+  
   // generally monster effects
   [InitializeMonsterInnateDamageAmount{pub monster_index: usize, pub range: (i32, i32)}],
   [AttackPlayer {pub monster_index: usize, pub base_damage: i32, pub swings: i32}],
 }
 
 impl Action for PlayCard {
-  fn execute(&self, runner: &mut impl Runner) {
+  fn execute(&self, runner: &mut Runner) {
     let state = runner.state_mut();
     let card_index = state.hand.iter().position(|c| *c == self.card).unwrap();
     let card = state.hand.remove(card_index);
@@ -96,7 +97,7 @@ impl Action for PlayCard {
 }
 
 impl Action for FinishPlayingCard {
-  fn execute(&self, runner: &mut impl Runner) {
+  fn execute (&self, runner: &mut Runner) {
     let state = runner.state_mut();
     let card = state.card_in_play.take().unwrap();
     if card.card_info.card_type == CardType::Power {
@@ -110,7 +111,7 @@ impl Action for FinishPlayingCard {
 }
 
 impl Action for EndTurn {
-  fn execute(&self, runner: &mut impl Runner) {
+  fn execute(&self, runner: &mut Runner) {
     let state = runner.state_mut();
     for card in state.hand.drain(..) {
       if card.card_info.ethereal {
@@ -126,7 +127,7 @@ impl Action for EndTurn {
 }
 
 impl Action for StartMonsterTurn {
-  fn execute(&self, runner: &mut impl Runner) {
+  fn execute (&self, runner: &mut Runner) {
     if let Some(monster) = runner.state_mut().monsters.get_mut(self.0) {
       if !monster.gone {
         monster.creature.start_turn();
@@ -141,7 +142,7 @@ impl Action for StartMonsterTurn {
 }
 
 impl Action for DoMonsterIntent {
-  fn execute(&self, runner: &mut impl Runner) {
+  fn execute(&self, runner: &mut Runner) {
     if let Some(monster) = runner.state().monsters.get(self.0) {
       let monster_id = monster.monster_id;
       if !monster.gone {
@@ -157,7 +158,7 @@ impl Action for DoMonsterIntent {
 }
 
 impl Action for FinishMonsterTurn {
-  fn execute(&self, runner: &mut impl Runner) {
+  fn execute(&self, runner: &mut Runner) {
     if let Some(monster) = runner.state_mut().monsters.get_mut(self.0) {
       if !monster.gone {
         runner.apply(&FinishCreatureTurn(CreatureIndex::Monster(self.0)));
@@ -177,7 +178,7 @@ impl Action for FinishMonsterTurn {
 }
 
 impl Action for FinishCreatureTurn {
-  fn execute(&self, runner: &mut impl Runner) {
+  fn execute(&self, runner: &mut Runner) {
     let creature = runner.state_mut().get_creature_mut(self.0);
     match self.0 {
       CreatureIndex::Monster(_) => creature.finish_round(),
@@ -208,7 +209,7 @@ impl Action for ChooseMonsterIntent {
   fn determinism(&self, state: &CombatState) -> Determinism {
     Determinism::Random(monsters::intent_choice_distribution(state, self.0))
   }
-  fn execute_random(&self, runner: &mut impl Runner, random_value: i32) {
+  fn execute_random(&self, runner: &mut Runner, random_value: i32) {
     let monster = &mut runner.state_mut().monsters[self.0];
     if !monster.gone {
       let monster_id = monster.monster_id;
@@ -226,14 +227,14 @@ impl Action for DrawCardRandom {
         .collect(),
     ))
   }
-  fn execute_random(&self, runner: &mut impl Runner, random_value: i32) {
+  fn execute_random(&self, runner: &mut Runner, random_value: i32) {
     let card = runner.state_mut().draw_pile.remove(random_value as usize);
     runner.state_mut().hand.push(card);
   }
 }
 
 impl Action for DrawCards {
-  fn execute(&self, runner: &mut impl Runner) {
+  fn execute(&self, runner: &mut Runner) {
     //TODO: more nuanced
     if self.0 <= 0 {
       return;
@@ -253,7 +254,7 @@ impl Action for DrawCards {
 }
 
 impl Action for TakeHit {
-  fn execute(&self, runner: &mut impl Runner) {
+  fn execute(&self, runner: &mut Runner) {
     let mut creature = runner.state_mut().get_creature_mut(self.creature_index);
     let mut damage = creature.adjusted_damage_received(self.base_damage);
 
@@ -282,7 +283,7 @@ impl Action for TakeHit {
 }
 
 impl Action for ApplyPowerAmount {
-  fn execute(&self, runner: &mut impl Runner) {
+  fn execute(&self, runner: &mut Runner) {
     let creature = runner.state_mut().get_creature_mut(self.creature_index);
     let existing = creature
       .powers
@@ -301,21 +302,21 @@ impl Action for ApplyPowerAmount {
   }
 }
 
-impl Action for Block {
-  fn execute(&self, runner: &mut impl Runner) {
+impl Action for GainBlockAction {
+  fn execute(&self, runner: &mut Runner) {
     let creature = runner.state_mut().get_creature_mut(self.creature_index);
     creature.do_block(self.amount);
   }
 }
 
 impl Action for DiscardNewCard {
-  fn execute(&self, runner: &mut impl Runner) {
+  fn execute(&self, runner: &mut Runner) {
     runner.state_mut().discard_pile.push(self.0.clone());
   }
 }
 
 impl Action for AttackMonster {
-  fn execute(&self, runner: &mut impl Runner) {
+  fn execute(&self, runner: &mut Runner) {
     let monster = &runner.state().monsters[self.target];
     if monster.gone {
       return;
@@ -340,7 +341,7 @@ impl Action for AttackMonster {
 }
 
 impl Action for AttackMonsters {
-  fn execute(&self, runner: &mut impl Runner) {
+  fn execute(&self, runner: &mut Runner) {
     for monster_index in 0..runner.state().monsters.len() {
       let monster = &runner.state().monsters[monster_index];
       if !monster.gone {
@@ -372,13 +373,13 @@ impl Action for InitializeMonsterInnateDamageAmount {
         .collect(),
     ))
   }
-  fn execute_random(&self, runner: &mut impl Runner, random_value: i32) {
+  fn execute_random(&self, runner: &mut Runner, random_value: i32) {
     let mut monster = &mut runner.state_mut().monsters[self.monster_index];
     monster.innate_damage_amount = Some(random_value);
   }
 }
 impl Action for AttackPlayer {
-  fn execute(&self, runner: &mut impl Runner) {
+  fn execute(&self, runner: &mut Runner) {
     let monster = &runner.state().monsters[self.monster_index];
     if monster.gone {
       return;

@@ -62,7 +62,7 @@ pub trait CardBehaviorContext {
     });
   }
   fn block(&mut self, amount: i32) {
-    self.action(Block {
+    self.action(GainBlockAction {
       creature_index: CreatureIndex::Player,
       amount,
     });
@@ -83,12 +83,12 @@ pub trait CardBehaviorContext {
   }
 }
 
-pub struct PlayCardContext<'a, R> {
-  pub runner: &'a mut R,
+pub struct PlayCardContext<'a, 'b> {
+  pub runner: &'a mut Runner <'b>,
   pub target: usize,
 }
 
-impl<'a, R: Runner> CardBehaviorContext for PlayCardContext<'a, R> {
+impl<'a, 'b> CardBehaviorContext for PlayCardContext<'a, 'b> {
   fn action(&mut self, action: impl Action) {
     self.runner.apply(&action);
   }
@@ -150,6 +150,11 @@ macro_rules! cards {
       fn behavior(self, context: &mut impl CardBehaviorContext){
         match self {
           $(CardId::$Variant => $Variant.behavior (context),)*
+        }
+      }
+      fn playable(self, state: &CombatState) -> bool {
+        match self {
+          $(CardId::$Variant => $Variant.playable(state),)*
         }
       }
     }

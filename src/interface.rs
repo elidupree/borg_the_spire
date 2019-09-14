@@ -109,9 +109,9 @@ impl ApplicationState {
       self.combat_state = Some(state.clone());
       let mut playout_state = state.clone();
       self.search_state = Some(SearchState::new(state));
-      let mut runner = DebugRunner::new(&mut playout_state);
+      let mut runner = Runner::new(&mut playout_state, true, true);
       play_out(&mut runner, &new_random_strategy());
-      self.debug_log = runner.log;
+      self.debug_log = runner.debug_log().to_string();
     }
   }
 }
