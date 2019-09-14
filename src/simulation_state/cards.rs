@@ -152,6 +152,11 @@ macro_rules! cards {
           $(CardId::$Variant => $Variant.behavior (context),)*
         }
       }
+      fn playable(self, state: &CombatState) -> bool {
+        match self {
+          $(CardId::$Variant => $Variant.playable(state),)*
+        }
+      }
     }
   }
 }
