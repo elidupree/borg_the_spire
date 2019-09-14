@@ -188,7 +188,7 @@ impl StartingPoint {
   }
 }
 
-pub fn play_out<S: Strategy>(runner: &mut impl Runner, strategy: &S) {
+pub fn play_out<S: Strategy>(runner: &mut Runner, strategy: &S) {
   run_until_unable(runner);
   while !runner.state().combat_over() {
     let choices = strategy.choose_choice(runner.state());
