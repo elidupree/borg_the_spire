@@ -297,8 +297,8 @@ impl MonsterBehavior for Cultist {
   }
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
     match context.intent() {
-      1 => context.attack(context.with_ascension(Ascension(2), 12, 11), 1),
-      3 => context.power_self(PowerId::Ritual, context.with_ascension(Ascension(17), 4, 3)),
+      1 => context.attack(6, 1),
+      3 => context.power_self(PowerId::Ritual, context.with_ascensions(Ascension(17), 5, Ascension (2), 4, 3)),
       _ => context.undefined_intent(),
     }
   }
