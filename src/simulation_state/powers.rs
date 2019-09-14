@@ -3,30 +3,33 @@ use std::convert::From;
 
 use crate::simulation_state::*;
 
-pub struct PowerHookContext {
-  pub runner: Runner,
+pub struct PowerHookContext<'a> {
+  pub runner: Runner<'a>,
   pub owner: CreatureIndex,
   pub power_index: usize,
 }
 
-impl PowerHookContext {
+impl<'a> PowerHookContext<'a> {
   pub fn state (&self)->&CombatState {
     self.runner.state()
   }
   pub fn state_mut (&mut self)->&mut CombatState {
     self.runner.state_mut()
   }
+  pub fn owner_index (&self)->CreatureIndex {self.owner}
   pub fn owner_creature(&self)->&Creature {
     self.state().get_creature(self.owner)
   }
   pub fn owner_creature_mut (&mut self)->&mut Creature {
-    self.state_mut().get_creature_mut (self.owner)
+    let owner = self.owner;
+    self.state_mut().get_creature_mut (owner)
   }
   pub fn this_power(&self)->&Power {
     &self.owner_creature().powers [self.power_index]
   }
   pub fn this_power_mut (&mut self)->&mut Power {
-    &mut self.owner_creature_mut ().powers [self.power_index]
+    let power_index = self.power_index;
+    &mut self.owner_creature_mut ().powers [power_index]
   }
   pub fn remove_just_applied(&mut self)->bool {
     let power = self.this_power_mut();
@@ -38,11 +41,17 @@ impl PowerHookContext {
       true
     }
   }
+  pub fn remove_this_power (&mut self) {
+    unimplemented!()
+  }
+  pub fn reduce_this_power (&mut self) {
+    unimplemented!()
+  }
   
-  pub fn action_top (&mut self, action: DynAction) {
+  pub fn action_top (&mut self, action: impl Action) {
     self.runner.apply (& action);
   }
-  pub fn action_bottom (&mut self, action: DynAction) {
+  pub fn action_bottom (&mut self, action: impl Action) {
     self.runner.apply (& action);
   }
 }
@@ -129,7 +138,7 @@ impl PowerBehavior for Vulnerable {
   fn at_end_of_round (&self, context: &mut PowerHookContext) {
     context.reduce_this_power();
   }
-  fn at_damage_receive (&self, context: &mut PowerHookContext, damage: f64, damage_type: DamageType)->f64 {
+  fn at_damage_receive (&self, _context: &mut PowerHookContext, damage: f64, damage_type: DamageType)->f64 {
     if damage_type != DamageType::Normal {return damage}
     damage*1.5
   }
@@ -139,7 +148,7 @@ impl PowerBehavior for Frail{
   fn at_end_of_round (&self, context: &mut PowerHookContext) {
     context.reduce_this_power();
   }
-  fn modify_block (&self, context: &mut PowerHookContext, block: f64)->f64 {
+  fn modify_block (&self, _context: &mut PowerHookContext, block: f64)->f64 {
     block*0.75
   }
 }
@@ -148,7 +157,7 @@ impl PowerBehavior for Weak{
   fn at_end_of_round (&self, context: &mut PowerHookContext) {
     context.reduce_this_power();
   }
-  fn at_damage_receive (&self, context: &mut PowerHookContext, damage: f64, damage_type: DamageType)->f64 {
+  fn at_damage_receive (&self, _context: &mut PowerHookContext, damage: f64, damage_type: DamageType)->f64 {
     if damage_type != DamageType::Normal {return damage}
     damage*1.5
   }
@@ -157,13 +166,13 @@ impl PowerBehavior for Weak{
 impl PowerBehavior for Strength{
   fn at_damage_give(&self, context: &mut PowerHookContext, damage: f64, damage_type: DamageType)->f64 {
     if damage_type != DamageType::Normal {return damage}
-    damage + context.amount()
+    damage + context.this_power().amount as f64
   }
 }
 
 impl PowerBehavior for Dexterity{
   fn modify_block (&self, context: &mut PowerHookContext, block: f64)->f64 {
-    block + context.amount()
+    block + context.this_power().amount as f64
   }
 }
 
@@ -171,8 +180,9 @@ impl PowerBehavior for Ritual{
   fn at_end_of_round (&self, context: &mut PowerHookContext) {
     if context.remove_just_applied() {
     context.action_bottom (ApplyPowerAmount {
-      creature_index: context.owner(),
-      amount: context.amount(),
+      power_id: PowerId::Strength,
+      creature_index: context.owner_index(),
+      amount: context.this_power().amount,
       just_applied: false,
     });
     }

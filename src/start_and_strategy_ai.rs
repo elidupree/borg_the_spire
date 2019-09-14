@@ -50,7 +50,7 @@ impl Strategy for SomethingStrategy {
 
     let combos = collect_starting_points(state.clone(), 200);
     let choices = combos.into_iter().map(|(mut state, choices)| {
-      run_until_unable(&mut DefaultRunner::new(&mut state));
+      run_until_unable(&mut Runner::new(&mut state, true, false));
       let score = self.evaluate(&state);
       (choices, score)
     });
@@ -93,7 +93,7 @@ pub fn collect_starting_points(
       let choices = state.legal_choices();
       for choice in choices {
         let mut new_state = state.clone();
-        let mut runner = DeterministicRunner::new(&mut new_state);
+        let mut runner = Runner::new(&mut new_state, false, false);
         runner.apply(&choice);
         let mut new_history = history.clone();
         new_history.push(choice.clone());
@@ -158,7 +158,7 @@ impl StartingPoint {
     for strategy in &mut self.candidate_strategies {
       if strategy.visits < max_strategy_visits {
         let mut state = self.state.clone();
-        play_out(&mut DefaultRunner::new(&mut state), &strategy.strategy);
+        play_out(&mut Runner::new(&mut state, true, false), &strategy.strategy);
         let result = CombatResult::new(&state);
         strategy.total_score += result.score;
         strategy.visits += 1;

@@ -108,8 +108,8 @@ pub fn intent_choice_distribution(state: &CombatState, monster_index: usize) -> 
   context.final_distribution()
 }
 
-pub struct DoIntentContext<'a, R> {
-  pub runner: &'a mut R,
+pub struct DoIntentContext<'a, 'b> {
+  pub runner: &'a mut Runner <'b>,
   pub monster_index: usize,
 }
 
@@ -195,7 +195,7 @@ pub trait IntentEffectsContext {
   fn undefined_intent(&mut self) {}
 }
 
-impl<'a, R: Runner> IntentEffectsContext for DoIntentContext<'a, R> {
+impl<'a, 'b> IntentEffectsContext for DoIntentContext<'a, 'b> {
   fn action(&mut self, action: impl Action) {
     self.runner.apply(&action)
   }
@@ -207,8 +207,8 @@ impl<'a, R: Runner> IntentEffectsContext for DoIntentContext<'a, R> {
   }
 }
 
-impl<'a, R: Runner> DoIntentContext<'a, R> {
-  pub fn new(runner: &'a mut R, monster_index: usize) -> Self {
+impl<'a, 'b> DoIntentContext<'a, 'b> {
+  pub fn new(runner: &'a mut Runner <'b>, monster_index: usize) -> Self {
     DoIntentContext {
       runner,
       monster_index,
