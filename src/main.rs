@@ -8,6 +8,39 @@ use std::path::PathBuf;
 
 //use std::time::{Duration, Instant};
 
+
+macro_rules! power_hook {
+  ($runner: expr, $owner: expr, PowerId::$Variant: ident, $hook: ident ( $($arguments:tt)*)) => {
+    {
+      let runner = &mut* $runner;
+            let owner = $owner;
+            if let Some(index) = runner.state().get_creature (owner).powers.iter().position (| power | power.power_id == PowerId::$Variant) {
+        power_hook! (runner, owner, index, $hook ($($arguments)*)) ;
+      }
+    }
+  };
+  ($runner: expr, $owner: expr, $power_index: expr, $hook: ident ( $($arguments:tt)*)) => {
+    {
+      let runner = &mut* $runner;
+      let owner = $owner;
+      let index = $power_index;
+      let power_id = runner.state().get_creature (owner).powers [index].power_id;
+      power_id.$hook (&mut $crate::simulation_state::powers::PowerHookContext {runner, owner, power_index: index}, $($arguments)*);
+    }
+  };
+  ($runner: expr, $owner: expr, $hook: ident ( $($arguments:tt)*)) => {
+    {
+      let runner = &mut* $runner;
+      let owner = $owner;
+      let creature = runner.state().get_creature(owner);
+      for index in 0..creature.powers.len() {
+        power_hook! (runner, owner, index, $hook ($($arguments)*)) ;
+      }
+    }
+  };
+  
+}
+
 mod actions;
 mod communication_mod_state;
 mod cow;

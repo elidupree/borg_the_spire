@@ -2,14 +2,16 @@ use serde::{Deserialize, Serialize};
 use std::convert::From;
 
 use crate::simulation_state::*;
+use crate::simulation::*;
+use PowerType::{Buff, Debuff};
 
-pub struct PowerHookContext<'a> {
-  pub runner: Runner<'a>,
+pub struct PowerHookContext<'a, 'b> {
+  pub runner: & 'a mut Runner<'b>,
   pub owner: CreatureIndex,
   pub power_index: usize,
 }
 
-impl<'a> PowerHookContext<'a> {
+impl<'a, 'b> PowerHookContext<'a, 'b> {
   pub fn state (&self)->&CombatState {
     self.runner.state()
   }
@@ -27,6 +29,9 @@ impl<'a> PowerHookContext<'a> {
   pub fn this_power(&self)->&Power {
     &self.owner_creature().powers [self.power_index]
   }
+  pub fn amount (&self)->i32 {
+    self.this_power().amount
+  }
   pub fn this_power_mut (&mut self)->&mut Power {
     let power_index = self.power_index;
     &mut self.owner_creature_mut ().powers [power_index]
@@ -42,22 +47,69 @@ impl<'a> PowerHookContext<'a> {
     }
   }
   pub fn remove_this_power (&mut self) {
-    unimplemented!()
+    self.action_top (RemoveSpecificPowerAction {target: self.owner_index(), power_id: self.this_power().power_id});
   }
   pub fn reduce_this_power (&mut self) {
-    unimplemented!()
+    // why is this a common thing to do in the StS code? ReducePowerAction would already remove it.
+    if self.amount() <= 0 {
+      self.remove_this_power();
+    } else {
+      self.action_top (ReducePowerAction {target: self.owner_index(), power_id: self.this_power().power_id, amount: 1 });
+    }
   }
   
   pub fn action_top (&mut self, action: impl Action) {
-    self.runner.apply (& action);
+    self.runner.action_top(action);
   }
   pub fn action_bottom (&mut self, action: impl Action) {
-    self.runner.apply (& action);
+    self.runner.action_bottom(action);
+  }
+  
+  pub fn power_owner_top(&mut self, power_id: PowerId, amount: i32) {
+    self.action_top (ApplyPowerAction {
+      source: self.owner_index(),
+      target: self.owner_index(),
+      power_id,
+      amount,
+    });
+  }
+  pub fn power_owner_bottom(&mut self, power_id: PowerId, amount: i32) {
+    self.action_bottom (ApplyPowerAction {
+      source: self.owner_index(),
+      target: self.owner_index(),
+      power_id,
+      amount,
+    });
+  }
+  pub fn power_player_top(&mut self, power_id: PowerId, amount: i32) {
+    self.action_top (ApplyPowerAction {
+      source: self.owner_index(),
+      target: CreatureIndex::Player,
+      power_id,
+      amount,
+    });
+  }
+  pub fn power_player_bottom(&mut self, power_id: PowerId, amount: i32) {
+    self.action_bottom (ApplyPowerAction {
+      source: self.owner_index(),
+      target: CreatureIndex::Player,
+      power_id,
+      amount,
+    });
   }
 }
 
 #[allow(unused)]
 pub trait PowerBehavior {
+  fn priority (&self)->i32 {5}
+  fn stack_power (&self, power: &mut Power, stack_amount: i32) {
+    if (power.amount == -1) {return}
+    power.amount += stack_amount;
+  }
+  fn reduce_power (&self, power: &mut Power, reduce_amount: i32) {
+    power.amount = std::cmp::max (0, power.amount - reduce_amount);
+  }
+
   fn at_damage_give (&self, context: &mut PowerHookContext, damage: f64, damage_type: DamageType)->f64 {damage}
   fn at_damage_final_receive (&self, context: &mut PowerHookContext, damage: f64, damage_type: DamageType)->f64 {damage}
   fn at_damage_receive (&self, context: &mut PowerHookContext, damage: f64, damage_type: DamageType)->f64 {damage}
@@ -73,6 +125,7 @@ pub trait PowerBehavior {
   fn on_card_draw (&self, context: &mut PowerHookContext, card: &SingleCard) {}
   fn on_use_card (&self, context: &mut PowerHookContext, card: &SingleCard) {}
   fn on_after_use_card (&self, context: &mut PowerHookContext, card: &SingleCard) {}
+  fn on_specific_trigger (&self, context: &mut PowerHookContext) {}
   fn on_death (&self, context: &mut PowerHookContext) {}
   fn at_energy_gain (&self, context: &mut PowerHookContext) {}
   fn on_exhaust (&self, context: &mut PowerHookContext, card: &SingleCard) {}
@@ -86,7 +139,7 @@ pub trait PowerBehavior {
 //pub fn
 
 macro_rules! powers {
-  ($([$id: expr, $Variant: ident],)*) => {
+  ($([$id: expr, $Variant: ident, $power_type: expr],)*) => {
     #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Debug)]
     pub enum PowerId {
       $($Variant,)*
@@ -113,25 +166,35 @@ macro_rules! powers {
         }
       }
     }
+    
+    impl PowerId {
+      pub fn power_type(&self)->PowerType {
+        match self {
+          $(PowerId::$Variant => $power_type,)*
+        }
+      }
+    }
   }
 }
 
 powers! {
-  ["Vulnerable", Vulnerable],
-  ["Frail", Frail],
-  ["Weakened", Weak],
-  ["Strength", Strength],
-  ["Dexterity", Dexterity],
+  ["Vulnerable", Vulnerable, Debuff],
+  ["Frail", Frail, Debuff],
+  ["Weakened", Weak, Debuff],
+  ["Strength", Strength, Buff],
+  ["Dexterity", Dexterity, Buff],
 
-  ["Ritual", Ritual],
-  ["Curl Up", CurlUp],
-  ["Thievery", Thievery],
-  ["SporeCloud", SporeCloud],
-  ["Entangled", Entangled],
-  ["Angry", Angry],
-  ["Anger", Enrage],
+  ["Ritual", Ritual, Buff],
+  ["Curl Up", CurlUp, Buff],
+  ["Thievery", Thievery, Buff],
+  ["SporeCloud", SporeCloud, Buff],
+  ["Entangled", Entangled, Debuff],
+  ["Angry", Angry, Buff],
+  
+  ["Anger", Enrage, Buff],
+  ["Artifact", Artifact, Buff],
 
-  ["Unknown", Unknown],
+  ["Unknown", Unknown, Buff],
 }
 
 impl PowerBehavior for Vulnerable {
@@ -145,6 +208,7 @@ impl PowerBehavior for Vulnerable {
 }
 
 impl PowerBehavior for Frail{
+  fn priority (&self)->i32 {10}
   fn at_end_of_round (&self, context: &mut PowerHookContext) {
     context.reduce_this_power();
   }
@@ -154,6 +218,7 @@ impl PowerBehavior for Frail{
 }
 
 impl PowerBehavior for Weak{
+  fn priority (&self)->i32 {99}
   fn at_end_of_round (&self, context: &mut PowerHookContext) {
     context.reduce_this_power();
   }
@@ -164,6 +229,14 @@ impl PowerBehavior for Weak{
 }
 
 impl PowerBehavior for Strength{
+  fn stack_power (&self, power: &mut Power, stack_amount: i32) {
+    power.amount += stack_amount;
+    if power.amount >999 {power.amount = 999;}
+    if power.amount < -999 {power.amount = -999;}
+  }
+  fn reduce_power (&self, power: &mut Power, reduce_amount: i32) {
+    self.stack_power (power, -reduce_amount);
+  }
   fn at_damage_give(&self, context: &mut PowerHookContext, damage: f64, damage_type: DamageType)->f64 {
     if damage_type != DamageType::Normal {return damage}
     damage + context.this_power().amount as f64
@@ -171,6 +244,14 @@ impl PowerBehavior for Strength{
 }
 
 impl PowerBehavior for Dexterity{
+  fn stack_power (&self, power: &mut Power, stack_amount: i32) {
+    power.amount += stack_amount;
+    if power.amount >999 {power.amount = 999;}
+    if power.amount < -999 {power.amount = -999;}
+  }
+  fn reduce_power (&self, power: &mut Power, reduce_amount: i32) {
+    self.stack_power (power, -reduce_amount);
+  }
   fn modify_block (&self, context: &mut PowerHookContext, block: f64)->f64 {
     block + context.this_power().amount as f64
   }
@@ -179,12 +260,7 @@ impl PowerBehavior for Dexterity{
 impl PowerBehavior for Ritual{
   fn at_end_of_round (&self, context: &mut PowerHookContext) {
     if context.remove_just_applied() {
-    context.action_bottom (ApplyPowerAmount {
-      power_id: PowerId::Strength,
-      creature_index: context.owner_index(),
-      amount: context.this_power().amount,
-      just_applied: false,
-    });
+      context.power_owner_bottom (PowerId::Strength,context.amount()) ;
     }
   }
 }
@@ -206,7 +282,11 @@ impl PowerBehavior for CurlUp{
 
 impl PowerBehavior for Thievery{}
 
-impl PowerBehavior for SporeCloud{}
+impl PowerBehavior for SporeCloud{
+  fn on_death (&self, context: &mut PowerHookContext) {
+    context.power_player_top (PowerId::Vulnerable, context.amount());
+  }
+}
 
 impl PowerBehavior for Entangled{
   fn at_end_of_round (&self, context: &mut PowerHookContext) {
@@ -214,9 +294,27 @@ impl PowerBehavior for Entangled{
   }
 }
 
-impl PowerBehavior for Angry{}
+impl PowerBehavior for Angry{
+  fn on_attacked (&self, context: &mut PowerHookContext, info: DamageInfo, damage: i32)->i32 {
+    if info.owner == CreatureIndex::Player && damage >0 && info.damage_type == DamageType::Normal {
+      context.power_owner_top (PowerId::Strength, context.amount());
+    }
+    damage
+  }
+}
 
-impl PowerBehavior for Enrage{}
+impl PowerBehavior for Enrage{
+  fn on_use_card (&self, context: &mut PowerHookContext, card: &SingleCard) {
+    if card.card_info.card_type == CardType::Skill {
+      context.power_owner_top (PowerId::Strength, context.amount());
+    }
+  }
+}
 
+impl PowerBehavior for Artifact{
+  fn on_specific_trigger (&self, context: &mut PowerHookContext) {
+    context.reduce_this_power();
+  }
+}
 impl PowerBehavior for Unknown{}
 

@@ -63,6 +63,7 @@ pub struct CombatState {
   pub player: Player,
   pub monsters: Vec<Monster>,
   pub turn_number: i32,
+  pub turn_has_ended: bool,
 
   pub fresh_action_queue: Vec<DynAction>,
   pub stale_action_stack: Vec<DynAction>,
@@ -197,6 +198,7 @@ impl CombatState {
       stale_action_stack: Vec::new(),
       player: Player::from(&combat.player),
       turn_number: combat.turn,
+      turn_has_ended: false,
       monsters: combat
         .monsters
         .iter()

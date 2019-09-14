@@ -81,6 +81,11 @@ pub struct DamageInfo {
   pub owner: CreatureIndex,
 }
 
+#[derive (Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, Debug)]
+pub enum PowerType {
+  Buff, Debuff
+}
+
 #[derive(Clone, PartialEq, Serialize, Deserialize, Debug, Derivative)]
 #[derivative(Default)]
 pub enum Determinism {
@@ -163,6 +168,14 @@ impl <'a> Runner <'a> {
         .fresh_action_queue
         .push(action.clone().into());
     }
+  }
+  pub fn action_top (&mut self, action: impl Action) {
+    //TODO
+    self.apply (&action);
+  }
+  pub fn action_bottom (&mut self, action: impl Action) {
+    //TODO
+    self.apply (&action);
   }
   
   pub fn state(&self) -> &CombatState {

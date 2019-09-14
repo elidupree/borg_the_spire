@@ -37,29 +37,25 @@ pub trait CardBehaviorContext {
   }
   fn power_monsters(&mut self, power_id: PowerId, amount: i32) {
     for index in 0..self.state().monsters.len() {
-      self.action(ApplyPowerAmount {
-        creature_index: CreatureIndex::Monster(index),
+      self.action(ApplyPowerAction {source: CreatureIndex::Player,
+target: CreatureIndex::Monster(index),
         power_id,
         amount,
-        just_applied: false,
       });
     }
   }
   fn power_target(&mut self, power_id: PowerId, amount: i32) {
-    self.action(ApplyPowerAmount {
-      creature_index: CreatureIndex::Monster(self.target()),
+    self.action(ApplyPowerAction {source: CreatureIndex::Player,
+target: CreatureIndex::Monster(self.target()),
       power_id,
       amount,
-      just_applied: false,
     });
   }
   fn power_self(&mut self, power_id: PowerId, amount: i32) {
-    self.action(ApplyPowerAmount {
-      creature_index: CreatureIndex::Player,
+    self.action(ApplyPowerAction {source: CreatureIndex::Player,
+target: CreatureIndex::Player,
       power_id,
-      amount,
-      just_applied: false,
-    });
+      amount,     });
   }
   fn block(&mut self, amount: i32) {
     self.action(GainBlockAction {

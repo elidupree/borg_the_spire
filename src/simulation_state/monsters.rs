@@ -64,7 +64,7 @@ impl<'a> IntentChoiceContext<'a> {
     alternative: impl Into<Distribution>,
   ) -> Distribution {
     if self.did_repeats(max_repeats, intent) {
-      alternative.into()
+      alternative.into() 
     } else {
       intent.into()
     }
@@ -165,19 +165,19 @@ pub trait IntentEffectsContext {
     });
   }
   fn power_self(&mut self, power_id: PowerId, amount: i32) {
-    self.action(ApplyPowerAmount {
-      creature_index: self.creature_index(),
+    self.action(ApplyPowerAction {
+      source: self.creature_index(),
+      target: CreatureIndex::Player,
       power_id,
       amount,
-      just_applied: true,
     });
   }
   fn power_player(&mut self, power_id: PowerId, amount: i32) {
-    self.action(ApplyPowerAmount {
-      creature_index: CreatureIndex::Player,
+    self.action(ApplyPowerAction {
+      source: self.creature_index(),
+      target: CreatureIndex::Player,
       power_id,
       amount,
-      just_applied: true,
     });
   }
   fn block(&mut self, amount: i32) {
