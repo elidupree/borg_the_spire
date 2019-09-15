@@ -207,23 +207,21 @@ impl<'a> Runner<'a> {
       .unwrap();
     }
   }
-  pub fn apply(&mut self, action: &impl Action) {
-    if self.state().fresh_action_queue.is_empty() && self.can_apply(action) {
+  pub fn action_now(&mut self, action: &impl Action) {
+    if self.state().fresh_subaction_queue.is_empty() && self.can_apply(action) {
       self.apply_impl(action);
     } else {
       self
         .state_mut()
-        .fresh_action_queue
+        .fresh_subaction_queue
         .push(action.clone().into());
     }
   }
   pub fn action_top(&mut self, action: impl Action) {
-    //TODO
-    self.apply(&action);
+    self.state_mut().actions.push_front(action.into());
   }
   pub fn action_bottom(&mut self, action: impl Action) {
-    //TODO
-    self.apply(&action);
+    self.state_mut().actions.push_back(action.into());
   }
 
   pub fn state(&self) -> &CombatState {
@@ -243,17 +241,20 @@ pub fn run_until_unable(runner: &mut Runner) {
       break;
     }
 
-    while let Some(action) = runner.state_mut().fresh_action_queue.pop() {
-      runner.state_mut().stale_action_stack.push(action)
+    while let Some(action) = runner.state_mut().fresh_subaction_queue.pop() {
+      runner.state_mut().stale_subaction_stack.push(action)
     }
 
-    if let Some(action) = runner.state_mut().stale_action_stack.pop() {
+    if let Some(action) = runner.state_mut().stale_subaction_stack.pop() {
       if runner.can_apply(&action) {
-        runner.apply(&action);
+        runner.action_now (&action);
       } else {
-        runner.state_mut().stale_action_stack.push(action);
+        runner.state_mut().stale_subaction_stack.push(action);
         break;
       }
+    }
+    else if let Some(action) = runner.state_mut().actions.pop_front() {
+      runner.action_now(&action);
     } else {
       break;
     }

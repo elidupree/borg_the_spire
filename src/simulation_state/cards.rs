@@ -106,7 +106,7 @@ pub struct PlayCardContext<'a, 'b> {
 
 impl<'a, 'b> CardBehaviorContext for PlayCardContext<'a, 'b> {
   fn action(&mut self, action: impl Action) {
-    self.runner.apply(&action);
+    self.runner.action_bottom (action);
   }
   fn target(&self) -> usize {
     self.target

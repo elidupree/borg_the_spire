@@ -68,11 +68,18 @@ impl SearchState {
           )
         }
       });
+      let mut hypothetical_evaluated_state = start.state.clone();
+      let next_turn = start.state.turn_number + 1;
+      let mut runner = Runner::new(&mut hypothetical_evaluated_state, true, true);
+      run_until_unable(&mut runner);
+      let log = runner.debug_log().to_string();
       html! {
         <div class="starting-point">
           <div class="starting-point-heading">
             {text! ("{} visits\n{:?}", start.visits, start.choices)}
             {start.state.view()}
+            {hypothetical_evaluated_state.view()}
+            //<pre>{text! (log)}</pre>
           </div>
           <div class="strategies">
             {scores}

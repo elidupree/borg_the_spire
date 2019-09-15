@@ -94,12 +94,14 @@ pub fn collect_starting_points(
       for choice in choices {
         let mut new_state = state.clone();
         let mut runner = Runner::new(&mut new_state, false, false);
-        runner.apply(&choice);
+        runner.action_now (&choice);
+        run_until_unable(&mut runner);
         let mut new_history = history.clone();
         new_history.push(choice.clone());
+        assert!(new_state.fresh_subaction_queue.is_empty());
         if (results.len() + frontier.len()) < max_results
           && !new_state.combat_over()
-          && new_state.fresh_action_queue.is_empty()
+          && new_state.stale_subaction_stack.is_empty()
         {
           frontier.push_back((new_state, new_history));
         } else {
@@ -196,9 +198,11 @@ pub fn play_out<S: Strategy>(runner: &mut Runner, strategy: &S) {
   while !runner.state().combat_over() {
     let choices = strategy.choose_choice(runner.state());
     for choice in choices {
-      assert!(runner.state().fresh_action_queue.is_empty());
-      assert!(runner.state().stale_action_stack.is_empty());
-      runner.apply(&choice);
+      assert!(runner.state().fresh_subaction_queue.is_empty());
+      assert!(runner.state().stale_subaction_stack.is_empty());
+      assert!(runner.state().actions.is_empty());
+      runner.action_now (&choice);
+      run_until_unable(runner);
     }
   }
 }

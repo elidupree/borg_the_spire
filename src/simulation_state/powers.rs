@@ -294,7 +294,7 @@ impl PowerBehavior for Weak {
   fn at_end_of_round(&self, context: &mut PowerHookContext) {
     context.reduce_this_power();
   }
-  fn at_damage_receive(
+  fn at_damage_give(
     &self,
     _context: &PowerNumericHookContext,
     damage: f64,
@@ -303,7 +303,7 @@ impl PowerBehavior for Weak {
     if damage_type != DamageType::Normal {
       return damage;
     }
-    damage * 1.5
+    damage * 0.75
   }
 }
 

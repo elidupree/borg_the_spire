@@ -166,7 +166,7 @@ pub trait IntentEffectsContext {
   fn power_self(&mut self, power_id: PowerId, amount: i32) {
     self.action(ApplyPowerAction {
       source: self.creature_index(),
-      target: CreatureIndex::Player,
+      target: self.creature_index(),
       power_id,
       amount,
     });
@@ -196,7 +196,7 @@ pub trait IntentEffectsContext {
 
 impl<'a, 'b> IntentEffectsContext for DoIntentContext<'a, 'b> {
   fn action(&mut self, action: impl Action) {
-    self.runner.apply(&action)
+    self.runner.action_bottom(action)
   }
   fn state(&self) -> &CombatState {
     self.runner.state()
@@ -316,7 +316,7 @@ impl MonsterBehavior for RedLouse {
     if runner.state().monster_intent(monster_index) == 3 {
       let ascension = runner.state().monsters[monster_index].ascension;
       let bonus = if ascension >= 2 { 1 } else { 0 };
-      runner.apply(&InitializeMonsterInnateDamageAmount {
+      runner.action_now (&InitializeMonsterInnateDamageAmount {
         monster_index,
         range: (5 + bonus, 8 + bonus),
       });
@@ -369,10 +369,13 @@ impl MonsterBehavior for JawWorm {
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
     match context.intent() {
       1 => context.attack(context.with_ascension(Ascension(2), 12, 11)),
-      2 => context.power_self(
+      2 => {
+      context.power_self(
         PowerId::Strength,
         context.with_ascensions(Ascension(17), 5, Ascension(2), 4, 3),
-      ),
+      );
+      context.block(context.with_ascension(Ascension(17), 9, 6));
+      }
       3 => {
         context.attack(7);
         context.block(5);

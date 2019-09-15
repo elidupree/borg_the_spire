@@ -4,6 +4,7 @@ use std::convert::From;
 use std::fmt::{self, Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
+use std::collections::VecDeque;
 
 use crate::actions::*;
 use crate::communication_mod_state as communication;
@@ -65,8 +66,9 @@ pub struct CombatState {
   pub turn_number: i32,
   pub turn_has_ended: bool,
 
-  pub fresh_action_queue: Vec<DynAction>,
-  pub stale_action_stack: Vec<DynAction>,
+  pub fresh_subaction_queue: Vec<DynAction>,
+  pub stale_subaction_stack: Vec<DynAction>,
+  pub actions: VecDeque <DynAction>,
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -194,8 +196,9 @@ impl CombatState {
       hand: combat.hand.iter().map(From::from).collect(),
       limbo: combat.limbo.iter().map(From::from).collect(),
       card_in_play: combat.card_in_play.as_ref().map(From::from),
-      fresh_action_queue: Vec::new(),
-      stale_action_stack: Vec::new(),
+      fresh_subaction_queue: Vec::new(),
+      stale_subaction_stack: Vec::new(),
+      actions: VecDeque::new(),
       player: Player::from(&combat.player),
       turn_number: combat.turn,
       turn_has_ended: false,
