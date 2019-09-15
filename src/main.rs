@@ -8,7 +8,6 @@ use std::path::PathBuf;
 
 //use std::time::{Duration, Instant};
 
-
 macro_rules! power_hook {
   ($runner: expr, AllMonsters, $hook: ident ( $($arguments:tt)*)) => {
     {

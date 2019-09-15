@@ -22,11 +22,17 @@ pub trait CardBehavior: Sized + Copy + Into<CardId> {
 pub trait CardBehaviorContext {
   fn action(&mut self, action: impl Action);
   fn target(&self) -> usize;
-fn target_creature_index (&self)->CreatureIndex {  CreatureIndex::Monster (self.target())}
+  fn target_creature_index(&self) -> CreatureIndex {
+    CreatureIndex::Monster(self.target())
+  }
   fn attack_target(&mut self, base_damage: i32) {
     // hack: this is actually NOT where powers are applied to card/monster damage in the actual code
-    let mut info = DamageInfo::new (CreatureIndex::Player, base_damage, DamageType::Normal);
-    info.apply_powers (self.state(), CreatureIndex::Player, self.target_creature_index()) ;
+    let mut info = DamageInfo::new(CreatureIndex::Player, base_damage, DamageType::Normal);
+    info.apply_powers(
+      self.state(),
+      CreatureIndex::Player,
+      self.target_creature_index(),
+    );
     self.action(DamageAction {
       target: self.target_creature_index(),
       info,
@@ -34,11 +40,15 @@ fn target_creature_index (&self)->CreatureIndex {  CreatureIndex::Monster (self.
   }
   fn attack_monsters(&mut self, base_damage: i32) {
     // hack: this is actually NOT where powers are applied to card/monster damage in the actual code
-    let mut info = DamageInfo::new (CreatureIndex::Player, base_damage, DamageType::Normal);
-    info.apply_powers (self.state(), CreatureIndex::Player, self.target_creature_index()) ;
+    let mut info = DamageInfo::new(CreatureIndex::Player, base_damage, DamageType::Normal);
+    info.apply_powers(
+      self.state(),
+      CreatureIndex::Player,
+      self.target_creature_index(),
+    );
     self.action(DamageAllEnemiesAction {
       damage: info.output,
-      damage_type: DamageType::Normal
+      damage_type: DamageType::Normal,
     });
   }
   fn power_monsters(&mut self, power_id: PowerId, amount: i32) {

@@ -7,7 +7,6 @@ use std::ops::{Add, AddAssign, Mul};
 //use rand::{Rng, SeedableRng};
 use rand::seq::SliceRandom;
 
-
 use crate::actions::*;
 pub use crate::simulation_state::cards::CardBehavior;
 pub use crate::simulation_state::monsters::MonsterBehavior;
@@ -86,17 +85,36 @@ pub struct DamageInfo {
 }
 
 impl DamageInfo {
-  pub fn new (source: CreatureIndex, base: i32, damage_type: DamageType)-> DamageInfo {
-    DamageInfo {owner: source, base, damage_type, output: base}
+  pub fn new(source: CreatureIndex, base: i32, damage_type: DamageType) -> DamageInfo {
+    DamageInfo {
+      owner: source,
+      base,
+      damage_type,
+      output: base,
+    }
   }
-  pub fn apply_powers (&mut self, state: & CombatState, owner: CreatureIndex, target: CreatureIndex) {
+  pub fn apply_powers(&mut self, state: &CombatState, owner: CreatureIndex, target: CreatureIndex) {
     self.output = self.base;
     let mut damage = self.output as f64;
-    power_hook! (state, owner, damage = at_damage_give (damage, self.damage_type));
-    power_hook! (state, target, damage = at_damage_receive (damage, self.damage_type));
-    power_hook! (state, target, damage = at_damage_final_receive (damage, self.damage_type));
+    power_hook!(
+      state,
+      owner,
+      damage = at_damage_give(damage, self.damage_type)
+    );
+    power_hook!(
+      state,
+      target,
+      damage = at_damage_receive(damage, self.damage_type)
+    );
+    power_hook!(
+      state,
+      target,
+      damage = at_damage_final_receive(damage, self.damage_type)
+    );
     self.output = damage as i32;
-    if self.output <0 {self.output = 0}
+    if self.output < 0 {
+      self.output = 0
+    }
   }
 }
 
@@ -275,7 +293,6 @@ impl Creature {
   pub fn start_turn(&mut self) {
     self.block = 0;
   }
-
 }
 
 impl CombatState {

@@ -159,7 +159,8 @@ pub trait IntentEffectsContext {
 
   fn attack(&mut self, base_damage: i32) {
     self.action(DamageAction {
-      info: DamageInfo::new (self.creature_index(), base_damage, DamageType::Normal), target: CreatureIndex::Player
+      info: DamageInfo::new(self.creature_index(), base_damage, DamageType::Normal),
+      target: CreatureIndex::Player,
     });
   }
   fn power_self(&mut self, power_id: PowerId, amount: i32) {
