@@ -46,7 +46,6 @@ macro_rules! actions {
   }
 }
 
-
 //Note: not every `&mut state` or `&mut Runner` function needs to be a Action, but such a function needs to be a Action if it EITHER uses direct randomness OR needs to be possible to queue up due to coming immediately after something that might be nondeterministic.
 
 actions! {
@@ -74,7 +73,7 @@ actions! {
   [AttackMonster {pub base_damage: i32, pub swings: i32, pub target: usize}],
   [AttackMonsters {pub base_damage: i32, pub swings: i32}],
   [GainBlockAction {pub creature_index: CreatureIndex, pub amount: i32}],
-  
+
   // generally monster effects
   [InitializeMonsterInnateDamageAmount{pub monster_index: usize, pub range: (i32, i32)}],
   [AttackPlayer {pub monster_index: usize, pub base_damage: i32, pub swings: i32}],
@@ -99,7 +98,7 @@ impl Action for PlayCard {
 }
 
 impl Action for FinishPlayingCard {
-  fn execute (&self, runner: &mut Runner) {
+  fn execute(&self, runner: &mut Runner) {
     let state = runner.state_mut();
     let card = state.card_in_play.take().unwrap();
     if card.card_info.card_type == CardType::Power {
@@ -129,7 +128,7 @@ impl Action for EndTurn {
 }
 
 impl Action for StartMonsterTurn {
-  fn execute (&self, runner: &mut Runner) {
+  fn execute(&self, runner: &mut Runner) {
     if let Some(monster) = runner.state_mut().monsters.get_mut(self.0) {
       if !monster.gone {
         monster.creature.start_turn();
@@ -194,7 +193,8 @@ impl Action for FinishCreatureTurn {
             runner.state_mut().get_creature_mut(self.0).powers[index].just_applied = false;
           } else {
             runner.apply(&ApplyPowerAction {
-              source: self.0, target: self.0,
+              source: self.0,
+              target: self.0,
               power_id: PowerId::Strength,
               amount: runner.state().get_creature(self.0).powers[index].amount,
             });
@@ -285,21 +285,30 @@ impl Action for TakeHit {
 
 impl Action for ApplyPowerAction {
   fn execute(&self, runner: &mut Runner) {
-    if let CreatureIndex::Monster (monster_index) = self.target {
-      if runner.state().monsters [monster_index].gone {
+    if let CreatureIndex::Monster(monster_index) = self.target {
+      if runner.state().monsters[monster_index].gone {
         return;
       }
     }
-    
+
     // TODO: Snecko Skull, Champion Belt, Ginger, Turnip
-    
-    if runner.state().get_creature (self.target).has_power (PowerId::Artifact) &&
-      self.power_id.power_type() == PowerType::Debuff {
-      power_hook!(runner, self.target, PowerId::Artifact, on_specific_trigger());
+
+    if runner
+      .state()
+      .get_creature(self.target)
+      .has_power(PowerId::Artifact)
+      && self.power_id.power_type() == PowerType::Debuff
+    {
+      power_hook!(
+        runner,
+        self.target,
+        PowerId::Artifact,
+        on_specific_trigger()
+      );
     }
-    
+
     let just_applied = runner.state().turn_has_ended;
-    
+
     //if this.source == CreatureIndex::Player && this.target != this.source && {
     let target = runner.state_mut().get_creature_mut(self.target);
     let existing = target
@@ -307,7 +316,7 @@ impl Action for ApplyPowerAction {
       .iter_mut()
       .find(|power| power.power_id == self.power_id);
     // TODO: not for Nightmare
-    
+
     if let Some(existing) = existing {
       existing.power_id.clone().stack_power(existing, self.amount);
     } else {
@@ -317,12 +326,10 @@ impl Action for ApplyPowerAction {
         just_applied,
         ..Default::default()
       });
-      target.powers.sort_by_key (|power| power.power_id.priority());
+      target.powers.sort_by_key(|power| power.power_id.priority());
     }
   }
 }
-
-
 
 impl Action for ReducePowerAction {
   fn execute(&self, runner: &mut Runner) {
@@ -332,20 +339,27 @@ impl Action for ReducePowerAction {
       .iter_mut()
       .find(|power| power.power_id == self.power_id);
     if let Some(existing) = existing {
-      if self.amount <existing.amount {
-        existing.power_id.clone().reduce_power(existing, self.amount);
+      if self.amount < existing.amount {
+        existing
+          .power_id
+          .clone()
+          .reduce_power(existing, self.amount);
       } else {
-        runner.action_top (RemoveSpecificPowerAction {target: self.target, power_id: self.power_id});
+        runner.action_top(RemoveSpecificPowerAction {
+          target: self.target,
+          power_id: self.power_id,
+        });
       }
     }
   }
 }
 
-
 impl Action for RemoveSpecificPowerAction {
   fn execute(&self, runner: &mut Runner) {
     let target = runner.state_mut().get_creature_mut(self.target);
-    target.powers.retain (| power | power.power_id != self.power_id);
+    target
+      .powers
+      .retain(|power| power.power_id != self.power_id);
   }
 }
 

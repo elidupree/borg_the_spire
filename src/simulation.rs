@@ -70,20 +70,23 @@ pub enum CreatureIndex {
   Monster(usize),
 }
 
-#[derive (Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, Debug)]
 pub enum DamageType {
-  Normal, Thorns, HitpointLoss
+  Normal,
+  Thorns,
+  HitpointLoss,
 }
 
-#[derive (Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, Debug)]
 pub struct DamageInfo {
   pub damage_type: DamageType,
   pub owner: CreatureIndex,
 }
 
-#[derive (Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, Debug)]
 pub enum PowerType {
-  Buff, Debuff
+  Buff,
+  Debuff,
 }
 
 #[derive(Clone, PartialEq, Serialize, Deserialize, Debug, Derivative)]
@@ -110,53 +113,63 @@ pub trait Action: Clone + Into<DynAction> {
   }
 }
 
-
-pub struct Runner <'a> {
-  state: & 'a mut CombatState,
+pub struct Runner<'a> {
+  state: &'a mut CombatState,
   allow_random: bool,
   debug: bool,
-  log: String
+  log: String,
 }
 
-impl <'a> Runner <'a> {
-  pub fn new (state: & 'a mut CombatState, allow_random: bool, debug: bool)->Self {Runner {state, allow_random, debug, log: String::new()}}
+impl<'a> Runner<'a> {
+  pub fn new(state: &'a mut CombatState, allow_random: bool, debug: bool) -> Self {
+    Runner {
+      state,
+      allow_random,
+      debug,
+      log: String::new(),
+    }
+  }
 
-  pub fn can_apply_impl (&self, action: & impl Action)->bool {
-    match action.determinism (self.state()) {
+  pub fn can_apply_impl(&self, action: &impl Action) -> bool {
+    match action.determinism(self.state()) {
       Determinism::Deterministic => true,
-      Determinism::Random (distribution) => self.allow_random || distribution.0.len() == 1,
-      Determinism::Choice => false
+      Determinism::Random(distribution) => self.allow_random || distribution.0.len() == 1,
+      Determinism::Choice => false,
     }
   }
   pub fn can_apply(&self, action: &impl Action) -> bool {
     self.can_apply_impl(action) && !self.state().combat_over()
   }
-  pub fn apply_impl (&mut self, action: & impl Action) {
+  pub fn apply_impl(&mut self, action: &impl Action) {
     if self.debug {
       writeln!(
-      self.log,
-      "Applying {:?} to state {:?}",
-      action.clone().into(),
-      self.state
-    )
-    .unwrap();
+        self.log,
+        "Applying {:?} to state {:?}",
+        action.clone().into(),
+        self.state
+      )
+      .unwrap();
     }
-    match action.determinism (self.state()) {
-      Determinism::Deterministic => action.execute (self),
-      Determinism::Random (distribution) => {
-        let random_value = distribution.0.choose_weighted (&mut rand::thread_rng(), | (weight, _) | *weight).unwrap().1;
-        action.execute_random (self, random_value);
-        },
+    match action.determinism(self.state()) {
+      Determinism::Deterministic => action.execute(self),
+      Determinism::Random(distribution) => {
+        let random_value = distribution
+          .0
+          .choose_weighted(&mut rand::thread_rng(), |(weight, _)| *weight)
+          .unwrap()
+          .1;
+        action.execute_random(self, random_value);
+      }
       Determinism::Choice => unreachable!(),
     }
     if self.debug {
       writeln!(
-      self.log,
-      "Done applying {:?}; state is now {:?}",
-      action.clone().into(),
-      self.state
-    )
-    .unwrap();
+        self.log,
+        "Done applying {:?}; state is now {:?}",
+        action.clone().into(),
+        self.state
+      )
+      .unwrap();
     }
   }
   pub fn apply(&mut self, action: &impl Action) {
@@ -169,25 +182,27 @@ impl <'a> Runner <'a> {
         .push(action.clone().into());
     }
   }
-  pub fn action_top (&mut self, action: impl Action) {
+  pub fn action_top(&mut self, action: impl Action) {
     //TODO
-    self.apply (&action);
+    self.apply(&action);
   }
-  pub fn action_bottom (&mut self, action: impl Action) {
+  pub fn action_bottom(&mut self, action: impl Action) {
     //TODO
-    self.apply (&action);
+    self.apply(&action);
   }
-  
+
   pub fn state(&self) -> &CombatState {
     self.state
   }
   pub fn state_mut(&mut self) -> &mut CombatState {
     self.state
   }
-  pub fn debug_log (&self)->& str {& self.log}
+  pub fn debug_log(&self) -> &str {
+    &self.log
+  }
 }
 
-pub fn run_until_unable (runner: &mut Runner) {
+pub fn run_until_unable(runner: &mut Runner) {
   loop {
     if runner.state().combat_over() {
       break;

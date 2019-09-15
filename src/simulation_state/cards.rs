@@ -37,25 +37,29 @@ pub trait CardBehaviorContext {
   }
   fn power_monsters(&mut self, power_id: PowerId, amount: i32) {
     for index in 0..self.state().monsters.len() {
-      self.action(ApplyPowerAction {source: CreatureIndex::Player,
-target: CreatureIndex::Monster(index),
+      self.action(ApplyPowerAction {
+        source: CreatureIndex::Player,
+        target: CreatureIndex::Monster(index),
         power_id,
         amount,
       });
     }
   }
   fn power_target(&mut self, power_id: PowerId, amount: i32) {
-    self.action(ApplyPowerAction {source: CreatureIndex::Player,
-target: CreatureIndex::Monster(self.target()),
+    self.action(ApplyPowerAction {
+      source: CreatureIndex::Player,
+      target: CreatureIndex::Monster(self.target()),
       power_id,
       amount,
     });
   }
   fn power_self(&mut self, power_id: PowerId, amount: i32) {
-    self.action(ApplyPowerAction {source: CreatureIndex::Player,
-target: CreatureIndex::Player,
+    self.action(ApplyPowerAction {
+      source: CreatureIndex::Player,
+      target: CreatureIndex::Player,
       power_id,
-      amount,     });
+      amount,
+    });
   }
   fn block(&mut self, amount: i32) {
     self.action(GainBlockAction {
@@ -80,7 +84,7 @@ target: CreatureIndex::Player,
 }
 
 pub struct PlayCardContext<'a, 'b> {
-  pub runner: &'a mut Runner <'b>,
+  pub runner: &'a mut Runner<'b>,
   pub target: usize,
 }
 

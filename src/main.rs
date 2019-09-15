@@ -8,7 +8,6 @@ use std::path::PathBuf;
 
 //use std::time::{Duration, Instant};
 
-
 macro_rules! power_hook {
   ($runner: expr, $owner: expr, PowerId::$Variant: ident, $hook: ident ( $($arguments:tt)*)) => {
     {
@@ -38,7 +37,7 @@ macro_rules! power_hook {
       }
     }
   };
-  
+
 }
 
 mod actions;

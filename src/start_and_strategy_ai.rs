@@ -158,7 +158,10 @@ impl StartingPoint {
     for strategy in &mut self.candidate_strategies {
       if strategy.visits < max_strategy_visits {
         let mut state = self.state.clone();
-        play_out(&mut Runner::new(&mut state, true, false), &strategy.strategy);
+        play_out(
+          &mut Runner::new(&mut state, true, false),
+          &strategy.strategy,
+        );
         let result = CombatResult::new(&state);
         strategy.total_score += result.score;
         strategy.visits += 1;

@@ -64,7 +64,7 @@ impl<'a> IntentChoiceContext<'a> {
     alternative: impl Into<Distribution>,
   ) -> Distribution {
     if self.did_repeats(max_repeats, intent) {
-      alternative.into() 
+      alternative.into()
     } else {
       intent.into()
     }
@@ -109,7 +109,7 @@ pub fn intent_choice_distribution(state: &CombatState, monster_index: usize) -> 
 }
 
 pub struct DoIntentContext<'a, 'b> {
-  pub runner: &'a mut Runner <'b>,
+  pub runner: &'a mut Runner<'b>,
   pub monster_index: usize,
 }
 
@@ -208,7 +208,7 @@ impl<'a, 'b> IntentEffectsContext for DoIntentContext<'a, 'b> {
 }
 
 impl<'a, 'b> DoIntentContext<'a, 'b> {
-  pub fn new(runner: &'a mut Runner <'b>, monster_index: usize) -> Self {
+  pub fn new(runner: &'a mut Runner<'b>, monster_index: usize) -> Self {
     DoIntentContext {
       runner,
       monster_index,
@@ -298,7 +298,10 @@ impl MonsterBehavior for Cultist {
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
     match context.intent() {
       1 => context.attack(6, 1),
-      3 => context.power_self(PowerId::Ritual, context.with_ascensions(Ascension(17), 5, Ascension (2), 4, 3)),
+      3 => context.power_self(
+        PowerId::Ritual,
+        context.with_ascensions(Ascension(17), 5, Ascension(2), 4, 3),
+      ),
       _ => context.undefined_intent(),
     }
   }
