@@ -227,6 +227,7 @@ impl Action for DamageAction {
         }
         CreatureIndex::Monster(monster_index) => {
           runner.state_mut().monsters[monster_index].gone = true;
+          power_hook! (runner, self.target, on_death());
         }
       }
     }
