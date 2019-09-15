@@ -80,6 +80,7 @@ actions! {
 
 impl Action for PlayCard {
   fn execute(&self, runner: &mut Runner) {
+    power_hook! (runner, AllCreatures, on_use_card(&self.card.clone()));
     let state = runner.state_mut();
     let card_index = state.hand.iter().position(|c| *c == self.card).unwrap();
     let card = state.hand.remove(card_index);
@@ -113,6 +114,7 @@ impl Action for FinishPlayingCard {
 impl Action for EndTurn {
   fn execute(&self, runner: &mut Runner) {
     let state = runner.state_mut();
+    state.turn_has_ended = true;
     for card in state.hand.drain(..) {
       if card.card_info.ethereal {
         state.exhaust_pile.push(card);
@@ -176,6 +178,7 @@ impl Action for FinishMonsterTurn {
       apply_end_of_turn_powers (runner);
       let state = runner.state_mut();
       state.turn_number += 1;
+      state.turn_has_ended = false;
       state.player.creature.start_turn();
       state.player.energy = 3;
       runner.action_now(&DrawCards(5));
@@ -220,7 +223,7 @@ impl Action for DamageAction {
     
     let target = runner.state_mut().get_creature_mut (self.target);
     target.hitpoints -= damage;
-    if target.hitpoints < 0 {
+    if target.hitpoints <= 0 {
       target.hitpoints = 0;
       match self.target {
         CreatureIndex::Player => {

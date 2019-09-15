@@ -103,6 +103,7 @@ pub fn collect_starting_points(
           && !new_state.combat_over()
           && new_state.stale_subaction_stack.is_empty()
         {
+          assert!(new_state.actions.is_empty());
           frontier.push_back((new_state, new_history));
         } else {
           results.push((new_state, new_history));
