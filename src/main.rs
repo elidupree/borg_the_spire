@@ -10,6 +10,23 @@ use std::path::PathBuf;
 
 
 macro_rules! power_hook {
+  ($runner: expr, AllMonsters, $hook: ident ( $($arguments:tt)*)) => {
+    {
+      let runner = &mut* $runner;
+      for monster_index in 0..runner.state().monsters.len() {
+        if !runner.state().monsters [monster_index].gone {
+          power_hook! (runner, CreatureIndex::Monster (monster_index), $hook ($($arguments)*));
+        }
+      }
+    }
+  };
+  ($runner: expr, AllCreatures, $hook: ident ( $($arguments:tt)*)) => {
+    {
+      let runner = &mut* $runner;
+      power_hook! (runner, CreatureIndex::Player, $hook ($($arguments)*));
+      power_hook! (runner, AllMonsters, $hook ($($arguments)*));
+    }
+  };
   ($runner: expr, $owner: expr, PowerId::$Variant: ident, $hook: ident ( $($arguments:tt)*)) => {
     {
       let runner = &mut* $runner;
@@ -43,7 +60,7 @@ macro_rules! power_hook {
       let state = $state;
       let owner = $owner;
       let creature = state.get_creature(owner);
-      for index in 0..creature.powers.len() {
+      for (index, power) in creature.powers.iter().enumerate() {
         $lval = power.power_id.$hook (&$crate::simulation_state::powers::PowerNumericHookContext {state, owner, power_index: index}, $($arguments)*);
       }
     }

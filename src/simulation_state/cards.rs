@@ -22,17 +22,23 @@ pub trait CardBehavior: Sized + Copy + Into<CardId> {
 pub trait CardBehaviorContext {
   fn action(&mut self, action: impl Action);
   fn target(&self) -> usize;
-  fn attack_target(&mut self, base_damage: i32, swings: i32) {
-    self.action(AttackMonster {
-      target: self.target(),
-      base_damage,
-      swings,
+fn target_creature_index (&self)->CreatureIndex {  CreatureIndex::Monster (self.target())}
+  fn attack_target(&mut self, base_damage: i32) {
+    // hack: this is actually NOT where powers are applied to card/monster damage in the actual code
+    let mut info = DamageInfo::new (CreatureIndex::Player, base_damage, DamageType::Normal);
+    info.apply_powers (self.state(), CreatureIndex::Player, self.target_creature_index()) ;
+    self.action(DamageAction {
+      target: self.target_creature_index(),
+      info,
     });
   }
-  fn attack_monsters(&mut self, base_damage: i32, swings: i32) {
-    self.action(AttackMonsters {
-      base_damage,
-      swings,
+  fn attack_monsters(&mut self, base_damage: i32) {
+    // hack: this is actually NOT where powers are applied to card/monster damage in the actual code
+    let mut info = DamageInfo::new (CreatureIndex::Player, base_damage, DamageType::Normal);
+    info.apply_powers (self.state(), CreatureIndex::Player, self.target_creature_index()) ;
+    self.action(DamageAllEnemiesAction {
+      damage: info.output,
+      damage_type: DamageType::Normal
     });
   }
   fn power_monsters(&mut self, power_id: PowerId, amount: i32) {
@@ -200,13 +206,13 @@ cards! {
 
 impl CardBehavior for StrikeR {
   fn behavior(self, context: &mut impl CardBehaviorContext) {
-    context.attack_target(context.with_upgrade(9, 6), 1);
+    context.attack_target(context.with_upgrade(9, 6));
   }
 }
 
 impl CardBehavior for Bash {
   fn behavior(self, context: &mut impl CardBehaviorContext) {
-    context.attack_target(context.with_upgrade(10, 8), 1);
+    context.attack_target(context.with_upgrade(10, 8));
     context.power_target(PowerId::Vulnerable, context.with_upgrade(3, 2));
   }
 }
@@ -219,7 +225,7 @@ impl CardBehavior for DefendR {
 
 impl CardBehavior for Anger {
   fn behavior(self, context: &mut impl CardBehaviorContext) {
-    context.attack_target(context.with_upgrade(8, 6), 1);
+    context.attack_target(context.with_upgrade(8, 6));
     context.action(DiscardNewCard(context.card().clone()));
   }
 }
@@ -233,7 +239,7 @@ impl CardBehavior for Armaments {
 
 impl CardBehavior for BodySlam {
   fn behavior(self, context: &mut impl CardBehaviorContext) {
-    context.attack_target(context.state().player.creature.block, 1);
+    context.attack_target(context.state().player.creature.block);
   }
 }
 
@@ -245,19 +251,19 @@ impl CardBehavior for Clash {
       .all(|card| card.card_info.card_type == Attack)
   }
   fn behavior(self, context: &mut impl CardBehaviorContext) {
-    context.attack_target(context.with_upgrade(18, 14), 1);
+    context.attack_target(context.with_upgrade(18, 14));
   }
 }
 
 impl CardBehavior for Cleave {
   fn behavior(self, context: &mut impl CardBehaviorContext) {
-    context.attack_monsters(context.with_upgrade(11, 8), 1);
+    context.attack_monsters(context.with_upgrade(11, 8));
   }
 }
 
 impl CardBehavior for Clothesline {
   fn behavior(self, context: &mut impl CardBehaviorContext) {
-    context.attack_target(context.with_upgrade(14, 12), 1);
+    context.attack_target(context.with_upgrade(14, 12));
     context.power_target(PowerId::Weak, context.with_upgrade(3, 2));
   }
 }
@@ -277,7 +283,7 @@ impl CardBehavior for Havoc {
 
 impl CardBehavior for Headbutt {
   fn behavior(self, context: &mut impl CardBehaviorContext) {
-    context.attack_target(context.with_upgrade(12, 9), 1);
+    context.attack_target(context.with_upgrade(12, 9));
     //TODO: retrieve card
   }
 }
@@ -290,13 +296,13 @@ impl CardBehavior for HeavyBlade {
       .player
       .creature
       .power_amount(PowerId::Strength);
-    context.attack_target(14 + strength * multiplier, 1);
+    context.attack_target(14 + strength * multiplier);
   }
 }
 
 impl CardBehavior for IronWave {
   fn behavior(self, context: &mut impl CardBehaviorContext) {
-    context.attack_target(context.with_upgrade(7, 5), 1);
+    context.attack_target(context.with_upgrade(7, 5));
     context.block(context.with_upgrade(7, 5));
   }
 }
@@ -309,7 +315,7 @@ impl CardBehavior for PerfectedStrike {
 
 impl CardBehavior for PommelStrike {
   fn behavior(self, context: &mut impl CardBehaviorContext) {
-    context.attack_target(context.with_upgrade(10, 9), 1);
+    context.attack_target(context.with_upgrade(10, 9));
     context.draw_cards(context.with_upgrade(2, 1));
   }
 }
@@ -328,7 +334,7 @@ impl CardBehavior for SwordBoomerang {
 
 impl CardBehavior for Thunderclap {
   fn behavior(self, context: &mut impl CardBehaviorContext) {
-    context.attack_monsters(context.with_upgrade(7, 4), 1);
+    context.attack_monsters(context.with_upgrade(7, 4));
     context.power_monsters(PowerId::Vulnerable, 1);
   }
 }
@@ -342,7 +348,9 @@ impl CardBehavior for TrueGrit {
 
 impl CardBehavior for TwinStrike {
   fn behavior(self, context: &mut impl CardBehaviorContext) {
-    context.attack_target(context.with_upgrade(7, 5), 2);
+    for _ in 0..2 {
+      context.attack_target(context.with_upgrade(7, 5));
+    }
   }
 }
 
@@ -354,7 +362,7 @@ impl CardBehavior for Warcry {
 
 impl CardBehavior for WildStrike {
   fn behavior(self, context: &mut impl CardBehaviorContext) {
-    context.attack_target(context.with_upgrade(17, 12), 1);
+    context.attack_target(context.with_upgrade(17, 12));
     //TODO: wound
   }
 }

@@ -157,11 +157,9 @@ pub trait IntentEffectsContext {
     }
   }
 
-  fn attack(&mut self, base_damage: i32, swings: i32) {
-    self.action(AttackPlayer {
-      monster_index: self.monster_index(),
-      base_damage,
-      swings,
+  fn attack(&mut self, base_damage: i32) {
+    self.action(DamageAction {
+      info: DamageInfo::new (self.creature_index(), base_damage, DamageType::Normal), target: CreatureIndex::Player
     });
   }
   fn power_self(&mut self, power_id: PowerId, amount: i32) {
@@ -297,7 +295,7 @@ impl MonsterBehavior for Cultist {
   }
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
     match context.intent() {
-      1 => context.attack(6, 1),
+      1 => context.attack(6),
       3 => context.power_self(
         PowerId::Ritual,
         context.with_ascensions(Ascension(17), 5, Ascension(2), 4, 3),
@@ -325,7 +323,7 @@ impl MonsterBehavior for RedLouse {
   }
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
     match context.intent() {
-      3 => context.attack(context.monster().innate_damage_amount.unwrap(), 1),
+      3 => context.attack(context.monster().innate_damage_amount.unwrap()),
       4 => context.power_self(
         PowerId::Strength,
         context.with_ascension(Ascension(17), 4, 3),
@@ -345,7 +343,7 @@ impl MonsterBehavior for GreenLouse {
 
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
     match context.intent() {
-      3 => context.attack(context.monster().innate_damage_amount.unwrap(), 1),
+      3 => context.attack(context.monster().innate_damage_amount.unwrap()),
       4 => context.power_player(PowerId::Weak, 2),
       _ => context.undefined_intent(),
     }
@@ -369,13 +367,13 @@ impl MonsterBehavior for JawWorm {
   }
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
     match context.intent() {
-      1 => context.attack(context.with_ascension(Ascension(2), 12, 11), 1),
+      1 => context.attack(context.with_ascension(Ascension(2), 12, 11)),
       2 => context.power_self(
         PowerId::Strength,
         context.with_ascensions(Ascension(17), 5, Ascension(2), 4, 3),
       ),
       3 => {
-        context.attack(7, 1);
+        context.attack(7);
         context.block(5);
       }
       _ => context.undefined_intent(),
@@ -395,7 +393,7 @@ impl MonsterBehavior for AcidSlimeS {
   }
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
     match context.intent() {
-      1 => context.attack(context.with_ascension(Ascension(2), 4, 3), 1),
+      1 => context.attack(context.with_ascension(Ascension(2), 4, 3)),
       2 => context.power_player(PowerId::Weak, 1),
       _ => context.undefined_intent(),
     }
@@ -429,10 +427,10 @@ impl MonsterBehavior for AcidSlimeM {
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
     match context.intent() {
       1 => {
-        context.attack(context.with_ascension(Ascension(2), 8, 7), 1);
+        context.attack(context.with_ascension(Ascension(2), 8, 7));
         context.discard_status(CardId::Slimed, 1);
       }
-      2 => context.attack(context.with_ascension(Ascension(2), 12, 10), 1),
+      2 => context.attack(context.with_ascension(Ascension(2), 12, 10)),
       4 => context.power_player(PowerId::Weak, 1),
       _ => context.undefined_intent(),
     }
@@ -445,7 +443,7 @@ impl MonsterBehavior for SpikeSlimeS {
   }
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
     match context.intent() {
-      1 => context.attack(context.with_ascension(Ascension(2), 6, 5), 1),
+      1 => context.attack(context.with_ascension(Ascension(2), 6, 5)),
       _ => context.undefined_intent(),
     }
   }
@@ -460,7 +458,7 @@ impl MonsterBehavior for SpikeSlimeM {
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
     match context.intent() {
       1 => {
-        context.attack(context.with_ascension(Ascension(2), 10, 8), 1);
+        context.attack(context.with_ascension(Ascension(2), 10, 8));
         context.discard_status(CardId::Slimed, 1);
       }
       4 => context.power_player(PowerId::Frail, 1),
@@ -476,7 +474,7 @@ impl MonsterBehavior for FungiBeast {
   }
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
     match context.intent() {
-      1 => context.attack(6, 1),
+      1 => context.attack(6),
       2 => context.power_self(
         PowerId::Strength,
         context.with_ascension(Ascension(17), 4, 3),
@@ -492,7 +490,7 @@ impl MonsterBehavior for Looter {
   }
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
     match context.intent() {
-      1 => context.attack(6, 1),
+      1 => context.attack(6),
       _ => context.undefined_intent(),
     }
   }
@@ -508,9 +506,9 @@ impl MonsterBehavior for SlaverBlue {
   }
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
     match context.intent() {
-      1 => context.attack(context.with_ascension(Ascension(2), 6, 5), 1),
+      1 => context.attack(context.with_ascension(Ascension(2), 6, 5)),
       4 => {
-        context.attack(context.with_ascension(Ascension(2), 8, 7), 1);
+        context.attack(context.with_ascension(Ascension(2), 8, 7));
         context.power_player(PowerId::Weak, context.with_ascension(Ascension(17), 2, 1));
       }
       _ => context.undefined_intent(),
@@ -537,10 +535,10 @@ impl MonsterBehavior for SlaverRed {
   }
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
     match context.intent() {
-      1 => context.attack(context.with_ascension(Ascension(2), 14, 13), 1),
+      1 => context.attack(context.with_ascension(Ascension(2), 14, 13)),
       2 => context.power_player(PowerId::Entangled, 1),
       3 => {
-        context.attack(context.with_ascension(Ascension(2), 9, 8), 1);
+        context.attack(context.with_ascension(Ascension(2), 9, 8));
         context.power_player(
           PowerId::Vulnerable,
           context.with_ascension(Ascension(17), 2, 1),
@@ -556,7 +554,7 @@ impl MonsterBehavior for MadGremlin {
   }
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
     match context.intent() {
-      1 => context.attack(context.with_ascension(Ascension(2), 5, 4), 1),
+      1 => context.attack(context.with_ascension(Ascension(2), 5, 4)),
       _ => context.undefined_intent(),
     }
   }
@@ -567,7 +565,7 @@ impl MonsterBehavior for SneakyGremlin {
   }
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
     match context.intent() {
-      1 => context.attack(context.with_ascension(Ascension(2), 10, 9), 1),
+      1 => context.attack(context.with_ascension(Ascension(2), 10, 9)),
       _ => context.undefined_intent(),
     }
   }
@@ -584,7 +582,7 @@ impl MonsterBehavior for GremlinWizard {
   }
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
     match context.intent() {
-      1 => context.attack(context.with_ascension(Ascension(2), 30, 25), 1),
+      1 => context.attack(context.with_ascension(Ascension(2), 30, 25)),
       2 => (),
       _ => context.undefined_intent(),
     }
@@ -597,7 +595,7 @@ impl MonsterBehavior for FatGremlin {
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
     match context.intent() {
       2 => {
-        context.attack(context.with_ascension(Ascension(2), 5, 4), 1);
+        context.attack(context.with_ascension(Ascension(2), 5, 4));
         context.power_player(PowerId::Weak, 1);
         if context.ascension() >= 17 {
           context.power_player(PowerId::Frail, 1);
@@ -628,7 +626,7 @@ impl MonsterBehavior for ShieldGremlin {
         let amount = context.with_ascensions(Ascension(17), 11, Ascension(2), 8, 7);
         //TODO
       }
-      2 => context.attack(context.with_ascension(Ascension(2), 8, 6), 1),
+      2 => context.attack(context.with_ascension(Ascension(2), 8, 6)),
       _ => context.undefined_intent(),
     }
   }
@@ -648,7 +646,7 @@ impl MonsterBehavior for Sentry {
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
     match context.intent() {
       3 => context.discard_status(CardId::Dazed, context.with_ascension(Ascension(18), 3, 2)),
-      4 => context.attack(context.with_ascension(Ascension(3), 10, 9), 1),
+      4 => context.attack(context.with_ascension(Ascension(3), 10, 9)),
       _ => context.undefined_intent(),
     }
   }
@@ -673,9 +671,9 @@ impl MonsterBehavior for GremlinNob {
   }
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
     match context.intent() {
-      1 => context.attack(context.with_ascension(Ascension(3), 16, 14), 1),
+      1 => context.attack(context.with_ascension(Ascension(3), 16, 14)),
       2 => {
-        context.attack(context.with_ascension(Ascension(3), 8, 6), 1);
+        context.attack(context.with_ascension(Ascension(3), 8, 6));
         context.power_player(PowerId::Vulnerable, 2);
       }
       3 => context.power_self(PowerId::Enrage, context.with_ascension(Ascension(18), 3, 2)),
@@ -695,7 +693,7 @@ impl MonsterBehavior for Lagavulin {
         context.power_player(PowerId::Dexterity, amount);
         context.power_player(PowerId::Strength, amount);
       }
-      3 => context.attack(context.with_ascension(Ascension(3), 20, 18), 1),
+      3 => context.attack(context.with_ascension(Ascension(3), 20, 18)),
       _ => context.undefined_intent(),
     }
   }

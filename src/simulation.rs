@@ -6,7 +6,7 @@ use std::fmt::Write;
 use std::ops::{Add, AddAssign, Mul};
 //use rand::{Rng, SeedableRng};
 use rand::seq::SliceRandom;
-use retain_mut::RetainMut;
+
 
 use crate::actions::*;
 pub use crate::simulation_state::cards::CardBehavior;
@@ -70,7 +70,7 @@ pub enum CreatureIndex {
   Monster(usize),
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, Debug)]
 pub enum DamageType {
   Normal,
   Thorns,
@@ -81,6 +81,23 @@ pub enum DamageType {
 pub struct DamageInfo {
   pub damage_type: DamageType,
   pub owner: CreatureIndex,
+  pub base: i32,
+  pub output: i32,
+}
+
+impl DamageInfo {
+  pub fn new (source: CreatureIndex, base: i32, damage_type: DamageType)-> DamageInfo {
+    DamageInfo {owner: source, base, damage_type, output: base}
+  }
+  pub fn apply_powers (&mut self, state: & CombatState, owner: CreatureIndex, target: CreatureIndex) {
+    self.output = self.base;
+    let mut damage = self.output as f64;
+    power_hook! (state, owner, damage = at_damage_give (damage, self.damage_type));
+    power_hook! (state, target, damage = at_damage_receive (damage, self.damage_type));
+    power_hook! (state, target, damage = at_damage_final_receive (damage, self.damage_type));
+    self.output = damage as i32;
+    if self.output <0 {self.output = 0}
+  }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, Debug)]
@@ -259,47 +276,6 @@ impl Creature {
     self.block = 0;
   }
 
-  pub fn finish_round(&mut self) {
-    self.powers.retain_mut(|power| match power.power_id {
-      PowerId::Vulnerable | PowerId::Weak | PowerId::Frail => {
-        if power.just_applied {
-          power.just_applied = false;
-          true
-        } else {
-          power.amount -= 1;
-          power.amount > 0
-        }
-      }
-      _ => true,
-    });
-  }
-
-  pub fn adjusted_damage_received(&self, mut damage: i32) -> i32 {
-    if self.has_power(PowerId::Vulnerable) {
-      damage = (damage * 3 + 1) / 2;
-    }
-    damage
-  }
-
-  pub fn adjusted_damage_dealt(&self, mut damage: i32) -> i32 {
-    damage += self.power_amount(PowerId::Strength);
-    if self.has_power(PowerId::Weak) {
-      damage = (damage * 3) / 4;
-    }
-    if damage <= 0 {
-      return 0;
-    }
-    damage
-  }
-
-  pub fn do_block(&mut self, mut amount: i32) {
-    if self.has_power(PowerId::Frail) {
-      amount = (amount * 3) / 4;
-    }
-    if amount > 0 {
-      self.block += amount;
-    }
-  }
 }
 
 impl CombatState {
