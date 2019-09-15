@@ -302,7 +302,7 @@ impl CombatState {
   }
 
   pub fn card_playable(&self, card: &SingleCard) -> bool {
-    card.cost >= -1 && self.player.energy >= card.cost && card.card_info.id.playable(self)
+    card.cost >= -1 && self.player.energy >= card.cost && card.card_info.id.playable(self) &&!(card.card_info.card_type == CardType::Attack && self.player.creature.has_power (PowerId::Entangled))
   }
 
   pub fn legal_choices(&self) -> Vec<Choice> {

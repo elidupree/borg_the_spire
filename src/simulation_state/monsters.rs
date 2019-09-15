@@ -158,8 +158,15 @@ pub trait IntentEffectsContext {
   }
 
   fn attack(&mut self, base_damage: i32) {
+    // hack: this is actually NOT where powers are applied to card/monster damage in the actual code
+    let mut info = DamageInfo::new(self.creature_index(), base_damage, DamageType::Normal);
+    info.apply_powers(
+      self.state(),
+      self.creature_index(),
+      CreatureIndex::Player,
+    );
     self.action(DamageAction {
-      info: DamageInfo::new(self.creature_index(), base_damage, DamageType::Normal),
+      info,
       target: CreatureIndex::Player,
     });
   }
@@ -510,7 +517,7 @@ impl MonsterBehavior for SlaverBlue {
   }
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
     match context.intent() {
-      1 => context.attack(context.with_ascension(Ascension(2), 6, 5)),
+      1 => context.attack(context.with_ascension(Ascension(2), 13, 12)),
       4 => {
         context.attack(context.with_ascension(Ascension(2), 8, 7));
         context.power_player(PowerId::Weak, context.with_ascension(Ascension(17), 2, 1));

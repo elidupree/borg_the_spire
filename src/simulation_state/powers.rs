@@ -248,7 +248,7 @@ powers! {
   ["Ritual", Ritual, Buff],
   ["Curl Up", CurlUp, Buff],
   ["Thievery", Thievery, Buff],
-  ["SporeCloud", SporeCloud, Buff],
+  ["Spore Cloud", SporeCloud, Buff],
   ["Entangled", Entangled, Debuff],
   ["Angry", Angry, Buff],
 
