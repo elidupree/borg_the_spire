@@ -11,6 +11,30 @@ pub struct PowerHookContext<'a, 'b> {
   pub power_index: usize,
 }
 
+pub struct PowerNumericHookContext<'a> {
+  pub state: &'a CombatState,
+  pub owner: CreatureIndex,
+  pub power_index: usize,
+}
+
+impl<'a> PowerNumericHookContext<'a> {
+  pub fn state(&self) -> &CombatState {
+    self.state
+  }
+  pub fn owner_index(&self) -> CreatureIndex {
+    self.owner
+  }
+  pub fn owner_creature(&self) -> &Creature {
+    self.state().get_creature(self.owner)
+  }
+  pub fn this_power(&self) -> &Power {
+    &self.owner_creature().powers[self.power_index]
+  }
+  pub fn amount(&self) -> i32 {
+    self.this_power().amount
+  }
+}
+
 impl<'a, 'b> PowerHookContext<'a, 'b> {
   pub fn state(&self) -> &CombatState {
     self.runner.state()
@@ -124,7 +148,7 @@ pub trait PowerBehavior {
 
   fn at_damage_give(
     &self,
-    context: &mut PowerHookContext,
+    context: &PowerNumericHookContext,
     damage: f64,
     damage_type: DamageType,
   ) -> f64 {
@@ -132,7 +156,7 @@ pub trait PowerBehavior {
   }
   fn at_damage_final_receive(
     &self,
-    context: &mut PowerHookContext,
+    context: &PowerNumericHookContext,
     damage: f64,
     damage_type: DamageType,
   ) -> f64 {
@@ -140,7 +164,7 @@ pub trait PowerBehavior {
   }
   fn at_damage_receive(
     &self,
-    context: &mut PowerHookContext,
+    context: &PowerNumericHookContext,
     damage: f64,
     damage_type: DamageType,
   ) -> f64 {
@@ -151,11 +175,9 @@ pub trait PowerBehavior {
   fn at_start_of_turn_post_draw(&self, context: &mut PowerHookContext) {}
   fn at_end_of_turn(&self, context: &mut PowerHookContext) {}
   fn at_end_of_round(&self, context: &mut PowerHookContext) {}
-  fn on_attacked(&self, context: &mut PowerHookContext, info: DamageInfo, damage: i32) -> i32 {
-    damage
-  }
+  fn on_attacked(&self, context: &mut PowerHookContext, info: DamageInfo, damage: i32) {}
   fn on_attack(&self, context: &mut PowerHookContext, damage: i32, target: CreatureIndex) {}
-  fn on_attacked_to_change_damage(&self, context: &mut PowerHookContext, damage: i32) -> i32 {
+  fn on_attacked_to_change_damage(&self, context: &PowerNumericHookContext, damage: i32) -> i32 {
     damage
   }
   fn on_inflict_damage(&self, context: &mut PowerHookContext) {}
@@ -166,7 +188,7 @@ pub trait PowerBehavior {
   fn on_death(&self, context: &mut PowerHookContext) {}
   fn at_energy_gain(&self, context: &mut PowerHookContext) {}
   fn on_exhaust(&self, context: &mut PowerHookContext, card: &SingleCard) {}
-  fn modify_block(&self, context: &mut PowerHookContext, block: f64) -> f64 {
+  fn modify_block(&self, context: &PowerNumericHookContext, block: f64) -> f64 {
     block
   }
   fn on_gained_block(&self, context: &mut PowerHookContext, block: f64) {}
@@ -242,7 +264,7 @@ impl PowerBehavior for Vulnerable {
   }
   fn at_damage_receive(
     &self,
-    _context: &mut PowerHookContext,
+    _context: &PowerNumericHookContext,
     damage: f64,
     damage_type: DamageType,
   ) -> f64 {
@@ -260,7 +282,7 @@ impl PowerBehavior for Frail {
   fn at_end_of_round(&self, context: &mut PowerHookContext) {
     context.reduce_this_power();
   }
-  fn modify_block(&self, _context: &mut PowerHookContext, block: f64) -> f64 {
+  fn modify_block(&self, _context: &PowerNumericHookContext, block: f64) -> f64 {
     block * 0.75
   }
 }
@@ -274,7 +296,7 @@ impl PowerBehavior for Weak {
   }
   fn at_damage_receive(
     &self,
-    _context: &mut PowerHookContext,
+    _context: &PowerNumericHookContext,
     damage: f64,
     damage_type: DamageType,
   ) -> f64 {
@@ -300,7 +322,7 @@ impl PowerBehavior for Strength {
   }
   fn at_damage_give(
     &self,
-    context: &mut PowerHookContext,
+    context: &PowerNumericHookContext,
     damage: f64,
     damage_type: DamageType,
   ) -> f64 {
@@ -324,7 +346,7 @@ impl PowerBehavior for Dexterity {
   fn reduce_power(&self, power: &mut Power, reduce_amount: i32) {
     self.stack_power(power, -reduce_amount);
   }
-  fn modify_block(&self, context: &mut PowerHookContext, block: f64) -> f64 {
+  fn modify_block(&self, context: &PowerNumericHookContext, block: f64) -> f64 {
     block + context.this_power().amount as f64
   }
 }
@@ -338,7 +360,7 @@ impl PowerBehavior for Ritual {
 }
 
 impl PowerBehavior for CurlUp {
-  fn on_attacked(&self, context: &mut PowerHookContext, info: DamageInfo, damage: i32) -> i32 {
+  fn on_attacked(&self, context: &mut PowerHookContext, info: DamageInfo, damage: i32) {
     // hack: using amount == 0 instead of this.triggered
     if context.this_power().amount > 0
       && damage < context.owner_creature().hitpoints
@@ -351,7 +373,6 @@ impl PowerBehavior for CurlUp {
       context.this_power_mut().amount = 0;
       context.remove_this_power();
     }
-    damage
   }
 }
 
@@ -370,11 +391,10 @@ impl PowerBehavior for Entangled {
 }
 
 impl PowerBehavior for Angry {
-  fn on_attacked(&self, context: &mut PowerHookContext, info: DamageInfo, damage: i32) -> i32 {
+  fn on_attacked(&self, context: &mut PowerHookContext, info: DamageInfo, damage: i32) {
     if info.owner == CreatureIndex::Player && damage > 0 && info.damage_type == DamageType::Normal {
       context.power_owner_top(PowerId::Strength, context.amount());
     }
-    damage
   }
 }
 

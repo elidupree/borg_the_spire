@@ -8,6 +8,7 @@ use std::path::PathBuf;
 
 //use std::time::{Duration, Instant};
 
+
 macro_rules! power_hook {
   ($runner: expr, $owner: expr, PowerId::$Variant: ident, $hook: ident ( $($arguments:tt)*)) => {
     {
@@ -37,7 +38,16 @@ macro_rules! power_hook {
       }
     }
   };
-
+  ($state: expr, $owner: expr, $lval: ident = $hook: ident ( $($arguments:tt)*)) => {
+    {
+      let state = $state;
+      let owner = $owner;
+      let creature = state.get_creature(owner);
+      for index in 0..creature.powers.len() {
+        $lval = power.power_id.$hook (&$crate::simulation_state::powers::PowerNumericHookContext {state, owner, power_index: index}, $($arguments)*);
+      }
+    }
+  };
 }
 
 mod actions;
