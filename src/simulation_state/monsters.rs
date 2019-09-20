@@ -574,7 +574,7 @@ impl MonsterBehavior for Looter {
     } else if context.state().turn_number == 2 {
       context.always (Distribution::split (0.5, 4, 2));
     } else {
-      context.with_max_repeats(Repeats(1), 2, 3);
+      context.always (context.with_max_repeats(Repeats(1), 2, 3));
     }
   }
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {

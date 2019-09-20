@@ -29,7 +29,7 @@ impl CombatState {
       .map(|monster| {
         html! {
           <div class="monster">
-            {text! ("{:?} i{} {:?}", monster.monster_id, monster.intent(), monster.creature)}
+            {text! ("{:?} i{} {:?}", monster.monster_id, monster.move_history.last().map_or("?".to_string(), ToString::to_string), monster.creature)}
           </div>
         }
       });
