@@ -326,6 +326,7 @@ impl Action for ApplyPowerAction {
         PowerId::Artifact,
         on_specific_trigger()
       );
+      return
     }
 
     let just_applied = runner.state().turn_has_ended;
