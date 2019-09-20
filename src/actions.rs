@@ -113,6 +113,8 @@ impl Action for FinishPlayingCard {
 
 impl Action for EndTurn {
   fn execute(&self, runner: &mut Runner) {
+    power_hook! (runner, CreatureIndex::Player, at_end_of_turn());
+    
     let state = runner.state_mut();
     state.turn_has_ended = true;
     for card in state.hand.drain(..) {

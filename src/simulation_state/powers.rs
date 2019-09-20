@@ -254,6 +254,7 @@ powers! {
 
   ["Anger", Enrage, Buff],
   ["Artifact", Artifact, Buff],
+  ["Metallicize", Metallicize, Buff],
 
   ["Unknown", Unknown, Buff],
 }
@@ -411,4 +412,15 @@ impl PowerBehavior for Artifact {
     context.reduce_this_power();
   }
 }
+
+impl PowerBehavior for Metallicize {
+  fn at_end_of_turn(&self, context: &mut PowerHookContext) {
+    context.action_bottom(GainBlockAction {
+      creature_index: context.owner_index(),
+      amount: context.this_power().amount,
+    });
+  }
+}
+
+
 impl PowerBehavior for Unknown {}

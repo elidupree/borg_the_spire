@@ -51,6 +51,14 @@ impl<'a> IntentChoiceContext<'a> {
     self.monster_index
   }
 
+  fn creature_index(&self) -> CreatureIndex {
+    CreatureIndex::Monster(self.monster_index())
+  }
+  fn monster(&self) -> &Monster {
+    &self.state().monsters[self.monster_index()]
+  }
+
+
   pub fn did_repeats(&self, repeats: Repeats, intent: i32) -> bool {
     self.monster.move_history.len() >= repeats.0
       && self.monster.move_history[self.monster.move_history.len() - repeats.0..]
@@ -695,7 +703,19 @@ impl MonsterBehavior for GremlinNob {
 impl MonsterBehavior for Lagavulin {
   fn make_intent_distribution(self, context: &mut IntentChoiceContext) {
     // TODOsleepy
-    context.always(context.with_max_repeats(Repeats(2), 3, 1));
+    if context.state().turn_number >= 3 || context.monster().creature.hitpoints < context.monster().creature.max_hitpoints || context.monster().move_history.iter().any(|&intent| intent == 1 || intent == 3) {
+      context.always(context.with_max_repeats(Repeats(2), 3, 1));
+    }
+    else {
+      context.always(5);
+    }
+  }
+  fn after_choosing_intent(self, runner: &mut Runner, monster_index: usize) {
+    let monster = &runner.state().monsters[monster_index];
+    let intent = monster.intent();
+    if intent == 1 || intent == 3 && monster.creature.power_amount (PowerId::Metallicize) >= 8 {
+      runner.action_bottom (ReducePowerAction {target: CreatureIndex::Monster (monster_index), power_id: PowerId::Metallicize, amount: 8});
+    }
   }
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
     match context.intent() {
