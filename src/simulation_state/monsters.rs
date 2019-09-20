@@ -541,9 +541,7 @@ impl MonsterBehavior for SlaverRed {
       return;
     }
 
-    if false
-    //TODO did not entangle
-    {
+    if context.monster().move_history.iter().all(| & intent | intent != 2) {
       context.if_num_geq(75, 2);
     } else if !context.did_repeats(Repeats(2), 1) {
       context.if_num_geq(55, 1);

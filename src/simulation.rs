@@ -361,9 +361,9 @@ impl Monster {
     *self.move_history.last().unwrap()
   }
   pub fn push_intent(&mut self, intent: i32) {
-    if self.move_history.len() == 3 {
+    /*if self.move_history.len() == 3 {
       self.move_history.remove(0);
-    }
+    }*/
     self.move_history.push(intent);
   }
 }
