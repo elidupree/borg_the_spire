@@ -302,6 +302,8 @@ impl CombatState {
   }
 
   pub fn card_playable(&self, card: &SingleCard) -> bool {
+    assert!(X_COST == -1);
+    assert!(UNPLAYABLE == -2);
     card.cost >= -1 && self.player.energy >= card.cost && card.card_info.id.playable(self) &&!(card.card_info.card_type == CardType::Attack && self.player.creature.has_power (PowerId::Entangled))
   }
 

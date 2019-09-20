@@ -206,9 +206,45 @@ cards! {
   ["Twin Strike", TwinStrike, Attack, Common, 1, HAS_TARGET, {}],
   ["Warcry", Warcry, Skill, Common, 0, NO_TARGET, {}],
   ["Wild Strike", WildStrike, Attack, Common, 1, HAS_TARGET, {}],
-
+  
+  ["Battle Trance", BattleTrance, Skill, Uncommon, 0, NO_TARGET, {}],
+  ["Blood for Blood", BloodForBlood, Attack, Uncommon, 4, HAS_TARGET, {upgraded_cost: 3,}],
+  ["Bloodletting", Bloodletting, Skill, Uncommon, 0, NO_TARGET, {}],
+  ["Burning Pact", BurningPact, Skill, Uncommon, 1, NO_TARGET, {}],
+  ["Carnage", Carnage, Attack, Uncommon, 2, HAS_TARGET, {ethereal: true,}],
+  ["Combust", Combust, Power, Uncommon, 1, NO_TARGET, {}],
   ["Corruption", Corruption, Power, Uncommon, 3, NO_TARGET, {upgraded_cost: 2,}],
-  ["Impervious", Impervious, Skill, Rare, 2, NO_TARGET, {}],
+  ["Disarm", Disarm, Skill, Uncommon, 1, HAS_TARGET, {exhausts: true,}],
+  ["Dropkick", Dropkick, Attack, Uncommon, 1, HAS_TARGET, {}],
+  ["Dual Wield", DualWield, Skill, Uncommon, 1, NO_TARGET, {}],
+  ["Entrench", Entrench, Skill, Uncommon, 2, NO_TARGET, {upgraded_cost: 1,}],
+  ["Evolve", Evolve, Power, Uncommon, 1, NO_TARGET, {}],
+  ["Feel No Pain", FeelNoPain, Power, Uncommon, 1, NO_TARGET, {}],
+  ["Fire Breathing", FireBreathing, Power, Uncommon, 1, NO_TARGET, {upgraded_cost: 0,}],
+  ["Flame Barrier", FlameBarrier, Skill, Uncommon, 2, NO_TARGET, {}],
+  ["Ghostly Armor", GhostlyArmor, Skill, Uncommon, 1, NO_TARGET, {ethereal: true,}],
+  ["Hemokinesis", Hemokinesis, Attack, Uncommon, 1, HAS_TARGET, {}],
+  ["Infernal Blade", InfernalBlade, Skill, Uncommon, 1, NO_TARGET, {}],
+  ["Inflame", Inflame, Power, Uncommon, 1, NO_TARGET, {}],
+  ["Intimidate", Intimidate, Skill, Uncommon, 0, NO_TARGET, {exhausts: true,}],
+  ["Metallicize", Metallicize, Power, Uncommon, 1, NO_TARGET, {}],
+  ["Power Through", PowerThrough, Skill, Uncommon, 1, NO_TARGET, {}],
+  ["Pummel", Pummel, Attack, Uncommon, 1, HAS_TARGET, {exhausts: true,}],
+  ["Rage", Rage, Skill, Uncommon, 0, NO_TARGET, {}],
+  ["Rampage", Rampage, Attack, Uncommon, 1, HAS_TARGET, {}],
+  ["Reckless Charge", RecklessCharge, Attack, Uncommon, 0, HAS_TARGET, {}],
+  ["Rupture", Rupture, Power, Uncommon, 1, NO_TARGET, {upgraded_cost: 0,}],
+  ["Searing Blow", SearingBlow, Attack, Uncommon, 2, HAS_TARGET, {}],
+  ["Second Wind", SecondWind, Skill, Uncommon, 1, NO_TARGET, {}],
+  ["Seeing Red", SeeingRed, Skill, Uncommon, 1, NO_TARGET, {exhausts: true,}],
+  ["Sentinel", Sentinel, Skill, Uncommon, 1, NO_TARGET, {}],
+  ["Sever Soul", SeverSoul, Attack, Uncommon, 2, HAS_TARGET, {}],
+  ["Shockwave", Shockwave, Skill, Uncommon, 2, NO_TARGET, {}],
+  ["Spot Weakness", SpotWeakness, Skill, Uncommon, 1, HAS_TARGET, {}],
+  ["Uppercut", Uppercut, Attack, Uncommon, 2, HAS_TARGET, {}],
+  ["Whirlwind", Whirlwind, Attack, Uncommon, X_COST, HAS_TARGET, {}],
+  
+  ["Impervious", Impervious, Skill, Rare, 2, NO_TARGET, {exhausts: true,}],
   ["Injury", Injury, Curse, Special, -2, NO_TARGET, {}],
   ["AscendersBane", AscendersBane, Curse, Special, -2, NO_TARGET, {ethereal: true,}],
   ["Dazed", Dazed, Status, Special, -2, NO_TARGET, {ethereal: true,}],
@@ -378,9 +414,242 @@ impl CardBehavior for WildStrike {
   }
 }
 
-impl CardBehavior for Corruption {
-  fn behavior(self, context: &mut impl CardBehaviorContext) {}
+
+
+
+
+impl CardBehavior for BattleTrance {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    context.draw_cards (context.with_upgrade(4, 3));
+  }
 }
+
+impl CardBehavior for BloodForBlood {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    context.attack_target(context.with_upgrade(22, 18));
+    //TODO: wound
+  }
+}
+
+impl CardBehavior for Bloodletting {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    //TODO
+  }
+}
+
+impl CardBehavior for BurningPact {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    //TODO
+  }
+}
+
+impl CardBehavior for Carnage {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    context.attack_target(context.with_upgrade(28, 20));
+  }
+}
+
+impl CardBehavior for Combust {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    //TODO
+  }
+}
+
+impl CardBehavior for Corruption {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    //TODO
+  }
+}
+
+impl CardBehavior for Disarm {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    context.power_target (PowerId::Strength, context.with_upgrade (-3, -2)) ;
+  }
+}
+
+impl CardBehavior for Dropkick {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    context.attack_target(context.with_upgrade(8, 5));
+    // TODO conditional effect
+  }
+}
+
+impl CardBehavior for DualWield {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    //TODO
+  }
+}
+
+impl CardBehavior for Entrench {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    //TODO
+  }
+}
+
+impl CardBehavior for Evolve {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    //TODO
+  }
+}
+
+impl CardBehavior for FeelNoPain {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    //TODO
+  }
+}
+
+impl CardBehavior for FireBreathing {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    //TODO
+  }
+}
+
+impl CardBehavior for FlameBarrier {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    context.block(context.with_upgrade(16, 12));
+    // TODO other effect
+  }
+}
+
+impl CardBehavior for GhostlyArmor {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    context.block(context.with_upgrade(13, 10));
+  }
+}
+
+impl CardBehavior for Hemokinesis {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    context.attack_target(context.with_upgrade(18, 14));
+    // TODO other effect
+  }
+}
+
+impl CardBehavior for InfernalBlade {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    //TODO
+  }
+}
+
+impl CardBehavior for Inflame {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    context.power_self (PowerId::Strength, context.with_upgrade (3, 2));
+  }
+}
+
+impl CardBehavior for Intimidate {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    context.power_monsters (PowerId::Weak, context.with_upgrade (2, 1));
+  }
+}
+
+impl CardBehavior for Metallicize {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    context.power_self (PowerId::Metallicize, context.with_upgrade (4, 3));
+  }
+}
+
+impl CardBehavior for PowerThrough {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    context.block(context.with_upgrade(20, 15));
+    //TODO wounds
+  }
+}
+
+impl CardBehavior for Pummel {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    for _ in 0..context.with_upgrade(5, 4) {
+      context.attack_target (2);
+    }
+  }
+}
+
+impl CardBehavior for Rage {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    //TODO
+  }
+}
+
+impl CardBehavior for Rampage {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    context.attack_target(8);
+    // TODO other effect
+  }
+}
+
+impl CardBehavior for RecklessCharge {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    context.attack_target(context.with_upgrade (10, 7));
+    // TODO other effect
+  }
+}
+
+impl CardBehavior for Rupture {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    //TODO
+  }
+}
+
+impl CardBehavior for SearingBlow {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    context.attack_target(context.with_upgrade(16, 12));
+    // TODO further scaling
+  }
+}
+
+impl CardBehavior for SecondWind {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    //TODO
+  }
+}
+
+impl CardBehavior for SeeingRed {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    //TODO
+  }
+}
+
+impl CardBehavior for SeverSoul {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    context.attack_target(context.with_upgrade(20, 16));
+    // TODO other effect
+  }
+}
+
+impl CardBehavior for Sentinel {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    //TODO
+  }
+}
+
+impl CardBehavior for Shockwave {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    let amount = context.with_upgrade (5, 3);
+    context.power_monsters (PowerId::Weak, amount) ;
+    context.power_monsters (PowerId::Vulnerable, amount) ;
+  }
+}
+
+impl CardBehavior for SpotWeakness {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    //TODO
+  }
+}
+
+impl CardBehavior for Uppercut {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    context.attack_target(13);
+    let amount = context.with_upgrade (2, 1);
+    context.power_target (PowerId::Weak, amount) ;
+    context.power_target (PowerId::Vulnerable, amount) ;
+  }
+}
+
+impl CardBehavior for Whirlwind {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    //TODO
+  }
+}
+
 
 impl CardBehavior for Impervious {
   fn behavior(self, context: &mut impl CardBehaviorContext) {

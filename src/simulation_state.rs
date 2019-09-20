@@ -20,6 +20,8 @@ pub use monsters::MonsterId;
 pub use powers::PowerId;
 
 pub const MAX_MONSTERS: usize = 7;
+pub const X_COST: i32 = -1;
+pub const UNPLAYABLE: i32 = -2;
 
 pub fn hash_cards_unordered<H: Hasher>(cards: &[SingleCard], hasher: &mut H) {
   let mut sorted: Vec<_> = cards.iter().collect();
@@ -118,7 +120,7 @@ impl Default for CardInfo {
       id: CardId::Injury,
       card_type: CardType::Curse,
       rarity: Rarity::Special,
-      normal_cost: -2,
+      normal_cost: UNPLAYABLE,
       upgraded_cost: -3,
       ethereal: false,
       has_target: false,
