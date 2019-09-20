@@ -702,7 +702,6 @@ impl MonsterBehavior for GremlinNob {
 }
 impl MonsterBehavior for Lagavulin {
   fn make_intent_distribution(self, context: &mut IntentChoiceContext) {
-    // TODOsleepy
     if context.state().turn_number >= 3 || context.monster().creature.hitpoints < context.monster().creature.max_hitpoints || context.monster().move_history.iter().any(|&intent| intent == 1 || intent == 3) {
       context.always(context.with_max_repeats(Repeats(2), 3, 1));
     }
