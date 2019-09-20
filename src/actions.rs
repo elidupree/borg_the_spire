@@ -4,6 +4,7 @@
 use serde::{Deserialize, Serialize};
 use std::convert::From;
 use smallvec::SmallVec;
+use array_ext::*;
 
 use crate::simulation::*;
 use crate::simulation_state::cards::PlayCardContext;
@@ -78,6 +79,8 @@ actions! {
   // generally monster effects
   [InitializeMonsterInnateDamageAmount{pub monster_index: usize, pub range: (i32, i32)}],
   [GainBlockRandomMonsterAction {pub source: usize, pub amount: i32}],
+  [SplitAction (pub usize, pub [MonsterId; 2]);],
+  [EscapeAction (pub usize);],
 }
 
 impl Action for PlayCard {
@@ -432,5 +435,41 @@ impl Action for GainBlockRandomMonsterAction {
     if self.amount > 0 {
       creature.block += self.amount;
     }
+  }
+}
+
+impl Action for SplitAction {
+  fn execute(&self, runner: &mut Runner) {
+    let &SplitAction (index, ids) = self;
+    let state = runner.state_mut();
+    let splitting = &mut state.monsters [index];
+    
+    let new_monsters: [Monster; 2] = ids.map (| monster_id | Monster {
+      monster_id,
+      innate_damage_amount: None,
+      ascension: splitting.ascension,
+      move_history: Vec::new(),
+      gone: false,
+      creature: Creature {
+        hitpoints: splitting.creature.hitpoints,
+        max_hitpoints: splitting.creature.hitpoints,
+        block: 0,
+        powers: Vec::new(),
+      }
+    });
+    
+    splitting.creature.hitpoints = 0;
+    splitting.gone = true;
+    runner.state_mut().monsters.extend(new_monsters.iter().cloned()) ;
+  }
+}
+
+
+impl Action for EscapeAction {
+  fn execute(&self, runner: &mut Runner) {
+    let state = runner.state_mut();
+    let escaping = &mut state.monsters [self.0];
+    
+    escaping.gone = true;
   }
 }

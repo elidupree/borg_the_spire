@@ -262,6 +262,7 @@ pub struct CombatResult {
 impl CombatResult {
   fn new(state: &CombatState) -> CombatResult {
     if state.player.creature.hitpoints > 0 {
+      // TODO punish for stolen gold
       CombatResult {
         score: 1.0 + state.player.creature.hitpoints as f64 * 0.0001,
         hitpoints_left: state.player.creature.hitpoints,

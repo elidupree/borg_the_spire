@@ -289,8 +289,10 @@ monsters! {
   ["JawWorm", JawWorm],
   ["AcidSlime_S", AcidSlimeS],
   ["AcidSlime_M", AcidSlimeM],
+  ["AcidSlime_L", AcidSlimeL],
   ["SpikeSlime_S", SpikeSlimeS],
   ["SpikeSlime_M", SpikeSlimeM],
+  ["SpikeSlime_L", SpikeSlimeL],
   ["FungiBeast", FungiBeast],
   ["Looter", Looter],
   ["SlaverBlue", SlaverBlue],
@@ -456,6 +458,47 @@ impl MonsterBehavior for AcidSlimeM {
   }
 }
 
+impl MonsterBehavior for AcidSlimeL {
+  fn make_intent_distribution(self, context: &mut IntentChoiceContext) {
+    if context.ascension() >= 17 {
+      context.if_num_lt(
+        40,
+        context.with_max_repeats(Repeats(2), 1, Distribution::split(0.6, 2, 4)),
+      );
+      context.if_num_lt(
+        70,
+        context.with_max_repeats(Repeats(2), 2, Distribution::split(0.6, 1, 4)),
+      );
+      context.else_num(context.with_max_repeats(Repeats(1), 4, Distribution::split(0.4, 1, 2)));
+    } else {
+      context.if_num_lt(
+        30,
+        context.with_max_repeats(Repeats(2), 1, Distribution::split(0.5, 2, 4)),
+      );
+      context.if_num_lt(
+        70,
+        context.with_max_repeats(Repeats(1), 2, Distribution::split(0.4, 1, 4)),
+      );
+      context.else_num(context.with_max_repeats(Repeats(2), 4, Distribution::split(0.4, 1, 2)));
+    }
+  }
+  fn intent_effects(self, context: &mut impl IntentEffectsContext) {
+    if context.monster().creature.hitpoints*2 <= context.monster().creature.max_hitpoints {
+      context.action (SplitAction (context.monster_index(), [MonsterId::AcidSlimeM, MonsterId::AcidSlimeM]));
+      return
+    }
+    match context.intent() {
+      1 => {
+        context.attack(context.with_ascension(Ascension(2), 12, 11));
+        context.discard_status(CardId::Slimed, 2);
+      }
+      2 => context.attack(context.with_ascension(Ascension(2), 18, 16)),
+      4 => context.power_player(PowerId::Weak, 2),
+      _ => context.undefined_intent(),
+    }
+  }
+}
+
 impl MonsterBehavior for SpikeSlimeS {
   fn make_intent_distribution(self, context: &mut IntentChoiceContext) {
     context.always(1);
@@ -486,6 +529,28 @@ impl MonsterBehavior for SpikeSlimeM {
   }
 }
 
+impl MonsterBehavior for SpikeSlimeL {
+  fn make_intent_distribution(self, context: &mut IntentChoiceContext) {
+    let max_debuff_repeats = Repeats(context.with_ascension(Ascension(17), 1, 2));
+    context.if_num_lt(30, context.with_max_repeats(Repeats(2), 1, 4));
+    context.else_num(context.with_max_repeats(max_debuff_repeats, 4, 1));
+  }
+  fn intent_effects(self, context: &mut impl IntentEffectsContext) {
+    if context.monster().creature.hitpoints*2 <= context.monster().creature.max_hitpoints {
+      context.action (SplitAction (context.monster_index(), [MonsterId::SpikeSlimeM, MonsterId::SpikeSlimeM]));
+      return
+    }
+    match context.intent() {
+      1 => {
+        context.attack(context.with_ascension(Ascension(2), 10, 8));
+        context.discard_status(CardId::Slimed, 1);
+      }
+      4 => context.power_player(PowerId::Frail, 1),
+      _ => context.undefined_intent(),
+    }
+  }
+}
+
 impl MonsterBehavior for FungiBeast {
   fn make_intent_distribution(self, context: &mut IntentChoiceContext) {
     context.if_num_lt(60, context.with_max_repeats(Repeats(2), 1, 2));
@@ -504,12 +569,20 @@ impl MonsterBehavior for FungiBeast {
 }
 impl MonsterBehavior for Looter {
   fn make_intent_distribution(self, context: &mut IntentChoiceContext) {
-    //TODO
-    context.always(1);
+    if context.state().turn_number < 2 {
+      context.always(1);
+    } else if context.state().turn_number == 2 {
+      context.always (Distribution::split (0.5, 4, 2));
+    } else {
+      context.with_max_repeats(Repeats(1), 2, 3);
+    }
   }
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
     match context.intent() {
-      1 => context.attack(6),
+      1 => context.attack(context.with_ascension(Ascension(2), 11, 10)),
+      4 => context.attack(context.with_ascension(Ascension(2), 14, 12)),
+      2 => context.block (6),
+      3 => context.action (EscapeAction (context.monster_index())),
       _ => context.undefined_intent(),
     }
   }
