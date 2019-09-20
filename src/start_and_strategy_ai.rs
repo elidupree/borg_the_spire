@@ -3,6 +3,7 @@ use ordered_float::OrderedFloat;
 //use rand::{seq::SliceRandom, Rng};
 use std::collections::{HashSet, VecDeque};
 use enum_map::EnumMap;
+use array_ext::Array;
 
 use crate::actions::*;
 use crate::simulation::*;
@@ -37,6 +38,11 @@ pub struct CandidateStrategy {
 #[derive(Clone, Debug)]
 pub struct FastStrategy {
   card_priorities: EnumMap <CardId, f64>,
+  monsters: [FastStrategyMonster; 5],
+}
+#[derive(Clone, Debug)]
+pub struct FastStrategyMonster {
+  target_priority: f64,
 }
 
 
@@ -55,7 +61,13 @@ impl FastStrategy {
   pub fn evaluate(&self, state: &CombatState, choice: & Choice) -> f64 {
     match choice {
       Choice::EndTurn(_) => 0.0,
-      Choice::PlayCard(PlayCard{card, ..}) => self.card_priorities [card.card_info.id],
+      Choice::PlayCard(PlayCard{card, target}) => {
+        let mut result = self.card_priorities [card.card_info.id];
+        if card.card_info.has_target {
+          result += self.monsters [*target].target_priority*0.000001;
+        }
+        result
+      }
       _=> 0.0,
     }
   }
@@ -63,6 +75,7 @@ impl FastStrategy {
   pub fn random ()->FastStrategy {
     FastStrategy {
       card_priorities: EnumMap::from (|_| rand::random()),
+      monsters: Array::from_fn (|_| FastStrategyMonster {target_priority: rand::random()}),
     }
   }
 }

@@ -19,6 +19,7 @@ typed-html = "0.2.1"
 parking_lot = "0.9"
 derivative = { git = "https://github.com/mcarton/rust-derivative" }
 enum-map = "0.6.0"
+array_ext = "0.2.0"
 
 [profile.dev]
 opt-level = 3
