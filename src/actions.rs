@@ -3,6 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::convert::From;
+use smallvec::SmallVec;
 
 use crate::simulation::*;
 use crate::simulation_state::cards::PlayCardContext;
@@ -76,6 +77,7 @@ actions! {
   
   // generally monster effects
   [InitializeMonsterInnateDamageAmount{pub monster_index: usize, pub range: (i32, i32)}],
+  [GainBlockRandomMonsterAction {pub source: usize, pub amount: i32}],
 }
 
 impl Action for PlayCard {
@@ -415,5 +417,20 @@ impl Action for InitializeMonsterInnateDamageAmount {
   fn execute_random(&self, runner: &mut Runner, random_value: i32) {
     let mut monster = &mut runner.state_mut().monsters[self.monster_index];
     monster.innate_damage_amount = Some(random_value);
+  }
+}
+
+impl Action for GainBlockRandomMonsterAction {
+  fn determinism(&self, state: &CombatState) -> Determinism {
+    let others:SmallVec<_> = state.monsters.iter().enumerate().filter (| &(index, monster) | index != self.source && !monster.gone).map (| (index, monster) | (1.0, index as i32)).collect();
+    Determinism::Random(
+      if others.is_empty() {Distribution::from (self.source as i32)} else {Distribution(others)}
+    )
+  }
+  fn execute_random (&self, runner: &mut Runner, random_value: i32) {
+    let creature = &mut runner.state_mut().monsters[random_value as usize].creature;
+    if self.amount > 0 {
+      creature.block += self.amount;
+    }
   }
 }

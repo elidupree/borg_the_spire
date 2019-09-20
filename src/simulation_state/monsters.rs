@@ -640,8 +640,8 @@ impl MonsterBehavior for ShieldGremlin {
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
     match context.intent() {
       1 => {
-        let amount = context.with_ascensions(Ascension(17), 11, Ascension(2), 8, 7);
-        //TODO
+        let amount = context.with_ascensions(Ascension(17), 11, Ascension(7), 8, 7);
+        context.action (GainBlockRandomMonsterAction {source: context.monster_index(), amount});
       }
       2 => context.attack(context.with_ascension(Ascension(2), 8, 6)),
       _ => context.undefined_intent(),
