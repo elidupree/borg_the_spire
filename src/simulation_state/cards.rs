@@ -2,6 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::convert::From;
+use enum_map::Enum;
 
 //use crate::actions::*;
 use crate::simulation::*;
@@ -118,7 +119,7 @@ impl<'a, 'b> CardBehaviorContext for PlayCardContext<'a, 'b> {
 
 macro_rules! cards {
   ($([$id: expr, $Variant: ident, $card_type: expr, $rarity: expr, $cost: expr, $has_target: expr, {$($type_info: tt)*}],)*) => {
-    #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Debug)]
+    #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Enum, Debug)]
     pub enum CardId {
       $($Variant,)*
     }

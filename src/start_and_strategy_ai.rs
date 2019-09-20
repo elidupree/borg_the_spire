@@ -2,7 +2,9 @@
 use ordered_float::OrderedFloat;
 //use rand::{seq::SliceRandom, Rng};
 use std::collections::{HashSet, VecDeque};
+use enum_map::EnumMap;
 
+use crate::actions::*;
 use crate::simulation::*;
 use crate::simulation_state::*;
 
@@ -27,9 +29,42 @@ pub struct StartingPoint {
 
 #[derive(Clone, Debug)]
 pub struct CandidateStrategy {
-  pub strategy: SomethingStrategy,
+  pub strategy: FastStrategy,
   pub visits: usize,
   pub total_score: f64,
+}
+
+#[derive(Clone, Debug)]
+pub struct FastStrategy {
+  card_priorities: EnumMap <CardId, f64>,
+}
+
+
+impl Strategy for FastStrategy {
+  fn choose_choice(&self, state: &CombatState) -> Vec<Choice> {
+    let legal_choices = state.legal_choices();
+
+    vec![legal_choices
+      .into_iter()
+      .max_by_key(| choice | OrderedFloat (self.evaluate (state, choice)))
+      .unwrap()]
+  }
+}
+
+impl FastStrategy {
+  pub fn evaluate(&self, state: &CombatState, choice: & Choice) -> f64 {
+    match choice {
+      Choice::EndTurn(_) => 0.0,
+      Choice::PlayCard(PlayCard{card, ..}) => self.card_priorities [card.card_info.id],
+      _=> 0.0,
+    }
+  }
+  
+  pub fn random ()->FastStrategy {
+    FastStrategy {
+      card_priorities: EnumMap::from (|_| rand::random()),
+    }
+  }
 }
 
 #[derive(Clone, Debug)]
@@ -75,9 +110,6 @@ impl SomethingStrategy {
   }
 }
 
-pub fn new_random_strategy() -> SomethingStrategy {
-  SomethingStrategy {}
-}
 
 // This could use refinement on several issues – right now it incorrectly categorizes some deterministic choices as nondeterministic (e.g. drawing the one card left in your deck), and fails to deduplicate some identical sequences (e.g. strike-defend versus defend-strike when the second choice triggers something nondeterministic like unceasing top – choice.apply() skips right past the identical intermediate state)
 pub fn collect_starting_points(
@@ -153,7 +185,7 @@ impl StartingPoint {
     self.visits += 1;
     let max_strategy_visits = self.max_strategy_visits();
     self.candidate_strategies.push(CandidateStrategy {
-      strategy: new_random_strategy(),
+      strategy: FastStrategy::random(),
       visits: 0,
       total_score: 0.0,
     });
