@@ -38,7 +38,7 @@ pub struct CandidateStrategy {
 #[derive(Clone, Debug)]
 pub struct FastStrategy {
   card_priorities: EnumMap <CardId, f64>,
-  monsters: [FastStrategyMonster; 5],
+  monsters: [FastStrategyMonster; MAX_MONSTERS],
 }
 #[derive(Clone, Debug)]
 pub struct FastStrategyMonster {

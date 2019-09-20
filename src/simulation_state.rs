@@ -5,6 +5,7 @@ use std::fmt::{self, Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::collections::VecDeque;
+use arrayvec::ArrayVec;
 
 use crate::actions::*;
 use crate::communication_mod_state as communication;
@@ -18,13 +19,15 @@ pub use cards::CardId;
 pub use monsters::MonsterId;
 pub use powers::PowerId;
 
-pub fn hash_cards_unordered<H: Hasher>(cards: &Vec<SingleCard>, hasher: &mut H) {
+pub const MAX_MONSTERS: usize = 7;
+
+pub fn hash_cards_unordered<H: Hasher>(cards: &[SingleCard], hasher: &mut H) {
   let mut sorted: Vec<_> = cards.iter().collect();
   sorted.sort();
   sorted.hash(hasher);
 }
 
-pub fn compare_cards_unordered(first: &Vec<SingleCard>, second: &Vec<SingleCard>) -> bool {
+pub fn compare_cards_unordered(first: &[SingleCard], second: &[SingleCard]) -> bool {
   let mut first_sorted: Vec<_> = first.iter().collect();
   first_sorted.sort();
   let mut second_sorted: Vec<_> = second.iter().collect();
@@ -54,7 +57,7 @@ pub struct CombatState {
     PartialEq(compare_with = "compare_cards_unordered"),
     Hash(hash_with = "hash_cards_unordered")
   )]
-  pub hand: Vec<SingleCard>,
+  pub hand: ArrayVec<[SingleCard; 10]>,
   #[derivative(
     PartialEq(compare_with = "compare_cards_unordered"),
     Hash(hash_with = "hash_cards_unordered")
@@ -62,7 +65,7 @@ pub struct CombatState {
   pub limbo: Vec<SingleCard>,
   pub card_in_play: Option<SingleCard>,
   pub player: Player,
-  pub monsters: Vec<Monster>,
+  pub monsters: ArrayVec<[Monster; MAX_MONSTERS]>,
   pub turn_number: i32,
   pub turn_has_ended: bool,
 
