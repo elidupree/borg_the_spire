@@ -253,10 +253,12 @@ pub fn run_until_unable(runner: &mut Runner) {
         break;
       }
     }
-    else if let Some(action) = runner.state_mut().actions.pop_front() {
-      runner.action_now(&action);
-    } else {
-      break;
+    else {
+      if let Some(action) = runner.state_mut().actions.pop_front() {
+        runner.action_now(&action);
+      } else {
+        break;
+      }
     }
   }
 }

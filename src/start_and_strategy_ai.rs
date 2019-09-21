@@ -129,6 +129,7 @@ pub fn collect_starting_points(
   state: CombatState,
   max_results: usize,
 ) -> Vec<(CombatState, Vec<Choice>)> {
+  if state.combat_over() { return vec![(state.clone(), Vec::new())]}
   let mut frontier = VecDeque::new();
   let mut results = Vec::new();
   let mut discovered_midpoints = HashSet::new();
