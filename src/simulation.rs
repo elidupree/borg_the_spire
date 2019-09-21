@@ -291,10 +291,6 @@ impl Creature {
       .map(|power| power.amount)
       .sum()
   }
-
-  pub fn start_turn(&mut self) {
-    self.block = 0;
-  }
 }
 
 impl CombatState {

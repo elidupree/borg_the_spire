@@ -240,14 +240,39 @@ macro_rules! powers {
 
 powers! {
   // Common powers
-  ["Vulnerable", Vulnerable, Debuff],
-  ["Frail", Frail, Debuff],
-  ["Weakened", Weak, Debuff],
-  ["Strength", Strength, Buff],
   ["Dexterity", Dexterity, Buff],
-
-  // Player/relic/card powers
+  ["Frail", Frail, Debuff],
+  ["Strength", Strength, Buff],
+  ["Vulnerable", Vulnerable, Debuff],
+  ["Weakened", Weak, Debuff],
+  
+  // Less common powers that are still shared with more than one card/relic/monster
   ["Thorns", Thorns, Buff],
+  ["Metallicize", Metallicize, Buff],
+  ["No Draw", NoDraw, Debuff],
+  ["Plated Armor", PlatedArmor, Buff],
+  
+  // Relic powers
+  ["Pen Nib", PenNib, Buff],
+  
+  // Ironclad uncommon card powers
+  ["Combust", Combust, Buff],
+  ["Corruption", Corruption, Buff],
+  ["Evolve", Evolve, Buff],
+  ["Feel No Pain", FeelNoPain, Buff],
+  ["Fire Breathing", FireBreathing, Buff],
+  ["Flame Barrier", FlameBarrier, Buff],
+  ["Rage", Rage, Buff],
+  ["Rupture", Rupture, Buff],
+
+  // Ironclad rare card powers
+  ["Barricade", Barricade, Buff],
+  ["Berserk", Berserk, Buff],
+  ["Brutality", Brutality, Buff],
+  ["Dark Embrace", DarkEmbrace, Buff],
+  ["Demon Form", DemonForm, Buff],
+  ["Double Tap", DoubleTap, Buff],
+  ["Juggernaut", Juggernaut, Buff],
 
   // Exordium monster powers
   ["Ritual", Ritual, Buff],
@@ -256,11 +281,12 @@ powers! {
   ["Spore Cloud", SporeCloud, Buff],
   ["Entangled", Entangled, Debuff],
   ["Angry", Angry, Buff],
+  ["Split", Split, Buff],
 
   // Exordium elite powers
   ["Anger", Enrage, Buff],
   ["Artifact", Artifact, Buff],
-  ["Metallicize", Metallicize, Buff],
+  
 
   ["Unknown", Unknown, Buff],
 }
@@ -443,4 +469,138 @@ impl PowerBehavior for Metallicize {
   }
 }
 
+impl PowerBehavior for NoDraw {
+  fn at_end_of_turn(&self, context: &mut PowerHookContext) {
+    context.remove_this_power();
+  }
+}
+
+impl PowerBehavior for PlatedArmor {
+  fn at_end_of_turn(&self, context: &mut PowerHookContext) {
+    context.action_bottom(GainBlockAction {
+      creature_index: context.owner_index(),
+      amount: context.this_power().amount,
+    });
+  }
+  
+  fn on_attacked(&self, context: &mut PowerHookContext, info: DamageInfo, damage: i32) {
+    if damage > 0 && info.damage_type == DamageType::Normal {
+      context.reduce_this_power ();
+    }
+  }
+}
+
+impl PowerBehavior for PenNib {
+  fn priority(&self) -> i32 {
+    6
+  }
+  fn on_use_card (&self, context: &mut PowerHookContext, card: &SingleCard) {
+    if card.card_info.card_type == CardType::Attack {
+      context.remove_this_power();
+    }
+  }
+  fn at_damage_give(
+    &self,
+    _context: &PowerNumericHookContext,
+    damage: f64,
+    damage_type: DamageType,
+  ) -> f64 {
+    if damage_type != DamageType::Normal {
+      return damage;
+    }
+    damage * 2.0
+  }
+}
+
+impl PowerBehavior for Combust {
+  //TODO
+}
+
+impl PowerBehavior for Corruption {
+  //TODO
+}
+
+impl PowerBehavior for Evolve {
+  fn on_card_draw(&self, context: &mut PowerHookContext, card: &SingleCard) {
+    if card.card_info.card_type == CardType::Status {
+      context.action_bottom (DrawCards (context.amount()));
+    }
+  }
+}
+
+impl PowerBehavior for FeelNoPain {
+  fn on_exhaust(&self, context: &mut PowerHookContext, card: &SingleCard) {
+    context.action_bottom(GainBlockAction {
+      creature_index: context.owner_index(),
+      amount: context.this_power().amount,
+    });
+  }
+}
+  
+impl PowerBehavior for FireBreathing {
+  //TODO
+}
+
+impl PowerBehavior for FlameBarrier {
+  fn on_attacked(&self, context: &mut PowerHookContext, info: DamageInfo, damage: i32) {
+    Thorns.on_attacked (context, info, damage)
+  }
+  fn at_start_of_turn(&self, context: &mut PowerHookContext) {
+    context.remove_this_power();
+  }
+}
+
+impl PowerBehavior for Rage {
+  fn on_use_card (&self, context: &mut PowerHookContext, card: &SingleCard) {
+    if card.card_info.card_type == CardType::Attack {
+      context.action_bottom(GainBlockAction {
+        creature_index: context.owner_index(),
+        amount: context.this_power().amount,
+      });
+    }
+  }
+  fn at_end_of_turn(&self, context: &mut PowerHookContext) {
+    context.remove_this_power();
+  }
+}
+
+impl PowerBehavior for Rupture {
+  //TODO
+}
+
+impl PowerBehavior for Barricade {}
+
+impl PowerBehavior for Berserk {
+  //TODO
+}
+
+impl PowerBehavior for Brutality {
+  //TODO
+}
+
+impl PowerBehavior for DarkEmbrace {
+  fn on_exhaust(&self, context: &mut PowerHookContext, card: &SingleCard) {
+    context.action_bottom (DrawCards (1));
+  }
+}
+
+impl PowerBehavior for DemonForm {
+  fn at_start_of_turn_post_draw(&self, context: &mut PowerHookContext) {
+    context.power_owner_bottom(PowerId::Strength, context.amount());
+  }
+}
+
+impl PowerBehavior for DoubleTap {
+  //TODO
+}
+
+impl PowerBehavior for Juggernaut {
+  fn on_gained_block(&self, context: &mut PowerHookContext, block: f64) {
+    //TODO
+  }
+}
+
+
+
+impl PowerBehavior for Split {}
 impl PowerBehavior for Unknown {}

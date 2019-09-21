@@ -153,12 +153,19 @@ pub fn apply_end_of_turn_powers(runner: &mut Runner) {
   power_hook!(runner, AllMonsters, at_end_of_turn());
   power_hook!(runner, AllCreatures, at_end_of_round());
 }
+pub fn start_creature_turn(runner: &mut Runner, creature_index: CreatureIndex) {
+  power_hook!(runner, creature_index, at_start_of_turn());
+  let creature = runner.state_mut().get_creature_mut (creature_index);
+  if ! creature.has_power (PowerId::Barricade) {creature.block = 0;}
+  // TODO: make this actually post-draw
+  power_hook!(runner, creature_index, at_start_of_turn_post_draw());
+}
 
 impl Action for StartMonsterTurn {
   fn execute(&self, runner: &mut Runner) {
     if let Some(monster) = runner.state_mut().monsters.get_mut(self.0) {
       if !monster.gone {
-        monster.creature.start_turn();
+        start_creature_turn (runner, CreatureIndex::Monster (self.0));
       }
       if !runner.state().combat_over() {
         runner.action_now(&StartMonsterTurn(self.0 + 1));
@@ -199,9 +206,11 @@ impl Action for FinishMonsterTurn {
       let state = runner.state_mut();
       state.turn_number += 1;
       state.turn_has_ended = false;
-      state.player.creature.start_turn();
+      start_creature_turn (runner, CreatureIndex::Player);
+      let state = runner.state_mut();
       state.player.energy = 3;
       runner.action_now(&DrawCards(5));
+      
     }
   }
 }
@@ -310,6 +319,10 @@ impl Action for DrawCardRandom {
 
 impl Action for DrawCards {
   fn execute(&self, runner: &mut Runner) {
+    if runner.state().player.creature.has_power (PowerId::NoDraw) {
+      return
+    }
+    
     //TODO: more nuanced
     if self.0 <= 0 {
       return;
