@@ -245,10 +245,11 @@ cards! {
   ["Whirlwind", Whirlwind, Attack, Uncommon, X_COST, HAS_TARGET, {}],
   
   ["Impervious", Impervious, Skill, Rare, 2, NO_TARGET, {exhausts: true,}],
-  ["Injury", Injury, Curse, Special, -2, NO_TARGET, {}],
-  ["AscendersBane", AscendersBane, Curse, Special, -2, NO_TARGET, {ethereal: true,}],
-  ["Dazed", Dazed, Status, Special, -2, NO_TARGET, {ethereal: true,}],
+  ["Injury", Injury, Curse, Special, UNPLAYABLE, NO_TARGET, {}],
+  ["AscendersBane", AscendersBane, Curse, Special, UNPLAYABLE, NO_TARGET, {ethereal: true,}],
+  ["Dazed", Dazed, Status, Special, UNPLAYABLE, NO_TARGET, {ethereal: true,}],
   ["Slimed", Slimed, Status, Special, 1, NO_TARGET, {exhausts: true,}],
+  ["Burn", Burn, Status, Special, UNPLAYABLE, NO_TARGET, {}],
 }
 
 impl CardBehavior for StrikeR {
@@ -661,3 +662,4 @@ impl CardBehavior for Injury {}
 impl CardBehavior for AscendersBane {}
 impl CardBehavior for Dazed {}
 impl CardBehavior for Slimed {}
+impl CardBehavior for Burn {}

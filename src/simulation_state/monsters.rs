@@ -305,6 +305,7 @@ monsters! {
   ["Sentry", Sentry],
   ["GremlinNob", GremlinNob],
   ["Lagavulin", Lagavulin],
+  ["Hexaghost", Hexaghost],
 }
 
 impl MonsterBehavior for Cultist {
@@ -795,6 +796,64 @@ impl MonsterBehavior for Lagavulin {
         context.power_player(PowerId::Strength, amount);
       }
       3 => context.attack(context.with_ascension(Ascension(3), 20, 18)),
+      _ => context.undefined_intent(),
+    }
+  }
+}
+
+
+impl MonsterBehavior for Hexaghost {
+  fn make_intent_distribution(self, context: &mut IntentChoiceContext) {
+    let turn = context.state().turn_number;
+    if turn == 0 {context.always (5);}
+    else if turn == 1 {context.always (1) ;}
+    else {
+      context.always (match (turn-2) % 7 {
+        0 | 2 | 5 => 4,
+        1 | 4 => 2,
+        3 => 3,
+        6 => 6,
+        _ => unreachable!(),
+      });
+    }
+  }
+  fn intent_effects(self, context: &mut impl IntentEffectsContext) {
+    match context.intent() {
+      5 => {
+      let amount = context.state().player.creature.hitpoints/12 + 1;
+      context.action (InitializeMonsterInnateDamageAmount {
+        monster_index: context.monster_index(),
+        range: (amount, amount+1),
+      });
+      }
+      1 => for _ in 0..6 {
+        context.attack(context.monster().innate_damage_amount.unwrap());
+      }
+      2 => for _ in 0..2 {
+        context.attack(context.with_ascension(Ascension(4), 6, 5));
+      }
+      4 => {
+        context.attack(6);
+        let upgraded = context.state().turn_number >= 8;
+        // TODO: apply upgrade
+        context.discard_status (CardId::Burn, context.with_ascension (Ascension (19), 2, 1));
+      }
+      3 => {
+      context.power_self(
+        PowerId::Strength,
+        context.with_ascension(Ascension(19), 3, 2),
+      );
+      context.block(12);
+      }
+      6 => {
+      for _ in 0..6 {
+        context.attack(context.with_ascension (Ascension (4), 3, 2));
+      }
+      for _ in 0..3 {
+        context.discard_status (CardId::Burn, 3);
+        // TODO: upgrade all burns
+      }
+      }
       _ => context.undefined_intent(),
     }
   }

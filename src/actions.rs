@@ -4,6 +4,7 @@
 use serde::{Deserialize, Serialize};
 use std::convert::From;
 use smallvec::SmallVec;
+use arrayvec::ArrayVec;
 use array_ext::*;
 
 use crate::simulation::*;
@@ -122,12 +123,22 @@ impl Action for EndTurn {
     
     let state = runner.state_mut();
     state.turn_has_ended = true;
+    let mut actions: ArrayVec<[DamageAction; 10]> = ArrayVec::new();
     for card in state.hand.drain(..) {
+      if card.card_info.id == CardId::Burn {
+        actions.push (DamageAction {
+          target: CreatureIndex::Player,
+          info: DamageInfo::new (CreatureIndex::Player, 2 + card.upgrades*2, DamageType::Thorns),
+        });
+      }
       if card.card_info.ethereal {
         state.exhaust_pile.push(card);
       } else {
         state.discard_pile.push(card);
       }
+    }
+    for action in actions {
+      runner.action_bottom (action);
     }
 
     runner.action_now(&StartMonsterTurn(0));
