@@ -287,6 +287,9 @@ powers! {
   ["Anger", Enrage, Buff],
   ["Artifact", Artifact, Buff],
   
+  // City monster powers
+  ["Flight", Flight, Buff],
+  
 
   ["Unknown", Unknown, Buff],
 }
@@ -466,6 +469,34 @@ impl PowerBehavior for Metallicize {
       creature_index: context.owner_index(),
       amount: context.this_power().amount,
     });
+  }
+}
+
+
+impl PowerBehavior for Flight {
+  fn at_damage_final_receive(
+    &self,
+    _context: &PowerNumericHookContext,
+    damage: f64,
+    damage_type: DamageType,
+  ) -> f64 {
+    if damage_type != DamageType::Normal {
+      return damage;
+    }
+    damage / 2.0
+  }
+  
+  fn on_attacked(&self, context: &mut PowerHookContext, info: DamageInfo, damage: i32) {
+    if damage > 0 && info.damage_type == DamageType::Normal {
+      context.reduce_this_power();
+    }
+  }
+  
+  fn at_start_of_turn(&self, context: &mut PowerHookContext) {
+    let deficiency = context.this_power().misc - context.amount();
+    if deficiency >0 {
+      context.power_owner_top (PowerId::Flight, deficiency);
+    }
   }
 }
 

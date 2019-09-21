@@ -330,6 +330,8 @@ monsters! {
   
   ["Hexaghost", Hexaghost],
   ["SlimeBoss", SlimeBoss],
+  
+  ["Byrd", Byrd],
 }
 
 impl MonsterBehavior for Cultist {
@@ -934,6 +936,36 @@ impl MonsterBehavior for SlimeBoss {
       2 =>(),
       1 => context.attack(context.with_ascension(Ascension(4), 38, 35)),
       3 =>(),
+      _ => context.undefined_intent(),
+    }
+  }
+}
+
+
+impl MonsterBehavior for Byrd {
+  fn make_intent_distribution(self, context: &mut IntentChoiceContext) {
+    if context.first_move() {
+      context.always (Distribution::split (0.375, 6, 1));
+    }
+    else if context.monster().creature.has_power (PowerId::Flight) {
+      context.if_num_lt (50, context.with_max_repeats (Repeats (2), 1, Distribution::split (0.4, 3, 6)));
+      context.if_num_lt (70, context.with_max_repeats (Repeats (1), 3, Distribution::split (0.375, 6, 1)));
+      context.else_num (context.with_max_repeats (Repeats (1), 63, Distribution::split (0.2857, 3, 1)));
+    }
+    else {
+      context.always (context.with_max_repeats (Repeats (1), 5, 2)) ;
+    }
+  }
+  fn intent_effects(self, context: &mut impl IntentEffectsContext) {
+    match context.intent() {
+      1 => for _ in 0.. context.with_ascension (Ascension (2), 6, 5) {
+        context.attack (1);
+      }
+      5 => context.attack (3),
+      2 => context.power_self (PowerId::Flight, context.with_ascension (Ascension (17), 4, 3)),
+      6 => context.power_self (PowerId::Strength, 1),
+      3 => context.attack (context.with_ascension (Ascension (2), 14, 12)),
+      4 => {}
       _ => context.undefined_intent(),
     }
   }
