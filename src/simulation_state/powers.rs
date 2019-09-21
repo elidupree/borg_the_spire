@@ -239,12 +239,17 @@ macro_rules! powers {
 }
 
 powers! {
+  // Common powers
   ["Vulnerable", Vulnerable, Debuff],
   ["Frail", Frail, Debuff],
   ["Weakened", Weak, Debuff],
   ["Strength", Strength, Buff],
   ["Dexterity", Dexterity, Buff],
+  
+  // Player/relic/card powers
+  ["Thorns", Thorns, Buff],
 
+  // Exordium monster powers
   ["Ritual", Ritual, Buff],
   ["Curl Up", CurlUp, Buff],
   ["Thievery", Thievery, Buff],
@@ -252,6 +257,7 @@ powers! {
   ["Entangled", Entangled, Debuff],
   ["Angry", Angry, Buff],
 
+  // Exordium elite powers
   ["Anger", Enrage, Buff],
   ["Artifact", Artifact, Buff],
   ["Metallicize", Metallicize, Buff],
@@ -351,6 +357,18 @@ impl PowerBehavior for Dexterity {
     block + context.this_power().amount as f64
   }
 }
+
+
+
+impl PowerBehavior for Thorns {
+  fn on_attacked(&self, context: &mut PowerHookContext, info: DamageInfo, damage: i32) {
+    if info.owner != context.owner_index() && info.damage_type == DamageType::Normal {
+      context.action_top(DamageAction {target: info.owner, info: DamageInfo::new (context.owner_index(), context.this_power().amount, DamageType::Thorns)});
+    }
+  }
+}
+
+
 
 impl PowerBehavior for Ritual {
   fn at_end_of_round(&self, context: &mut PowerHookContext) {
