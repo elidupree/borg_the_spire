@@ -1,9 +1,9 @@
 //use arrayvec::ArrayVec;
 use ordered_float::OrderedFloat;
 //use rand::{seq::SliceRandom, Rng};
-use std::collections::{HashSet, VecDeque};
-use enum_map::EnumMap;
 use array_ext::Array;
+use enum_map::EnumMap;
+use std::collections::{HashSet, VecDeque};
 
 use crate::actions::*;
 use crate::simulation::*;
@@ -37,7 +37,7 @@ pub struct CandidateStrategy {
 
 #[derive(Clone, Debug)]
 pub struct FastStrategy {
-  card_priorities: EnumMap <CardId, f64>,
+  card_priorities: EnumMap<CardId, f64>,
   monsters: [FastStrategyMonster; MAX_MONSTERS],
 }
 #[derive(Clone, Debug)]
@@ -45,37 +45,38 @@ pub struct FastStrategyMonster {
   target_priority: f64,
 }
 
-
 impl Strategy for FastStrategy {
   fn choose_choice(&self, state: &CombatState) -> Vec<Choice> {
     let legal_choices = state.legal_choices();
 
     vec![legal_choices
       .into_iter()
-      .max_by_key(| choice | OrderedFloat (self.evaluate (state, choice)))
+      .max_by_key(|choice| OrderedFloat(self.evaluate(state, choice)))
       .unwrap()]
   }
 }
 
 impl FastStrategy {
-  pub fn evaluate(&self, state: &CombatState, choice: & Choice) -> f64 {
+  pub fn evaluate(&self, state: &CombatState, choice: &Choice) -> f64 {
     match choice {
       Choice::EndTurn(_) => 0.0,
-      Choice::PlayCard(PlayCard{card, target}) => {
-        let mut result = self.card_priorities [card.card_info.id];
+      Choice::PlayCard(PlayCard { card, target }) => {
+        let mut result = self.card_priorities[card.card_info.id];
         if card.card_info.has_target {
-          result += self.monsters [*target].target_priority*0.000001;
+          result += self.monsters[*target].target_priority * 0.000001;
         }
         result
       }
-      _=> 0.0,
+      _ => 0.0,
     }
   }
-  
-  pub fn random ()->FastStrategy {
+
+  pub fn random() -> FastStrategy {
     FastStrategy {
-      card_priorities: EnumMap::from (|_| rand::random()),
-      monsters: Array::from_fn (|_| FastStrategyMonster {target_priority: rand::random()}),
+      card_priorities: EnumMap::from(|_| rand::random()),
+      monsters: Array::from_fn(|_| FastStrategyMonster {
+        target_priority: rand::random(),
+      }),
     }
   }
 }
@@ -123,13 +124,14 @@ impl SomethingStrategy {
   }
 }
 
-
 // This could use refinement on several issues – right now it incorrectly categorizes some deterministic choices as nondeterministic (e.g. drawing the one card left in your deck), and fails to deduplicate some identical sequences (e.g. strike-defend versus defend-strike when the second choice triggers something nondeterministic like unceasing top – choice.apply() skips right past the identical intermediate state)
 pub fn collect_starting_points(
   state: CombatState,
   max_results: usize,
 ) -> Vec<(CombatState, Vec<Choice>)> {
-  if state.combat_over() { return vec![(state.clone(), Vec::new())]}
+  if state.combat_over() {
+    return vec![(state.clone(), Vec::new())];
+  }
   let mut frontier = VecDeque::new();
   let mut results = Vec::new();
   let mut discovered_midpoints = HashSet::new();
@@ -140,7 +142,7 @@ pub fn collect_starting_points(
       for choice in choices {
         let mut new_state = state.clone();
         let mut runner = Runner::new(&mut new_state, false, false);
-        runner.action_now (&choice);
+        runner.action_now(&choice);
         run_until_unable(&mut runner);
         let mut new_history = history.clone();
         new_history.push(choice.clone());
@@ -248,7 +250,7 @@ pub fn play_out<S: Strategy>(runner: &mut Runner, strategy: &S) {
       assert!(runner.state().fresh_subaction_queue.is_empty());
       assert!(runner.state().stale_subaction_stack.is_empty());
       assert!(runner.state().actions.is_empty());
-      runner.action_now (&choice);
+      runner.action_now(&choice);
       run_until_unable(runner);
     }
   }

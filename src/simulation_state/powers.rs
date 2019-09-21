@@ -245,7 +245,7 @@ powers! {
   ["Weakened", Weak, Debuff],
   ["Strength", Strength, Buff],
   ["Dexterity", Dexterity, Buff],
-  
+
   // Player/relic/card powers
   ["Thorns", Thorns, Buff],
 
@@ -358,17 +358,20 @@ impl PowerBehavior for Dexterity {
   }
 }
 
-
-
 impl PowerBehavior for Thorns {
   fn on_attacked(&self, context: &mut PowerHookContext, info: DamageInfo, damage: i32) {
     if info.owner != context.owner_index() && info.damage_type == DamageType::Normal {
-      context.action_top(DamageAction {target: info.owner, info: DamageInfo::new (context.owner_index(), context.this_power().amount, DamageType::Thorns)});
+      context.action_top(DamageAction {
+        target: info.owner,
+        info: DamageInfo::new(
+          context.owner_index(),
+          context.this_power().amount,
+          DamageType::Thorns,
+        ),
+      });
     }
   }
 }
-
-
 
 impl PowerBehavior for Ritual {
   fn at_end_of_round(&self, context: &mut PowerHookContext) {
@@ -439,6 +442,5 @@ impl PowerBehavior for Metallicize {
     });
   }
 }
-
 
 impl PowerBehavior for Unknown {}

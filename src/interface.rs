@@ -117,7 +117,7 @@ impl ApplicationState {
       let mut playout_state = state.clone();
       self.search_state = Some(SearchState::new(state));
       let mut runner = Runner::new(&mut playout_state, true, true);
-      play_out(&mut runner, & SomethingStrategy {});
+      play_out(&mut runner, &SomethingStrategy {});
       self.debug_log = runner.debug_log().to_string();
     }
   }

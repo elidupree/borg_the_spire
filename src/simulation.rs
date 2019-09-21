@@ -247,13 +247,12 @@ pub fn run_until_unable(runner: &mut Runner) {
 
     if let Some(action) = runner.state_mut().stale_subaction_stack.pop() {
       if runner.can_apply(&action) {
-        runner.action_now (&action);
+        runner.action_now(&action);
       } else {
         runner.state_mut().stale_subaction_stack.push(action);
         break;
       }
-    }
-    else {
+    } else {
       if let Some(action) = runner.state_mut().actions.pop_front() {
         runner.action_now(&action);
       } else {
@@ -306,14 +305,22 @@ impl CombatState {
   pub fn card_playable(&self, card: &SingleCard) -> bool {
     assert!(X_COST == -1);
     assert!(UNPLAYABLE == -2);
-    card.cost >= -1 && self.player.energy >= card.cost && card.card_info.id.playable(self) &&!(card.card_info.card_type == CardType::Attack && self.player.creature.has_power (PowerId::Entangled))
+    card.cost >= -1
+      && self.player.energy >= card.cost
+      && card.card_info.id.playable(self)
+      && !(card.card_info.card_type == CardType::Attack
+        && self.player.creature.has_power(PowerId::Entangled))
   }
 
   pub fn legal_choices(&self) -> Vec<Choice> {
     let mut result = Vec::with_capacity(10);
     result.push(EndTurn.into());
     for (index, card) in self.hand.iter().enumerate() {
-      if self.hand [.. index].iter().all (| earlier_card | earlier_card != card) && self.card_playable(card) {
+      if self.hand[..index]
+        .iter()
+        .all(|earlier_card| earlier_card != card)
+        && self.card_playable(card)
+      {
         if card.card_info.has_target {
           for (monster_index, monster) in self.monsters.iter().enumerate() {
             if !monster.gone {

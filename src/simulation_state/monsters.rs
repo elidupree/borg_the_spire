@@ -58,7 +58,6 @@ impl<'a> IntentChoiceContext<'a> {
     &self.state().monsters[self.monster_index()]
   }
 
-
   pub fn did_repeats(&self, repeats: Repeats, intent: i32) -> bool {
     self.monster.move_history.len() >= repeats.0
       && self.monster.move_history[self.monster.move_history.len() - repeats.0..]
@@ -168,11 +167,7 @@ pub trait IntentEffectsContext {
   fn attack(&mut self, base_damage: i32) {
     // hack: this is actually NOT where powers are applied to card/monster damage in the actual code
     let mut info = DamageInfo::new(self.creature_index(), base_damage, DamageType::Normal);
-    info.apply_powers(
-      self.state(),
-      self.creature_index(),
-      CreatureIndex::Player,
-    );
+    info.apply_powers(self.state(), self.creature_index(), CreatureIndex::Player);
     self.action(DamageAction {
       info,
       target: CreatureIndex::Player,
@@ -334,7 +329,7 @@ impl MonsterBehavior for RedLouse {
     if runner.state().monster_intent(monster_index) == 3 {
       let ascension = runner.state().monsters[monster_index].ascension;
       let bonus = if ascension >= 2 { 1 } else { 0 };
-      runner.action_now (&InitializeMonsterInnateDamageAmount {
+      runner.action_now(&InitializeMonsterInnateDamageAmount {
         monster_index,
         range: (5 + bonus, 8 + bonus),
       });
@@ -388,11 +383,11 @@ impl MonsterBehavior for JawWorm {
     match context.intent() {
       1 => context.attack(context.with_ascension(Ascension(2), 12, 11)),
       2 => {
-      context.power_self(
-        PowerId::Strength,
-        context.with_ascensions(Ascension(17), 5, Ascension(2), 4, 3),
-      );
-      context.block(context.with_ascension(Ascension(17), 9, 6));
+        context.power_self(
+          PowerId::Strength,
+          context.with_ascensions(Ascension(17), 5, Ascension(2), 4, 3),
+        );
+        context.block(context.with_ascension(Ascension(17), 9, 6));
       }
       3 => {
         context.attack(7);
@@ -484,9 +479,12 @@ impl MonsterBehavior for AcidSlimeL {
     }
   }
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
-    if context.monster().creature.hitpoints*2 <= context.monster().creature.max_hitpoints {
-      context.action (SplitAction (context.monster_index(), [MonsterId::AcidSlimeM, MonsterId::AcidSlimeM]));
-      return
+    if context.monster().creature.hitpoints * 2 <= context.monster().creature.max_hitpoints {
+      context.action(SplitAction(
+        context.monster_index(),
+        [MonsterId::AcidSlimeM, MonsterId::AcidSlimeM],
+      ));
+      return;
     }
     match context.intent() {
       1 => {
@@ -537,9 +535,12 @@ impl MonsterBehavior for SpikeSlimeL {
     context.else_num(context.with_max_repeats(max_debuff_repeats, 4, 1));
   }
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
-    if context.monster().creature.hitpoints*2 <= context.monster().creature.max_hitpoints {
-      context.action (SplitAction (context.monster_index(), [MonsterId::SpikeSlimeM, MonsterId::SpikeSlimeM]));
-      return
+    if context.monster().creature.hitpoints * 2 <= context.monster().creature.max_hitpoints {
+      context.action(SplitAction(
+        context.monster_index(),
+        [MonsterId::SpikeSlimeM, MonsterId::SpikeSlimeM],
+      ));
+      return;
     }
     match context.intent() {
       1 => {
@@ -573,17 +574,17 @@ impl MonsterBehavior for Looter {
     if context.state().turn_number < 2 {
       context.always(1);
     } else if context.state().turn_number == 2 {
-      context.always (Distribution::split (0.5, 4, 2));
+      context.always(Distribution::split(0.5, 4, 2));
     } else {
-      context.always (context.with_max_repeats(Repeats(1), 2, 3));
+      context.always(context.with_max_repeats(Repeats(1), 2, 3));
     }
   }
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
     match context.intent() {
       1 => context.attack(context.with_ascension(Ascension(2), 11, 10)),
       4 => context.attack(context.with_ascension(Ascension(2), 14, 12)),
-      2 => context.block (6),
-      3 => context.action (EscapeAction (context.monster_index())),
+      2 => context.block(6),
+      3 => context.action(EscapeAction(context.monster_index())),
       _ => context.undefined_intent(),
     }
   }
@@ -615,7 +616,12 @@ impl MonsterBehavior for SlaverRed {
       return;
     }
 
-    if context.monster().move_history.iter().all(| & intent | intent != 2) {
+    if context
+      .monster()
+      .move_history
+      .iter()
+      .all(|&intent| intent != 2)
+    {
       context.if_num_geq(75, 2);
     } else if !context.did_repeats(Repeats(2), 1) {
       context.if_num_geq(55, 1);
@@ -715,7 +721,10 @@ impl MonsterBehavior for ShieldGremlin {
     match context.intent() {
       1 => {
         let amount = context.with_ascensions(Ascension(17), 11, Ascension(7), 8, 7);
-        context.action (GainBlockRandomMonsterAction {source: context.monster_index(), amount});
+        context.action(GainBlockRandomMonsterAction {
+          source: context.monster_index(),
+          amount,
+        });
       }
       2 => context.attack(context.with_ascension(Ascension(2), 8, 6)),
       _ => context.undefined_intent(),
@@ -774,18 +783,28 @@ impl MonsterBehavior for GremlinNob {
 }
 impl MonsterBehavior for Lagavulin {
   fn make_intent_distribution(self, context: &mut IntentChoiceContext) {
-    if context.state().turn_number >= 3 || context.monster().creature.hitpoints < context.monster().creature.max_hitpoints || context.monster().move_history.iter().any(|&intent| intent == 1 || intent == 3) {
+    if context.state().turn_number >= 3
+      || context.monster().creature.hitpoints < context.monster().creature.max_hitpoints
+      || context
+        .monster()
+        .move_history
+        .iter()
+        .any(|&intent| intent == 1 || intent == 3)
+    {
       context.always(context.with_max_repeats(Repeats(2), 3, 1));
-    }
-    else {
+    } else {
       context.always(5);
     }
   }
   fn after_choosing_intent(self, runner: &mut Runner, monster_index: usize) {
     let monster = &runner.state().monsters[monster_index];
     let intent = monster.intent();
-    if intent == 1 || intent == 3 && monster.creature.power_amount (PowerId::Metallicize) >= 8 {
-      runner.action_bottom (ReducePowerAction {target: CreatureIndex::Monster (monster_index), power_id: PowerId::Metallicize, amount: 8});
+    if intent == 1 || intent == 3 && monster.creature.power_amount(PowerId::Metallicize) >= 8 {
+      runner.action_bottom(ReducePowerAction {
+        target: CreatureIndex::Monster(monster_index),
+        power_id: PowerId::Metallicize,
+        amount: 8,
+      });
     }
   }
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
@@ -801,14 +820,15 @@ impl MonsterBehavior for Lagavulin {
   }
 }
 
-
 impl MonsterBehavior for Hexaghost {
   fn make_intent_distribution(self, context: &mut IntentChoiceContext) {
     let turn = context.state().turn_number;
-    if turn == 0 {context.always (5);}
-    else if turn == 1 {context.always (1) ;}
-    else {
-      context.always (match (turn-2) % 7 {
+    if turn == 0 {
+      context.always(5);
+    } else if turn == 1 {
+      context.always(1);
+    } else {
+      context.always(match (turn - 2) % 7 {
         0 | 2 | 5 => 4,
         1 | 4 => 2,
         3 => 3,
@@ -820,39 +840,43 @@ impl MonsterBehavior for Hexaghost {
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
     match context.intent() {
       5 => {
-      let amount = context.state().player.creature.hitpoints/12 + 1;
-      context.action (InitializeMonsterInnateDamageAmount {
-        monster_index: context.monster_index(),
-        range: (amount, amount+1),
-      });
+        let amount = context.state().player.creature.hitpoints / 12 + 1;
+        context.action(InitializeMonsterInnateDamageAmount {
+          monster_index: context.monster_index(),
+          range: (amount, amount + 1),
+        });
       }
-      1 => for _ in 0..6 {
-        context.attack(context.monster().innate_damage_amount.unwrap());
+      1 => {
+        for _ in 0..6 {
+          context.attack(context.monster().innate_damage_amount.unwrap());
+        }
       }
-      2 => for _ in 0..2 {
-        context.attack(context.with_ascension(Ascension(4), 6, 5));
+      2 => {
+        for _ in 0..2 {
+          context.attack(context.with_ascension(Ascension(4), 6, 5));
+        }
       }
       4 => {
         context.attack(6);
         let upgraded = context.state().turn_number >= 8;
         // TODO: apply upgrade
-        context.discard_status (CardId::Burn, context.with_ascension (Ascension (19), 2, 1));
+        context.discard_status(CardId::Burn, context.with_ascension(Ascension(19), 2, 1));
       }
       3 => {
-      context.power_self(
-        PowerId::Strength,
-        context.with_ascension(Ascension(19), 3, 2),
-      );
-      context.block(12);
+        context.power_self(
+          PowerId::Strength,
+          context.with_ascension(Ascension(19), 3, 2),
+        );
+        context.block(12);
       }
       6 => {
-      for _ in 0..6 {
-        context.attack(context.with_ascension (Ascension (4), 3, 2));
-      }
-      for _ in 0..3 {
-        context.discard_status (CardId::Burn, 3);
-        // TODO: upgrade all burns
-      }
+        for _ in 0..6 {
+          context.attack(context.with_ascension(Ascension(4), 3, 2));
+        }
+        for _ in 0..3 {
+          context.discard_status(CardId::Burn, 3);
+          // TODO: upgrade all burns
+        }
       }
       _ => context.undefined_intent(),
     }

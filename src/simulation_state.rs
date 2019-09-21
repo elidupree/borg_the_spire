@@ -1,11 +1,11 @@
+use arrayvec::ArrayVec;
 use derivative::Derivative;
 use serde::{Deserialize, Serialize};
+use std::collections::VecDeque;
 use std::convert::From;
 use std::fmt::{self, Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
-use std::collections::VecDeque;
-use arrayvec::ArrayVec;
 
 use crate::actions::*;
 use crate::communication_mod_state as communication;
@@ -73,7 +73,7 @@ pub struct CombatState {
 
   pub fresh_subaction_queue: Vec<DynAction>,
   pub stale_subaction_stack: Vec<DynAction>,
-  pub actions: VecDeque <DynAction>,
+  pub actions: VecDeque<DynAction>,
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
