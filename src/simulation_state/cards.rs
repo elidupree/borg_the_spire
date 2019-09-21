@@ -3,6 +3,7 @@
 use enum_map::Enum;
 use serde::{Deserialize, Serialize};
 use std::convert::From;
+use smallvec::SmallVec;
 
 //use crate::actions::*;
 use crate::simulation::*;
@@ -111,6 +112,7 @@ pub struct PlayCardContext<'a, 'b> {
   pub target: usize,
 }
 
+
 impl<'a, 'b> CardBehaviorContext for PlayCardContext<'a, 'b> {
   fn action(&mut self, action: impl Action) {
     self.runner.action_bottom(action);
@@ -121,6 +123,34 @@ impl<'a, 'b> CardBehaviorContext for PlayCardContext<'a, 'b> {
   fn state(&self) -> &CombatState {
     self.runner.state()
   }
+}
+
+pub struct ConsiderCardContext<'a> {
+  pub state: &'a CombatState,
+  pub target: usize,
+  pub card: SingleCard,
+  pub actions: SmallVec<[DynAction; 4]>,
+}
+
+impl<'a> CardBehaviorContext for ConsiderCardContext<'a> {
+  fn action(&mut self, action: impl Action) {
+    self.actions.push (action.into());
+  }
+  fn target(&self) -> usize {
+    self.target
+  }
+  fn state(&self) -> &CombatState {
+    self.state
+  }
+  fn card(&self) -> &SingleCard {
+    &self.card
+  }
+}
+
+pub fn card_actions (state: &CombatState, card: SingleCard, target: usize) -> SmallVec<[DynAction; 4]> {
+  let mut context = ConsiderCardContext {state, target, card: card.clone(), actions: SmallVec::new(),};
+  card.card_info.id.behavior (&mut context);
+  context.actions
 }
 
 macro_rules! cards {

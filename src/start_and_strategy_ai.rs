@@ -39,6 +39,7 @@ pub struct CandidateStrategy {
 pub struct FastStrategy {
   card_priorities: EnumMap<CardId, f64>,
   monsters: [FastStrategyMonster; MAX_MONSTERS],
+  block_priority: f64,
 }
 #[derive(Clone, Debug)]
 pub struct FastStrategyMonster {
@@ -48,20 +49,41 @@ pub struct FastStrategyMonster {
 impl Strategy for FastStrategy {
   fn choose_choice(&self, state: &CombatState) -> Vec<Choice> {
     let legal_choices = state.legal_choices();
+    
+    let incoming_damage = state.monsters.iter().enumerate().map (| (index, monster) | {
+      if monster.gone {0} else {
+        crate::simulation_state::monsters::intent_actions (state, index).into_iter().map (| action | {
+          if let DynAction::DamageAction (action) = action {
+            action.info.output
+          } else {0}
+        }).sum::<i32>()
+      }
+    }).sum::<i32>() - state.player.creature.block;
 
     vec![legal_choices
       .into_iter()
-      .max_by_key(|choice| OrderedFloat(self.evaluate(state, choice)))
+      .max_by_key(|choice| OrderedFloat(self.evaluate(state, choice, incoming_damage)))
       .unwrap()]
   }
 }
 
 impl FastStrategy {
-  pub fn evaluate(&self, state: &CombatState, choice: &Choice) -> f64 {
+  pub fn evaluate(&self, state: &CombatState, choice: &Choice, incoming_damage: i32) -> f64 {
     match choice {
       Choice::EndTurn(_) => 0.0,
       Choice::PlayCard(PlayCard { card, target }) => {
         let mut result = self.card_priorities[card.card_info.id];
+        for action in crate::simulation_state::cards::card_actions (state, card.clone(),*target) {
+          match action {
+            DynAction::DamageAction (action) => {
+              
+            }
+            DynAction::GainBlockAction (action) => {
+              result += std::cmp::min (action.amount, incoming_damage) as f64*self.block_priority;
+            }
+            _=> {}
+          }
+        }
         if card.card_info.has_target {
           result += self.monsters[*target].target_priority * 0.000001;
         }
@@ -77,6 +99,7 @@ impl FastStrategy {
       monsters: Array::from_fn(|_| FastStrategyMonster {
         target_priority: rand::random(),
       }),
+      block_priority: rand::random::<f64>()*0.1,
     }
   }
 }

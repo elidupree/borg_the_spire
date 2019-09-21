@@ -2,6 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::convert::From;
+use smallvec::SmallVec;
 
 use crate::simulation::*;
 use crate::simulation_state::*;
@@ -120,6 +121,12 @@ pub struct DoIntentContext<'a, 'b> {
   pub monster_index: usize,
 }
 
+pub struct ConsiderIntentContext<'a> {
+  pub state: &'a CombatState,
+  pub actions: SmallVec<[DynAction; 4]>,
+  pub monster_index: usize,
+}
+
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Debug)]
 pub struct Ascension(pub i32);
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Debug)]
@@ -216,6 +223,18 @@ impl<'a, 'b> IntentEffectsContext for DoIntentContext<'a, 'b> {
   }
 }
 
+impl<'a> IntentEffectsContext for ConsiderIntentContext<'a> {
+  fn action(&mut self, action: impl Action) {
+    self.actions.push (action.into())
+  }
+  fn state(&self) -> &CombatState {
+    self.state
+  }
+  fn monster_index(&self) -> usize {
+    self.monster_index
+  }
+}
+
 impl<'a, 'b> DoIntentContext<'a, 'b> {
   pub fn new(runner: &'a mut Runner<'b>, monster_index: usize) -> Self {
     DoIntentContext {
@@ -223,6 +242,13 @@ impl<'a, 'b> DoIntentContext<'a, 'b> {
       monster_index,
     }
   }
+}
+
+pub fn intent_actions (state: &CombatState, monster_index: usize) -> SmallVec<[DynAction; 4]> {
+  let mut context = ConsiderIntentContext {state, monster_index, actions: SmallVec::new(),};
+  let monster_id = state.monsters[monster_index].monster_id;
+  monster_id.intent_effects (&mut context);
+  context.actions
 }
 
 pub trait MonsterBehavior: Sized + Copy + Into<MonsterId> {
