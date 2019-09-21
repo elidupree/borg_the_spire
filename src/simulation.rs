@@ -312,9 +312,8 @@ impl CombatState {
   pub fn legal_choices(&self) -> Vec<Choice> {
     let mut result = Vec::with_capacity(10);
     result.push(EndTurn.into());
-    let mut cards = HashSet::new();
-    for card in &self.hand {
-      if cards.insert(card) && self.card_playable(card) {
+    for (index, card) in self.hand.iter().enumerate() {
+      if self.hand [.. index].iter().all (| earlier_card | earlier_card != card) && self.card_playable(card) {
         if card.card_info.has_target {
           for (monster_index, monster) in self.monsters.iter().enumerate() {
             if !monster.gone {
