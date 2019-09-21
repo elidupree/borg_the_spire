@@ -424,15 +424,9 @@ impl Action for RemoveSpecificPowerAction {
 
 impl Action for GainBlockAction {
   fn execute(&self, runner: &mut Runner) {
-    let mut amount = self.amount as f64;
-    power_hook!(
-      runner.state(),
-      self.creature_index,
-      amount = modify_block(amount)
-    );
     let creature = runner.state_mut().get_creature_mut(self.creature_index);
-    if amount > 0.0 {
-      creature.block += amount as i32;
+    if self.amount > 0 {
+      creature.block += self.amount;
     }
   }
 }

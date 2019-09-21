@@ -79,9 +79,15 @@ pub trait CardBehaviorContext {
     });
   }
   fn block(&mut self, amount: i32) {
+    let mut amount = amount as f64;
+    power_hook!(
+      self.state(),
+      CreatureIndex::Player,
+      amount = modify_block(amount)
+    );
     self.action(GainBlockAction {
       creature_index: CreatureIndex::Player,
-      amount,
+      amount: amount as i32,
     });
   }
   fn draw_cards(&mut self, amount: i32) {
