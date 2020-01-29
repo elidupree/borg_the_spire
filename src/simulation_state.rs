@@ -178,22 +178,24 @@ impl Default for Power {
   }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+/*#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Relic {
   name: String,
   id: String,
   counter: i32,
-}
+}*/
 
 impl CombatState {
   pub fn from_communication_mod(
     observed: &communication::GameState,
     previous: Option<&CombatState>,
   ) -> Option<CombatState> {
+  
     let combat = observed.combat_state.as_ref()?;
     let mut draw_pile: Vec<SingleCard> = combat.draw_pile.iter().map(From::from).collect();
     // explicitly sort, partly to make sure my AI doesn't accidentally cheat
     draw_pile.sort();
+    
     let mut result = CombatState {
       draw_pile,
       discard_pile: combat.discard_pile.iter().map(From::from).collect(),
@@ -204,7 +206,7 @@ impl CombatState {
       fresh_subaction_queue: Vec::new(),
       stale_subaction_stack: Vec::new(),
       actions: VecDeque::new(),
-      player: Player::from(&combat.player),
+      player: Player::from_communication_mod(&combat.player, & observed.relics),
       turn_number: combat.turn,
       turn_has_ended: false,
       monsters: combat
@@ -282,15 +284,28 @@ impl From<&communication::Power> for Power {
   }
 }
 
-impl From<&communication::Player> for Player {
-  fn from(player: &communication::Player) -> Player {
+impl From<&communication::Relic> for Power {
+  fn from(relic: &communication::Relic) -> Power {
+    Power {
+      power_id: PowerId::from(&*relic.id),
+      amount: relic.counter,
+      damage: 0,
+      card: None,
+      misc: 0,
+      just_applied: false,
+    }
+  }
+}
+
+impl Player {
+  fn from_communication_mod(player: &communication::Player, relics: & [communication::Relic]) -> Player {
     Player {
       energy: player.energy,
       creature: Creature {
         hitpoints: player.current_hp,
         max_hitpoints: player.max_hp,
         block: player.block,
-        powers: player.powers.iter().map(From::from).collect(),
+        powers: player.powers.iter().map(From::from).chain (relics.iter().map (From::from)).collect(),
       },
     }
   }

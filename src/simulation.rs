@@ -122,6 +122,7 @@ impl DamageInfo {
 pub enum PowerType {
   Buff,
   Debuff,
+  Relic,
 }
 
 #[derive(Clone, PartialEq, Serialize, Deserialize, Debug, Derivative)]

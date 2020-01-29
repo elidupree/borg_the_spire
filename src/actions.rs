@@ -208,7 +208,7 @@ impl Action for FinishMonsterTurn {
       state.turn_has_ended = false;
       start_creature_turn (runner, CreatureIndex::Player);
       let state = runner.state_mut();
-      state.player.energy = 3;
+      state.player.energy = 3 + state.player.creature.powers.iter().map (| power | power.power_id.inherent_energy()).sum::<i32>();
       runner.action_now(&DrawCards(5));
       
     }

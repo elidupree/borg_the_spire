@@ -117,7 +117,7 @@ pub struct Power {
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Relic {
-  name: String,
-  id: String,
-  counter: i32,
+  pub name: String,
+  pub id: String,
+  pub counter: i32,
 }

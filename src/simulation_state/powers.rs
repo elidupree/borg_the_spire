@@ -3,7 +3,7 @@ use std::convert::From;
 
 use crate::simulation::*;
 use crate::simulation_state::*;
-use PowerType::{Buff, Debuff};
+use PowerType::{Buff, Debuff, Relic};
 
 pub struct PowerHookContext<'a, 'b> {
   pub runner: &'a mut Runner<'b>,
@@ -133,6 +133,10 @@ impl<'a, 'b> PowerHookContext<'a, 'b> {
 
 #[allow(unused)]
 pub trait PowerBehavior {
+  fn inherent_energy(&self) -> i32 {
+    0
+  }
+
   fn priority(&self) -> i32 {
     5
   }
@@ -251,6 +255,16 @@ powers! {
   ["Metallicize", Metallicize, Buff],
   ["No Draw", NoDraw, Debuff],
   ["Plated Armor", PlatedArmor, Buff],
+  
+  // Relics
+  ["Busted Crown", BustedCrown, Relic],
+  ["Coffee Dripper", CoffeeDripper, Relic],
+  ["Cursed Key", CursedKey, Relic],
+  ["Ectoplasm", Ectoplasm, Relic],
+  ["Fusion Hammer", FusionHammer, Relic],
+  ["Mark of Pain", MarkOfPain, Relic],
+  ["Philosopher's Stone", PhilosophersStone, Relic],
+  ["Sozu", Sozu, Relic],
   
   // Relic powers
   ["Pen Nib", PenNib, Buff],
@@ -519,6 +533,39 @@ impl PowerBehavior for PlatedArmor {
       context.reduce_this_power ();
     }
   }
+}
+
+macro_rules! energy_relic {
+  () => {
+    fn inherent_energy(&self) -> i32 {
+      1
+    }
+  }
+}
+
+impl PowerBehavior for BustedCrown {
+  energy_relic!{}
+}
+impl PowerBehavior for CoffeeDripper {
+  energy_relic!{}
+}
+impl PowerBehavior for CursedKey {
+  energy_relic!{}
+}
+impl PowerBehavior for Ectoplasm {
+  energy_relic!{}
+}
+impl PowerBehavior for FusionHammer {
+  energy_relic!{}
+}
+impl PowerBehavior for MarkOfPain {
+  energy_relic!{}
+}
+impl PowerBehavior for PhilosophersStone {
+  energy_relic!{}
+}
+impl PowerBehavior for Sozu {
+  energy_relic!{}
 }
 
 impl PowerBehavior for PenNib {
