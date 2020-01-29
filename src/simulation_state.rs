@@ -305,7 +305,7 @@ impl Player {
         hitpoints: player.current_hp,
         max_hitpoints: player.max_hp,
         block: player.block,
-        powers: player.powers.iter().map(From::from).chain (relics.iter().map (From::from)).collect(),
+        powers: relics.iter().map(Power::from).filter(|p| p.power_id != PowerId::Unknown).chain (player.powers.iter().map (From::from)).collect(),
       },
     }
   }
