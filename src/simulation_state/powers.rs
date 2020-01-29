@@ -379,7 +379,7 @@ impl PowerBehavior for Strength {
     if damage_type != DamageType::Normal {
       return damage;
     }
-    damage + context.this_power().amount as f64
+    damage + context.amount() as f64
   }
 }
 
@@ -397,7 +397,7 @@ impl PowerBehavior for Dexterity {
     self.stack_power(power, -reduce_amount);
   }
   fn modify_block(&self, context: &PowerNumericHookContext, block: f64) -> f64 {
-    block + context.this_power().amount as f64
+    block + context.amount() as f64
   }
 }
 
@@ -408,7 +408,7 @@ impl PowerBehavior for Thorns {
         target: info.owner,
         info: DamageInfo::new(
           context.owner_index(),
-          context.this_power().amount,
+          context.amount(),
           DamageType::Thorns,
         ),
       });
@@ -427,13 +427,13 @@ impl PowerBehavior for Ritual {
 impl PowerBehavior for CurlUp {
   fn on_attacked(&self, context: &mut PowerHookContext, info: DamageInfo, damage: i32) {
     // hack: using amount == 0 instead of this.triggered
-    if context.this_power().amount > 0
+    if context.amount() > 0
       && damage < context.owner_creature().hitpoints
       && info.damage_type == DamageType::Normal
     {
       context.action_bottom(GainBlockAction {
         creature_index: context.owner_index(),
-        amount: context.this_power().amount,
+        amount: context.amount(),
       });
       context.this_power_mut().amount = 0;
       context.remove_this_power();
@@ -481,7 +481,7 @@ impl PowerBehavior for Metallicize {
   fn at_end_of_turn(&self, context: &mut PowerHookContext) {
     context.action_bottom(GainBlockAction {
       creature_index: context.owner_index(),
-      amount: context.this_power().amount,
+      amount: context.amount(),
     });
   }
 }
@@ -610,7 +610,7 @@ impl PowerBehavior for FeelNoPain {
   fn on_exhaust(&self, context: &mut PowerHookContext, card: &SingleCard) {
     context.action_bottom(GainBlockAction {
       creature_index: context.owner_index(),
-      amount: context.this_power().amount,
+      amount: context.amount(),
     });
   }
 }
@@ -633,7 +633,7 @@ impl PowerBehavior for Rage {
     if card.card_info.card_type == CardType::Attack {
       context.action_bottom(GainBlockAction {
         creature_index: context.owner_index(),
-        amount: context.this_power().amount,
+        amount: context.amount(),
       });
     }
   }
@@ -649,7 +649,9 @@ impl PowerBehavior for Rupture {
 impl PowerBehavior for Barricade {}
 
 impl PowerBehavior for Berserk {
-  //TODO
+  fn at_start_of_turn(&self, context: &mut PowerHookContext) {
+    context.action_bottom(GainEnergyAction(context.amount()))
+  }
 }
 
 impl PowerBehavior for Brutality {

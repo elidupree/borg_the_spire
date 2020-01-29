@@ -73,6 +73,7 @@ actions! {
   [RemoveSpecificPowerAction {pub target: CreatureIndex, pub power_id: PowerId}],
   [DiscardNewCard (pub SingleCard);],
   [GainBlockAction {pub creature_index: CreatureIndex, pub amount: i32}],
+  [GainEnergyAction (pub i32);],
 
   // generally card effects
   [ArmamentsAction {pub upgraded: bool}],
@@ -428,6 +429,12 @@ impl Action for GainBlockAction {
     if self.amount > 0 {
       creature.block += self.amount;
     }
+  }
+}
+
+impl Action for GainEnergyAction {
+  fn execute(&self, runner: &mut Runner) {
+    runner.state_mut().player.energy += self.0;
   }
 }
 
