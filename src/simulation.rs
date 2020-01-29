@@ -63,6 +63,16 @@ impl Distribution {
   }
 }
 
+/*
+pub enum CardChoiceType {
+  ExhaustCard,
+  HandTopdeck,
+  DiscardTopdeck,
+  TutorSkill,
+  TutorAttack,
+}
+*/
+
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, Debug)]
 pub enum CreatureIndex {
   Player,

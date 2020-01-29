@@ -75,7 +75,7 @@ actions! {
   [GainBlockAction {pub creature_index: CreatureIndex, pub amount: i32}],
 
   // generally card effects
-
+  [ArmamentsAction {pub upgraded: bool}],
 
   // generally monster effects
   [InitializeMonsterInnateDamageAmount{pub monster_index: usize, pub range: (i32, i32)}],
@@ -436,6 +436,34 @@ impl Action for DiscardNewCard {
     runner.state_mut().discard_pile.push(self.0.clone());
   }
 }
+
+
+impl Action for ArmamentsAction {
+  fn determinism(&self, state: & CombatState)->Determinism {
+    if self.upgraded {
+      Determinism::Deterministic
+    }
+    else {
+      // TODO: Determinism::Choice
+      Determinism::Random(Distribution(
+        (0..state.hand.len())
+          .map(|i| (1.0, i as i32)).collect()
+      ))
+    }
+  }
+  
+  fn execute(&self, runner: &mut Runner) {
+    if self.upgraded {
+      for card in &mut runner.state_mut().hand {
+        card.upgrade()
+      }
+    }
+  }
+  fn execute_random(&self, runner: &mut Runner, random_value: i32) {
+    runner.state_mut().hand[random_value as usize].upgrade()
+  }
+}
+
 
 impl Action for InitializeMonsterInnateDamageAmount {
   fn determinism(&self, state: &CombatState) -> Determinism {

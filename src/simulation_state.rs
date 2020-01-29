@@ -329,6 +329,10 @@ impl SingleCard {
       card_info: Arc::new(info),
     }
   }
+  
+  pub fn upgrade (&mut self) {
+    if self.upgrades == 0 {self.upgrades = 1;}
+  }
 }
 
 impl Debug for Creature {

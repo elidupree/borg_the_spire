@@ -98,8 +98,11 @@ pub trait CardBehaviorContext {
   fn card(&self) -> &SingleCard {
     self.state().card_in_play.as_ref().unwrap()
   }
+  fn upgraded(&self) -> bool{
+    self.card().upgrades > 0
+  }
   fn with_upgrade<T>(&self, upgraded: T, normal: T) -> T {
-    if self.card().upgrades > 0 {
+    if self.upgraded() {
       upgraded
     } else {
       normal
@@ -327,7 +330,7 @@ impl CardBehavior for Anger {
 impl CardBehavior for Armaments {
   fn behavior(self, context: &mut impl CardBehaviorContext) {
     context.block(5);
-    // TODO: upgrades
+    context.action(ArmamentsAction {upgraded: context.upgraded()});
   }
 }
 
