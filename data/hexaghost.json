@@ -1,0 +1,313 @@
+{
+  "draw_pile": [
+    {
+      "misc": 0,
+      "cost": 1,
+      "upgrades": 0,
+      "card_info": {
+        "id": "StrikeR",
+        "card_type": "Attack",
+        "rarity": "Basic",
+        "normal_cost": 1,
+        "upgraded_cost": 1,
+        "ethereal": false,
+        "has_target": true,
+        "exhausts": false
+      }
+    },
+    {
+      "misc": 0,
+      "cost": 1,
+      "upgrades": 0,
+      "card_info": {
+        "id": "DefendR",
+        "card_type": "Skill",
+        "rarity": "Basic",
+        "normal_cost": 1,
+        "upgraded_cost": 1,
+        "ethereal": false,
+        "has_target": false,
+        "exhausts": false
+      }
+    },
+    {
+      "misc": 0,
+      "cost": 1,
+      "upgrades": 0,
+      "card_info": {
+        "id": "DefendR",
+        "card_type": "Skill",
+        "rarity": "Basic",
+        "normal_cost": 1,
+        "upgraded_cost": 1,
+        "ethereal": false,
+        "has_target": false,
+        "exhausts": false
+      }
+    },
+    {
+      "misc": 0,
+      "cost": 1,
+      "upgrades": 0,
+      "card_info": {
+        "id": "DefendR",
+        "card_type": "Skill",
+        "rarity": "Basic",
+        "normal_cost": 1,
+        "upgraded_cost": 1,
+        "ethereal": false,
+        "has_target": false,
+        "exhausts": false
+      }
+    },
+    {
+      "misc": 0,
+      "cost": 1,
+      "upgrades": 0,
+      "card_info": {
+        "id": "DefendR",
+        "card_type": "Skill",
+        "rarity": "Basic",
+        "normal_cost": 1,
+        "upgraded_cost": 1,
+        "ethereal": false,
+        "has_target": false,
+        "exhausts": false
+      }
+    },
+    {
+      "misc": 0,
+      "cost": 1,
+      "upgrades": 0,
+      "card_info": {
+        "id": "Cleave",
+        "card_type": "Attack",
+        "rarity": "Common",
+        "normal_cost": 1,
+        "upgraded_cost": 1,
+        "ethereal": false,
+        "has_target": false,
+        "exhausts": false
+      }
+    },
+    {
+      "misc": 0,
+      "cost": 1,
+      "upgrades": 0,
+      "card_info": {
+        "id": "PommelStrike",
+        "card_type": "Attack",
+        "rarity": "Common",
+        "normal_cost": 1,
+        "upgraded_cost": 1,
+        "ethereal": false,
+        "has_target": true,
+        "exhausts": false
+      }
+    },
+    {
+      "misc": 0,
+      "cost": 1,
+      "upgrades": 0,
+      "card_info": {
+        "id": "Thunderclap",
+        "card_type": "Attack",
+        "rarity": "Common",
+        "normal_cost": 1,
+        "upgraded_cost": 1,
+        "ethereal": false,
+        "has_target": false,
+        "exhausts": false
+      }
+    },
+    {
+      "misc": 0,
+      "cost": 1,
+      "upgrades": 0,
+      "card_info": {
+        "id": "GhostlyArmor",
+        "card_type": "Skill",
+        "rarity": "Uncommon",
+        "normal_cost": 1,
+        "upgraded_cost": 1,
+        "ethereal": true,
+        "has_target": false,
+        "exhausts": false
+      }
+    },
+    {
+      "misc": 0,
+      "cost": 2,
+      "upgrades": 1,
+      "card_info": {
+        "id": "Bash",
+        "card_type": "Attack",
+        "rarity": "Basic",
+        "normal_cost": 2,
+        "upgraded_cost": 2,
+        "ethereal": false,
+        "has_target": true,
+        "exhausts": false
+      }
+    },
+    {
+      "misc": 0,
+      "cost": 2,
+      "upgrades": 1,
+      "card_info": {
+        "id": "Carnage",
+        "card_type": "Attack",
+        "rarity": "Uncommon",
+        "normal_cost": 2,
+        "upgraded_cost": 2,
+        "ethereal": true,
+        "has_target": true,
+        "exhausts": false
+      }
+    },
+    {
+      "misc": 0,
+      "cost": 2,
+      "upgrades": 1,
+      "card_info": {
+        "id": "Uppercut",
+        "card_type": "Attack",
+        "rarity": "Uncommon",
+        "normal_cost": 2,
+        "upgraded_cost": 2,
+        "ethereal": false,
+        "has_target": true,
+        "exhausts": false
+      }
+    }
+  ],
+  "discard_pile": [],
+  "exhaust_pile": [],
+  "hand": [
+    {
+      "misc": 0,
+      "cost": 1,
+      "upgrades": 0,
+      "card_info": {
+        "id": "StrikeR",
+        "card_type": "Attack",
+        "rarity": "Basic",
+        "normal_cost": 1,
+        "upgraded_cost": 1,
+        "ethereal": false,
+        "has_target": true,
+        "exhausts": false
+      }
+    },
+    {
+      "misc": 0,
+      "cost": 0,
+      "upgrades": 0,
+      "card_info": {
+        "id": "Clash",
+        "card_type": "Attack",
+        "rarity": "Common",
+        "normal_cost": 0,
+        "upgraded_cost": 0,
+        "ethereal": false,
+        "has_target": true,
+        "exhausts": false
+      }
+    },
+    {
+      "misc": 0,
+      "cost": 1,
+      "upgrades": 0,
+      "card_info": {
+        "id": "StrikeR",
+        "card_type": "Attack",
+        "rarity": "Basic",
+        "normal_cost": 1,
+        "upgraded_cost": 1,
+        "ethereal": false,
+        "has_target": true,
+        "exhausts": false
+      }
+    },
+    {
+      "misc": 0,
+      "cost": -2,
+      "upgrades": 0,
+      "card_info": {
+        "id": "AscendersBane",
+        "card_type": "Curse",
+        "rarity": "Special",
+        "normal_cost": -2,
+        "upgraded_cost": -2,
+        "ethereal": true,
+        "has_target": false,
+        "exhausts": false
+      }
+    },
+    {
+      "misc": 0,
+      "cost": 0,
+      "upgrades": 0,
+      "card_info": {
+        "id": "Clash",
+        "card_type": "Attack",
+        "rarity": "Common",
+        "normal_cost": 0,
+        "upgraded_cost": 0,
+        "ethereal": false,
+        "has_target": true,
+        "exhausts": false
+      }
+    }
+  ],
+  "limbo": [],
+  "card_in_play": null,
+  "player": {
+    "creature": {
+      "hitpoints": 47,
+      "max_hitpoints": 82,
+      "block": 0,
+      "powers": [
+        {
+          "power_id": "Unknown",
+          "amount": 3,
+          "damage": 0,
+          "card": null,
+          "misc": 0,
+          "just_applied": false
+        },
+        {
+          "power_id": "Dexterity",
+          "amount": 1,
+          "damage": 0,
+          "card": null,
+          "misc": 0,
+          "just_applied": false
+        }
+      ]
+    },
+    "energy": 3
+  },
+  "monsters": [
+    {
+      "monster_id": "Hexaghost",
+      "innate_damage_amount": null,
+      "ascension": 18,
+      "creature": {
+        "hitpoints": 264,
+        "max_hitpoints": 264,
+        "block": 0,
+        "powers": []
+      },
+      "move_history": [
+        5
+      ],
+      "gone": false
+    }
+  ],
+  "turn_number": 1,
+  "turn_has_ended": false,
+  "fresh_subaction_queue": [],
+  "stale_subaction_stack": [],
+  "actions": []
+}
