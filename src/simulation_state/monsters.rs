@@ -328,6 +328,7 @@ monsters! {
   ["GremlinNob", GremlinNob],
   ["Lagavulin", Lagavulin],
   
+  ["TheGuardian", TheGuardian],
   ["Hexaghost", Hexaghost],
   ["SlimeBoss", SlimeBoss],
   
@@ -846,6 +847,33 @@ impl MonsterBehavior for Lagavulin {
         context.power_player(PowerId::Strength, amount);
       }
       3 => context.attack(context.with_ascension(Ascension(3), 20, 18)),
+      _ => context.undefined_intent(),
+    }
+  }
+}
+
+impl MonsterBehavior for TheGuardian {
+  fn make_intent_distribution(self, context: &mut IntentChoiceContext) {
+    context.always (match context.state().turn_number % 3 {
+      0 => 4,
+      1 => 2,
+      2 => 1,
+      _=> unreachable!(),      
+    });
+  }
+  fn intent_effects(self, context: &mut impl IntentEffectsContext) {
+    if context.monster().creature.hitpoints * 2 <= context.monster().creature.max_hitpoints {
+      context.action(SplitAction(
+        context.monster_index(),
+        [MonsterId::SpikeSlimeL, MonsterId::AcidSlimeL],
+      ));
+      return;
+    }
+    match context.intent() {
+      4 => context.discard_status(CardId::Slimed, context.with_ascension(Ascension(19), 5, 3)),
+      2 =>(),
+      1 => context.attack(context.with_ascension(Ascension(4), 38, 35)),
+      3 =>(),
       _ => context.undefined_intent(),
     }
   }

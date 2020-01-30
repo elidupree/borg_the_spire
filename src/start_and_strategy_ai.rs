@@ -286,7 +286,7 @@ pub struct CombatResult {
 }
 
 impl CombatResult {
-  fn new(state: &CombatState) -> CombatResult {
+  pub fn new(state: &CombatState) -> CombatResult {
     if state.player.creature.hitpoints > 0 {
       // TODO punish for stolen gold
       CombatResult {

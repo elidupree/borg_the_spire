@@ -73,6 +73,7 @@ mod interface;
 mod simulation;
 mod simulation_state;
 mod start_and_strategy_ai;
+mod benchmarks;
 
 fn main() {
   println!("ready");
@@ -87,6 +88,12 @@ fn main() {
   //writeln!(file, "Hello BtS 2").unwrap();
 
   let arguments: Vec<String> = std::env::args().collect();
+  
+  if arguments[1] == "benchmarks" {
+    benchmarks::run_benchmarks();
+    return
+  }
+  
   interface::run(PathBuf::from(arguments[1].clone()));
 
   /*let input = std::io::stdin();

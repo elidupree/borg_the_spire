@@ -147,6 +147,7 @@ pub struct Player {
 pub struct Monster {
   pub monster_id: MonsterId,
   pub innate_damage_amount: Option<i32>,
+  //pub misc: i32,
   pub ascension: i32,
   pub creature: Creature,
   pub move_history: Vec<i32>,
