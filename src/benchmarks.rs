@@ -129,5 +129,14 @@ pub fn run_benchmarks() {
   let ghost_state: CombatState = serde_json::from_reader (std::io::BufReader::new (ghost_file)).unwrap();
 
   run_benchmark ("Hexaghost (FastStrategy, random)", & ghost_state, optimization_playouts, test_playouts, ExplorationOptimizer::new (|_: &_ | FastStrategy::random()));
+  
+  run_benchmark ("Hexaghost (FastStrategy, genetic)", & ghost_state, optimization_playouts, test_playouts, ExplorationOptimizer::new (| candidates: & [CandidateStrategy <FastStrategy>] | {
+    if candidates.len() < 2 {
+      FastStrategy::random()
+    }
+    else {
+      FastStrategy::offspring(& candidates.iter().map (| candidate | & candidate.strategy).collect::<Vec<_>>())
+    }
+  }));
 }
 

@@ -1,6 +1,6 @@
 //use arrayvec::ArrayVec;
 use ordered_float::OrderedFloat;
-//use rand::{seq::SliceRandom, Rng};
+use rand::{seq::SliceRandom};
 use array_ext::Array;
 use enum_map::EnumMap;
 use std::collections::{HashSet, VecDeque};
@@ -67,6 +67,35 @@ impl Strategy for FastStrategy {
   }
 }
 
+pub struct OffspringBuilder<'a, T> {
+  weighted_parents: Vec<(&'a T, f64)>,
+  mutation_rate: f64,
+}
+
+impl<'a, T> OffspringBuilder <'a, T> {
+  pub fn new (parents: &[& 'a T])->OffspringBuilder <'a, T> {
+    let mutation_rate: f64 = rand::random::<f64>()*rand::random::<f64>()*rand::random::<f64>();
+    let mut weighted_parents: Vec<_> = parents.iter().map (| parent | (*parent, rand::random())).collect();
+    let total_weight: f64 = weighted_parents.iter().map (| (_parent, weight) | weight).sum();
+    for (parent, weight) in &mut weighted_parents {
+      *weight /= total_weight;
+    }
+    
+    OffspringBuilder {
+      weighted_parents, mutation_rate
+    }
+  }
+  
+  pub fn combine_f64 (&self, get: impl Fn (& T)->f64)->f64 {
+    if rand::random::<f64>() < self.mutation_rate {
+      rand::random()
+    }
+    else {
+      get (& self.weighted_parents.choose_weighted (&mut rand::thread_rng(), | (_parent, weight) | *weight).unwrap().0)
+    }
+  }
+}
+
 impl FastStrategy {
   pub fn evaluate(&self, state: &CombatState, choice: &Choice, incoming_damage: i32) -> f64 {
     match choice {
@@ -79,7 +108,7 @@ impl FastStrategy {
               
             }
             DynAction::GainBlockAction (action) => {
-              result += std::cmp::min (action.amount, incoming_damage) as f64*self.block_priority;
+              result += std::cmp::min (action.amount, incoming_damage) as f64*self.block_priority * 0.1;
             }
             _=> {}
           }
@@ -99,7 +128,21 @@ impl FastStrategy {
       monsters: Array::from_fn(|_| FastStrategyMonster {
         target_priority: rand::random(),
       }),
-      block_priority: rand::random::<f64>()*0.1,
+      block_priority: rand::random(),
+    }
+  }
+  
+  pub fn offspring(parents: & [&FastStrategy])->FastStrategy {
+    let builder = OffspringBuilder::new (parents);
+    
+    FastStrategy {
+      card_priorities: EnumMap::from(| card_id |
+        builder.combine_f64 (| parent | parent.card_priorities [card_id])
+      ),
+      monsters: Array::from_fn(| index | FastStrategyMonster {
+        target_priority: builder.combine_f64 (| parent | parent.monsters [index].target_priority),
+      }),
+      block_priority: builder.combine_f64 (| parent | parent.block_priority),
     }
   }
 }
