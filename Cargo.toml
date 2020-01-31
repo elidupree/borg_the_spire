@@ -18,7 +18,7 @@ rocket_contrib = { version = "0.4.2", features = ["json"]}
 typed-html = "0.2.1"
 parking_lot = "0.9"
 derivative = { git = "https://github.com/mcarton/rust-derivative" }
-enum-map = "0.6.0"
+enum-map = "0.6.2"
 array_ext = "0.2.0"
 
 [profile.dev]

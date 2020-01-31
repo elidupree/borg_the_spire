@@ -1,7 +1,9 @@
 use std::cmp::min;
 use std::iter;
-use enum_map::EnumMap;
+use enum_map::{Enum, EnumMap};
 use ordered_float::OrderedFloat;
+use rand::seq::SliceRandom;
+use rand::random;
 
 use crate::actions::*;
 use crate::simulation::*;
@@ -42,12 +44,14 @@ struct ChoiceWeights {
   end_turn_weights: Vec<f64>,
 }
 
+#[derive (Clone, Debug)]
 struct ChoiceAnalysis {
   choice: Choice,
   score: f64,
   selection_probability: f64,
 }
 
+#[derive (Clone, Debug)]
 struct CombatStateAnalysis {
   inputs: Vec<f64>,
   hidden_inputs: Vec<f64>,
@@ -99,17 +103,96 @@ impl ChoiceWeights {
   }
 }
 
+fn push_creature_inputs (result: &mut Vec<f64>, creature: & Creature) {
+  result.push (creature.hitpoints as f64/creature.max_hitpoints as f64);
+  result.push (creature.block as f64/creature.max_hitpoints as f64);
+  let powers_start = result.len();
+  result.extend_from_slice (
+    &PowerId::from_function (|_| 0.0)
+  );
+  
+  for power in &creature.powers {
+    result [powers_start + Enum::<f64>::to_usize (power.power_id)] += logistic (power.amount as f64);
+  }
+}
+
+fn inputs (state: & CombatState)->Vec<f64> {
+  let mut result = Vec::with_capacity (100);
+  
+  result.push (logistic (state.turn_number as f64));
+  
+  
+  result.push (state.player.energy as f64);
+  push_creature_inputs (&mut result, & state.player.creature);
+  
+  
+  for monster_index in 0..MAX_MONSTERS {
+    let monster_start = result.len();
+    // the number of monsters may change, so we always write a monster, but zero it out if it's not real
+    let monster = state.monsters.get (monster_index).unwrap_or_else (| | & state.monsters [0]);
+    
+    result.push (1.0); // "alive" flag
+    result.push (monster.innate_damage_amount.unwrap_or (0) as f64);
+    result.push (logistic (monster.move_history.get (0).copied().unwrap_or (0) as f64 / 10.0));
+    result.push (logistic (monster.move_history.get (1).copied().unwrap_or (0) as f64 / 10.0));
+    push_creature_inputs (&mut result, & monster.creature) ;
+    
+    // retroactively zeroing instead of writing zeros separately, to guarantee that I don't accidentally put the wrong number of values
+    if monster.gone || monster_index >= state.monsters.len() {
+      for input in &mut result [monster_start..] {*input = 0.0;}
+    }
+  }
+  
+  
+  for cards in &[state.hand.as_slice(), state.draw_pile.as_slice(), state.discard_pile.as_slice(), state.exhaust_pile.as_slice(),] {
+    let normal_start = result.len();
+    result.extend_from_slice (
+      &CardId::from_function (|_| 0.0)
+    );
+    let upgraded_start = result.len();
+    result.extend_from_slice (
+      &CardId::from_function (|_| 0.0)
+    );
+    for card in *cards {
+      let start = if card.upgrades >0 {upgraded_start} else {normal_start};
+      result [start + Enum::<f64>::to_usize(card.card_info.id)] += 0.1;
+    }
+  }
+  
+  result
+}
+
+fn random_weights(hidden_layer_size: usize) ->Vec<f64> {
+  (0..hidden_layer_size).map (|_| random()).collect()
+}
+
 impl NeuralStrategy {
-  fn inputs (&self, state: & CombatState)->Vec<f64> {
-    unimplemented!()
+  fn new_random (state: & CombatState, hidden_layer_size: usize)->Self {
+    let inputs = inputs (state) ;
+    let input_weights = inputs.iter().map (|_| random_weights(hidden_layer_size)).collect();
+    let play_card_weights = EnumMap::from (|_| [
+      random_weights(hidden_layer_size),
+      random_weights(hidden_layer_size),
+    ]);
+    let end_turn_weights = random_weights(hidden_layer_size);
+    
+    NeuralStrategy {
+      hidden_layer_size,
+      input_weights,
+      choice_weights: ChoiceWeights {
+        play_card_weights,
+        end_turn_weights,
+      }
+    }
   }
   
   fn analyze (&self, state: & CombatState)->CombatStateAnalysis {
-    let inputs = self.inputs (state);
+    let inputs = inputs (state);
     
     let mut hidden_inputs: Vec<f64> = iter::repeat (0.0).take (self.hidden_layer_size).collect();
     
     for (input_index, input) in inputs.iter().enumerate() {
+      if *input == 0.0 {continue;}
       for (hidden_index, weight) in self.input_weights [input_index].iter().enumerate() {
         hidden_inputs [hidden_index] += input*weight;
       }
@@ -171,5 +254,36 @@ impl NeuralStrategy {
         new_version.input_weights [input_index][hidden_index] -= derror_dweight;
       }
     }
+  }
+  
+  pub fn do_training_playout (&mut self, state: & CombatState) {
+    let mut playout_state = state.clone() ;
+    let mut runner = Runner::new (&mut playout_state, true, false);
+    let mut analyses: Vec<(CombatStateAnalysis, ChoiceAnalysis)> = Vec::new();
+    
+    run_until_unable(&mut runner);
+    while !runner.state().combat_over() {
+      let analysis = self.analyze (state);
+    
+      let best_choice = analysis.choices.choose_weighted (&mut rand::thread_rng(), | choice | choice.selection_probability).unwrap().clone();
+    
+      assert!(runner.state().fresh_subaction_queue.is_empty());
+      assert!(runner.state().stale_subaction_stack.is_empty());
+      assert!(runner.state().actions.is_empty());
+      runner.action_now(& best_choice.choice);
+      run_until_unable(&mut runner);
+      
+      analyses.push ((analysis, best_choice));
+    }
+    
+    let result = CombatResult::new (& playout_state) ;
+    
+    let mut new_version = self.clone();
+    
+    for (analysis, choice_made) in analyses {
+      self.backpropagate (& analysis, &mut new_version, & choice_made, result.score);
+    }
+    
+    std::mem::replace (self, new_version) ;
   }
 }

@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::convert::From;
+use enum_map::Enum;
 
 use crate::simulation::*;
 use crate::simulation_state::*;
@@ -205,7 +206,7 @@ pub trait PowerBehavior {
 
 macro_rules! powers {
   ($([$id: expr, $Variant: ident, $power_type: expr],)*) => {
-    #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Debug)]
+    #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Enum, Debug)]
     pub enum PowerId {
       $($Variant,)*
     }
