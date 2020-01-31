@@ -101,6 +101,18 @@ impl <T: Strategy, F: Fn (& [CandidateStrategy <T>])->T> StrategyOptimizer for E
   }
 }
 
+
+impl StrategyOptimizer for NeuralStrategy {
+  type Strategy = NeuralStrategy ;
+  fn step (&mut self, state: & CombatState) {
+    self.do_training_playout(state);
+  }
+  
+  fn report (&self)->& Self::Strategy {
+    self
+  }
+}
+
 pub fn benchmark_step(name: & str, state: & CombatState, optimizer: &mut impl StrategyOptimizer) {
   println!( "Optimizing {}…", name);
   let start = Instant::now();
@@ -191,6 +203,7 @@ pub fn run_benchmarks() {
   for _ in 0..20 {
     benchmark_step("Hexaghost (FastStrategy, random)", & ghost_state, &mut fast_random);
     benchmark_step("Hexaghost (FastStrategy, genetic)", & ghost_state, &mut fast_genetic);
+    benchmark_step("Hexaghost (NeuralStrategy, one start)", & ghost_state, &mut neural);
   }
 }
 

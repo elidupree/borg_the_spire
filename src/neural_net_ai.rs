@@ -263,7 +263,7 @@ impl NeuralStrategy {
     
     run_until_unable(&mut runner);
     while !runner.state().combat_over() {
-      let analysis = self.analyze (state);
+      let analysis = self.analyze (runner.state());
     
       let best_choice = analysis.choices.choose_weighted (&mut rand::thread_rng(), | choice | choice.selection_probability).unwrap().clone();
     
