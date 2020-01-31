@@ -202,20 +202,39 @@ pub fn run_benchmarks() {
   let mut neural_random_only: ExplorationOptimizer<FastStrategy, _> = ExplorationOptimizer::new (|_: &[CandidateStrategy <FastStrategy>] | FastStrategy::random());
   let mut neural_training_only = NeuralStrategy::new_random(&ghost_state, 16);
   
-  /*let mut neural_random_training: ExplorationOptimizer<NeuralStrategy, _> = ExplorationOptimizer::new (|_: &[CandidateStrategy <FastStrategy>] | {
-    if candidates.len() < 1 || rand::random::>f64>() < 0.4 {
+  let mut neural_random_training: ExplorationOptimizer<NeuralStrategy, _> = ExplorationOptimizer::new (|candidates: &[CandidateStrategy <NeuralStrategy>] | {
+    if candidates.len() < 1 || rand::random::<f64>() < 0.4 {
       NeuralStrategy::new_random(&ghost_state, 16)
     }
     else {
-      let mut improved = 
+      let mut improved = //candidates.choose (&mut thread_rng).clone();
+        candidates.iter().enumerate().max_by_key(| (index, strategy) | {
+          (strategy.playouts, -(*index as i32))
+        }).unwrap().1.strategy.clone();
+
+      for _ in 0..30 {
+        improved.do_training_playout(& ghost_state);
+      }
+      improved
     }
-  });*/
+  });
+  
+  let mut neural_mutating: ExplorationOptimizer<NeuralStrategy, _> = ExplorationOptimizer::new (|candidates: &[CandidateStrategy <NeuralStrategy>] | {
+    if candidates.len() < 1 || rand::random::<f64>() < 0.4 {
+      NeuralStrategy::new_random(&ghost_state, 16)
+    }
+    else {
+      candidates.choose (&mut rand::thread_rng()).unwrap().strategy.mutated()
+    }
+  });
   
   for _ in 0..20 {
     benchmark_step("Hexaghost (FastStrategy, random)", & ghost_state, &mut fast_random);
     benchmark_step("Hexaghost (FastStrategy, genetic)", & ghost_state, &mut fast_genetic);
     benchmark_step("Hexaghost (NeuralStrategy, random only)", & ghost_state, &mut neural_random_only);
     benchmark_step("Hexaghost (NeuralStrategy, training only)", & ghost_state, &mut neural_training_only);
+    benchmark_step("Hexaghost (NeuralStrategy, random/training)", & ghost_state, &mut neural_random_training);
+    benchmark_step("Hexaghost (NeuralStrategy, mutating)", & ghost_state, &mut neural_mutating);
   }
 }
 

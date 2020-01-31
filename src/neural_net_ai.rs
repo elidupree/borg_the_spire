@@ -186,6 +186,24 @@ impl NeuralStrategy {
     }
   }
   
+  pub fn mutated(&self) -> Self {
+    let mut result = self.clone();
+    
+    let mutation_rate = random::<f64>()*random::<f64>()*random::<f64>();
+    
+    for weight in result.input_weights.iter_mut().flatten()
+      .chain (result.choice_weights.end_turn_weights.iter_mut())
+      .chain (result.choice_weights.play_card_weights.iter_mut().flat_map (
+        | (id, weights) | weights.iter_mut().flatten()
+      )) {
+      if random::<f64>() <mutation_rate {
+        *weight = random();
+      }
+    }
+
+    result
+  }
+  
   fn analyze (&self, state: & CombatState)->CombatStateAnalysis {
     let inputs = inputs (state);
     
