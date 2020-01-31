@@ -73,6 +73,7 @@ mod interface;
 mod simulation;
 mod simulation_state;
 mod start_and_strategy_ai;
+mod neural_net_ai;
 mod benchmarks;
 
 fn main() {
