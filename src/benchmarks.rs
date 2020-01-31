@@ -123,8 +123,8 @@ pub fn run_benchmark (name: & str, state: & CombatState, optimization_playouts: 
 }
 
 pub fn run_benchmarks() {
-  let optimization_playouts = 100000;
-  let test_playouts = 1000;
+  let optimization_playouts = 1000000;
+  let test_playouts = 10000;
   let ghost_file = std::fs::File::open ("data/hexaghost.json").unwrap();
   let ghost_state: CombatState = serde_json::from_reader (std::io::BufReader::new (ghost_file)).unwrap();
 
