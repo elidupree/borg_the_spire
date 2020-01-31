@@ -167,7 +167,7 @@ fn random_weights(hidden_layer_size: usize) ->Vec<f64> {
 }
 
 impl NeuralStrategy {
-  fn new_random (state: & CombatState, hidden_layer_size: usize)->Self {
+  pub fn new_random (state: & CombatState, hidden_layer_size: usize)->Self {
     let inputs = inputs (state) ;
     let input_weights = inputs.iter().map (|_| random_weights(hidden_layer_size)).collect();
     let play_card_weights = EnumMap::from (|_| [
