@@ -1,5 +1,6 @@
 use std::time::{Instant, Duration};
 use ordered_float::OrderedFloat;
+use rand::seq::SliceRandom;
 
 use crate::actions::*;
 use crate::simulation::*;
@@ -194,16 +195,27 @@ pub fn run_benchmarks() {
       FastStrategy::random()
     }
     else {
-      FastStrategy::offspring(& candidates.iter().map (| candidate | & candidate.strategy).collect::<Vec<_>>())
+      FastStrategy::offspring(& candidates.choose_multiple(&mut rand::thread_rng(), 2).map (| candidate | & candidate.strategy).collect::<Vec<_>>())
     }
   });
   
-  let mut neural = NeuralStrategy::new_random(&ghost_state, 16);
+  let mut neural_random_only: ExplorationOptimizer<FastStrategy, _> = ExplorationOptimizer::new (|_: &[CandidateStrategy <FastStrategy>] | FastStrategy::random());
+  let mut neural_training_only = NeuralStrategy::new_random(&ghost_state, 16);
+  
+  /*let mut neural_random_training: ExplorationOptimizer<NeuralStrategy, _> = ExplorationOptimizer::new (|_: &[CandidateStrategy <FastStrategy>] | {
+    if candidates.len() < 1 || rand::random::>f64>() < 0.4 {
+      NeuralStrategy::new_random(&ghost_state, 16)
+    }
+    else {
+      let mut improved = 
+    }
+  });*/
   
   for _ in 0..20 {
     benchmark_step("Hexaghost (FastStrategy, random)", & ghost_state, &mut fast_random);
     benchmark_step("Hexaghost (FastStrategy, genetic)", & ghost_state, &mut fast_genetic);
-    benchmark_step("Hexaghost (NeuralStrategy, one start)", & ghost_state, &mut neural);
+    benchmark_step("Hexaghost (NeuralStrategy, random only)", & ghost_state, &mut neural_random_only);
+    benchmark_step("Hexaghost (NeuralStrategy, training only)", & ghost_state, &mut neural_training_only);
   }
 }
 
