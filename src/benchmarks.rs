@@ -5,7 +5,7 @@ use rand::seq::SliceRandom;
 use crate::actions::*;
 use crate::simulation::*;
 use crate::simulation_state::*;
-use crate::start_and_strategy_ai::{Strategy, FastStrategy, CombatResult, play_out};
+use crate::start_and_strategy_ai::{Strategy, FastStrategy, CombatResult, play_out, collect_starting_points};
 use crate::neural_net_ai::NeuralStrategy;
 
 
@@ -31,6 +31,31 @@ fn playout_result(state: & CombatState, strategy: & impl Strategy)->CombatResult
       CombatResult::new (& state)
 
 }
+
+
+// Note: This meta strategy often performed WORSE than the naive strategy it's based on,
+// probably because it chose lucky moves rather than good moves
+struct MetaStrategy <'a, T>(&'a T);
+
+impl <'a, T: Strategy> Strategy for MetaStrategy <'a, T> {
+  fn choose_choice(&self, state: &CombatState) -> Vec<Choice> {
+    let combos = collect_starting_points(state.clone(), 200);
+    let choices = combos.into_iter().map(|(mut state, choices)| {
+      run_until_unable(&mut Runner::new(&mut state, true, false));
+      let num_attempts = 200;
+      let score = (0..num_attempts).map (|_| {
+        playout_result(& state, self.0).score
+      }).sum::<f64>()/num_attempts as f64;
+      (choices, score)
+    });
+    choices
+      .max_by_key(|(_, score)| OrderedFloat(*score))
+      .unwrap()
+      .0
+  }
+}
+
+
 
 pub struct ExplorationOptimizer <T, F> {
   candidate_strategies: Vec<CandidateStrategy <T>>,
@@ -144,6 +169,21 @@ pub fn benchmark_step(name: & str, state: & CombatState, optimizer: &mut impl St
   };
   
   println!( "Evaluated {} for {:.2?} ({} playouts). Average score: {}", name, elapsed, steps, total_test_score / steps as f64) ;
+  
+  /*let start = Instant::now();
+  let mut steps = 0;
+  let mut total_test_score = 0.0;
+  let elapsed = loop {
+    total_test_score += playout_result(state, &MetaStrategy(strategy)).score;
+    steps += 1;
+    
+    let elapsed = start.elapsed();
+    if elapsed > Duration::from_millis(5000*20) {
+      break elapsed;
+    }
+  };
+  
+  println!( "Evaluated meta-strategy for {} for {:.2?} ({} playouts). Average score: {}", name, elapsed, steps, total_test_score / steps as f64) ;*/
 }
 
 /*
