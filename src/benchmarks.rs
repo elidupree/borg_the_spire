@@ -221,6 +221,7 @@ pub fn run_benchmark (name: & str, state: & CombatState, optimization_playouts: 
     .sum();
   
   println!( "Testing completed for {}. Final average score: {}.", name, total_test_score/test_playouts as f64);
+  println!();
 }*/
 
 pub fn run_benchmarks() {
@@ -239,7 +240,7 @@ pub fn run_benchmarks() {
     }
   });
   
-  let mut neural_random_only: ExplorationOptimizer<FastStrategy, _> = ExplorationOptimizer::new (|_: &[CandidateStrategy <FastStrategy>] | FastStrategy::random());
+  let mut neural_random_only: ExplorationOptimizer<NeuralStrategy, _> = ExplorationOptimizer::new (|_: &[CandidateStrategy <NeuralStrategy>] | NeuralStrategy::new_random(&ghost_state, 16));
   let mut neural_training_only = NeuralStrategy::new_random(&ghost_state, 16);
   
   let mut neural_random_training: ExplorationOptimizer<NeuralStrategy, _> = ExplorationOptimizer::new (|candidates: &[CandidateStrategy <NeuralStrategy>] | {
@@ -272,9 +273,10 @@ pub fn run_benchmarks() {
     benchmark_step("Hexaghost (FastStrategy, random)", & ghost_state, &mut fast_random);
     benchmark_step("Hexaghost (FastStrategy, genetic)", & ghost_state, &mut fast_genetic);
     benchmark_step("Hexaghost (NeuralStrategy, random only)", & ghost_state, &mut neural_random_only);
-    benchmark_step("Hexaghost (NeuralStrategy, training only)", & ghost_state, &mut neural_training_only);
-    benchmark_step("Hexaghost (NeuralStrategy, random/training)", & ghost_state, &mut neural_random_training);
+    //benchmark_step("Hexaghost (NeuralStrategy, training only)", & ghost_state, &mut neural_training_only);
+    //benchmark_step("Hexaghost (NeuralStrategy, random/training)", & ghost_state, &mut neural_random_training);
     benchmark_step("Hexaghost (NeuralStrategy, mutating)", & ghost_state, &mut neural_mutating);
+    println!();
   }
 }
 
