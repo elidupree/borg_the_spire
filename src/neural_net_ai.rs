@@ -3,7 +3,7 @@ use std::iter;
 use enum_map::{Enum, EnumMap};
 use ordered_float::OrderedFloat;
 use rand::seq::SliceRandom;
-use rand::random;
+use rand::{Rng, random};
 
 use crate::actions::*;
 use crate::simulation::*;
@@ -162,8 +162,12 @@ fn inputs (state: & CombatState)->Vec<f64> {
   result
 }
 
+fn random_weight() -> f64 {
+  rand::thread_rng().gen_range(-1.0, 1.0)
+}
+
 fn random_weights(hidden_layer_size: usize) ->Vec<f64> {
-  (0..hidden_layer_size).map (|_| random()).collect()
+  (0..hidden_layer_size).map (|_| random_weight()).collect()
 }
 
 impl NeuralStrategy {
@@ -197,7 +201,7 @@ impl NeuralStrategy {
         | (id, weights) | weights.iter_mut().flatten()
       )) {
       if random::<f64>() <mutation_rate {
-        *weight = random();
+        *weight = random_weight();
       }
     }
 
