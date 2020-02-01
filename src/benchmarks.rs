@@ -77,6 +77,15 @@ impl <T, F> ExplorationOptimizer <T, F> {
       current_pass_index: 0,
     }
   }
+  
+  fn best_strategy(&self)->& CandidateStrategy <T> {
+    // not the best average score, but the most-explored, which comes out to best average score at last sorting among strategies that are at the max playouts
+    // note that this function may be called in the middle of a pass, when the current best strategy has not yet been visited to increase its number of playouts to the new maximum, so don't rely on the given maximum; 
+    // since this function chooses the FIRST qualifying strategy, it's based on the most recent time the strategies were sorted, so the score-dependence of this choice isn't biased by the change in score variance from some of them having one extra playout.
+    &self.candidate_strategies.iter().enumerate().max_by_key(| (index, strategy) | {
+              (strategy.playouts, -(*index as i32))
+    }).unwrap().1
+  }
 }
 
 
@@ -115,11 +124,7 @@ impl <T: Strategy, F: Fn (& [CandidateStrategy <T>])->T> StrategyOptimizer for E
   }
   
   fn report (&self)->& Self::Strategy {
-    let best = self.candidate_strategies.iter().find (| strategy | {
-      // note that this function may be called in the middle of a pass, when the current best strategy has not yet been visited to increase its number of playouts to the new maximum, so allow a leeway of 1
-      // since this function chooses the FIRST qualifying strategy, it's based on the most recent time the strategies were sorted, so this choice isn't biased by the change in score variance from some of them having one extra playout.
-      strategy.playouts + 1 >= self.max_strategy_playouts()
-    }).unwrap();
+    let best = self.best_strategy();
     
     println!( "ExplorationOptimizer reporting strategy with {} playouts, running average {}", best.playouts, (best.total_score/best.playouts as f64));
     
