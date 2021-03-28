@@ -1,8 +1,8 @@
-#![allow (unused_variables)]
+#![allow(unused_variables)]
 
 use serde::{Deserialize, Serialize};
-use std::convert::From;
 use smallvec::SmallVec;
+use std::convert::From;
 
 use crate::simulation::*;
 use crate::simulation_state::*;
@@ -225,7 +225,7 @@ impl<'a, 'b> IntentEffectsContext for DoIntentContext<'a, 'b> {
 
 impl<'a> IntentEffectsContext for ConsiderIntentContext<'a> {
   fn action(&mut self, action: impl Action) {
-    self.actions.push (action.into())
+    self.actions.push(action.into())
   }
   fn state(&self) -> &CombatState {
     self.state
@@ -244,10 +244,14 @@ impl<'a, 'b> DoIntentContext<'a, 'b> {
   }
 }
 
-pub fn intent_actions (state: &CombatState, monster_index: usize) -> SmallVec<[DynAction; 4]> {
-  let mut context = ConsiderIntentContext {state, monster_index, actions: SmallVec::new(),};
+pub fn intent_actions(state: &CombatState, monster_index: usize) -> SmallVec<[DynAction; 4]> {
+  let mut context = ConsiderIntentContext {
+    state,
+    monster_index,
+    actions: SmallVec::new(),
+  };
   let monster_id = state.monsters[monster_index].monster_id;
-  monster_id.intent_effects (&mut context);
+  monster_id.intent_effects(&mut context);
   context.actions
 }
 
@@ -323,15 +327,15 @@ monsters! {
   ["GremlinWizard", GremlinWizard],
   ["GremlinFat", FatGremlin],
   ["GremlinTsundere", ShieldGremlin],
-  
+
   ["Sentry", Sentry],
   ["GremlinNob", GremlinNob],
   ["Lagavulin", Lagavulin],
-  
+
   ["TheGuardian", TheGuardian],
   ["Hexaghost", Hexaghost],
   ["SlimeBoss", SlimeBoss],
-  
+
   ["Byrd", Byrd],
 }
 
@@ -854,11 +858,11 @@ impl MonsterBehavior for Lagavulin {
 
 impl MonsterBehavior for TheGuardian {
   fn make_intent_distribution(self, context: &mut IntentChoiceContext) {
-    context.always (match context.state().turn_number % 3 {
+    context.always(match context.state().turn_number % 3 {
       0 => 4,
       1 => 2,
       2 => 1,
-      _=> unreachable!(),      
+      _ => unreachable!(),
     });
   }
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
@@ -871,9 +875,9 @@ impl MonsterBehavior for TheGuardian {
     }
     match context.intent() {
       4 => context.discard_status(CardId::Slimed, context.with_ascension(Ascension(19), 5, 3)),
-      2 =>(),
+      2 => (),
       1 => context.attack(context.with_ascension(Ascension(4), 38, 35)),
-      3 =>(),
+      3 => (),
       _ => context.undefined_intent(),
     }
   }
@@ -944,11 +948,11 @@ impl MonsterBehavior for Hexaghost {
 
 impl MonsterBehavior for SlimeBoss {
   fn make_intent_distribution(self, context: &mut IntentChoiceContext) {
-    context.always (match context.state().turn_number % 3 {
+    context.always(match context.state().turn_number % 3 {
       0 => 4,
       1 => 2,
       2 => 1,
-      _=> unreachable!(),      
+      _ => unreachable!(),
     });
   }
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
@@ -961,38 +965,43 @@ impl MonsterBehavior for SlimeBoss {
     }
     match context.intent() {
       4 => context.discard_status(CardId::Slimed, context.with_ascension(Ascension(19), 5, 3)),
-      2 =>(),
+      2 => (),
       1 => context.attack(context.with_ascension(Ascension(4), 38, 35)),
-      3 =>(),
+      3 => (),
       _ => context.undefined_intent(),
     }
   }
 }
 
-
 impl MonsterBehavior for Byrd {
   fn make_intent_distribution(self, context: &mut IntentChoiceContext) {
     if context.first_move() {
-      context.always (Distribution::split (0.375, 6, 1));
-    }
-    else if context.monster().creature.has_power (PowerId::Flight) {
-      context.if_num_lt (50, context.with_max_repeats (Repeats (2), 1, Distribution::split (0.4, 3, 6)));
-      context.if_num_lt (70, context.with_max_repeats (Repeats (1), 3, Distribution::split (0.375, 6, 1)));
-      context.else_num (context.with_max_repeats (Repeats (1), 63, Distribution::split (0.2857, 3, 1)));
-    }
-    else {
-      context.always (context.with_max_repeats (Repeats (1), 5, 2)) ;
+      context.always(Distribution::split(0.375, 6, 1));
+    } else if context.monster().creature.has_power(PowerId::Flight) {
+      context.if_num_lt(
+        50,
+        context.with_max_repeats(Repeats(2), 1, Distribution::split(0.4, 3, 6)),
+      );
+      context.if_num_lt(
+        70,
+        context.with_max_repeats(Repeats(1), 3, Distribution::split(0.375, 6, 1)),
+      );
+      context.else_num(context.with_max_repeats(Repeats(1), 63, Distribution::split(0.2857, 3, 1)));
+    } else {
+      context.always(context.with_max_repeats(Repeats(1), 5, 2));
     }
   }
   fn intent_effects(self, context: &mut impl IntentEffectsContext) {
     match context.intent() {
-      1 => for _ in 0.. context.with_ascension (Ascension (2), 6, 5) {
-        context.attack (1);
+      1 => {
+        for _ in 0..context.with_ascension(Ascension(2), 6, 5) {
+          context.attack(1);
+        }
       }
-      5 => context.attack (3),
-      2 => context.power_self (PowerId::Flight, context.with_ascension (Ascension (17), 4, 3)),
-      6 => context.power_self (PowerId::Strength, 1),
-      3 => context.attack (context.with_ascension (Ascension (2), 14, 12)),
+      5 => context.attack(3),
+      2 => context.power_self(PowerId::Flight, context.with_ascension(Ascension(17), 4, 3)),
+      6 => context.power_self(PowerId::Strength, 1),
+      3 => context.attack(context.with_ascension(Ascension(2), 14, 12)),
       4 => {}
       _ => context.undefined_intent(),
     }

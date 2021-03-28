@@ -1,6 +1,6 @@
+use enum_map::Enum;
 use serde::{Deserialize, Serialize};
 use std::convert::From;
-use enum_map::Enum;
 
 use crate::simulation::*;
 use crate::simulation_state::*;
@@ -250,13 +250,13 @@ powers! {
   ["Strength", Strength, Buff],
   ["Vulnerable", Vulnerable, Debuff],
   ["Weakened", Weak, Debuff],
-  
+
   // Less common powers that are still shared with more than one card/relic/monster
   ["Thorns", Thorns, Buff],
   ["Metallicize", Metallicize, Buff],
   ["No Draw", NoDraw, Debuff],
   ["Plated Armor", PlatedArmor, Buff],
-  
+
   // Relics
   ["Busted Crown", BustedCrown, Relic],
   ["Coffee Dripper", CoffeeDripper, Relic],
@@ -266,10 +266,10 @@ powers! {
   ["Mark of Pain", MarkOfPain, Relic],
   ["Philosopher's Stone", PhilosophersStone, Relic],
   ["Sozu", Sozu, Relic],
-  
+
   // Relic powers
   ["Pen Nib", PenNib, Buff],
-  
+
   // Ironclad uncommon card powers
   ["Combust", Combust, Buff],
   ["Corruption", Corruption, Buff],
@@ -301,10 +301,10 @@ powers! {
   // Exordium elite powers
   ["Anger", Enrage, Buff],
   ["Artifact", Artifact, Buff],
-  
+
   // City monster powers
   ["Flight", Flight, Buff],
-  
+
 
   ["Unknown", Unknown, Buff],
 }
@@ -407,11 +407,7 @@ impl PowerBehavior for Thorns {
     if info.owner != context.owner_index() && info.damage_type == DamageType::Normal {
       context.action_top(DamageAction {
         target: info.owner,
-        info: DamageInfo::new(
-          context.owner_index(),
-          context.amount(),
-          DamageType::Thorns,
-        ),
+        info: DamageInfo::new(context.owner_index(), context.amount(), DamageType::Thorns),
       });
     }
   }
@@ -487,7 +483,6 @@ impl PowerBehavior for Metallicize {
   }
 }
 
-
 impl PowerBehavior for Flight {
   fn at_damage_final_receive(
     &self,
@@ -500,17 +495,17 @@ impl PowerBehavior for Flight {
     }
     damage / 2.0
   }
-  
+
   fn on_attacked(&self, context: &mut PowerHookContext, info: DamageInfo, damage: i32) {
     if damage > 0 && info.damage_type == DamageType::Normal {
       context.reduce_this_power();
     }
   }
-  
+
   fn at_start_of_turn(&self, context: &mut PowerHookContext) {
     let deficiency = context.this_power().misc - context.amount();
-    if deficiency >0 {
-      context.power_owner_top (PowerId::Flight, deficiency);
+    if deficiency > 0 {
+      context.power_owner_top(PowerId::Flight, deficiency);
     }
   }
 }
@@ -528,10 +523,10 @@ impl PowerBehavior for PlatedArmor {
       amount: context.this_power().amount,
     });
   }
-  
+
   fn on_attacked(&self, context: &mut PowerHookContext, info: DamageInfo, damage: i32) {
     if damage > 0 && info.damage_type == DamageType::Normal {
-      context.reduce_this_power ();
+      context.reduce_this_power();
     }
   }
 }
@@ -541,39 +536,39 @@ macro_rules! energy_relic {
     fn inherent_energy(&self) -> i32 {
       1
     }
-  }
+  };
 }
 
 impl PowerBehavior for BustedCrown {
-  energy_relic!{}
+  energy_relic! {}
 }
 impl PowerBehavior for CoffeeDripper {
-  energy_relic!{}
+  energy_relic! {}
 }
 impl PowerBehavior for CursedKey {
-  energy_relic!{}
+  energy_relic! {}
 }
 impl PowerBehavior for Ectoplasm {
-  energy_relic!{}
+  energy_relic! {}
 }
 impl PowerBehavior for FusionHammer {
-  energy_relic!{}
+  energy_relic! {}
 }
 impl PowerBehavior for MarkOfPain {
-  energy_relic!{}
+  energy_relic! {}
 }
 impl PowerBehavior for PhilosophersStone {
-  energy_relic!{}
+  energy_relic! {}
 }
 impl PowerBehavior for Sozu {
-  energy_relic!{}
+  energy_relic! {}
 }
 
 impl PowerBehavior for PenNib {
   fn priority(&self) -> i32 {
     6
   }
-  fn on_use_card (&self, context: &mut PowerHookContext, card: &SingleCard) {
+  fn on_use_card(&self, context: &mut PowerHookContext, card: &SingleCard) {
     if card.card_info.card_type == CardType::Attack {
       context.remove_this_power();
     }
@@ -602,7 +597,7 @@ impl PowerBehavior for Corruption {
 impl PowerBehavior for Evolve {
   fn on_card_draw(&self, context: &mut PowerHookContext, card: &SingleCard) {
     if card.card_info.card_type == CardType::Status {
-      context.action_bottom (DrawCards (context.amount()));
+      context.action_bottom(DrawCards(context.amount()));
     }
   }
 }
@@ -615,14 +610,14 @@ impl PowerBehavior for FeelNoPain {
     });
   }
 }
-  
+
 impl PowerBehavior for FireBreathing {
   //TODO
 }
 
 impl PowerBehavior for FlameBarrier {
   fn on_attacked(&self, context: &mut PowerHookContext, info: DamageInfo, damage: i32) {
-    Thorns.on_attacked (context, info, damage)
+    Thorns.on_attacked(context, info, damage)
   }
   fn at_start_of_turn(&self, context: &mut PowerHookContext) {
     context.remove_this_power();
@@ -630,7 +625,7 @@ impl PowerBehavior for FlameBarrier {
 }
 
 impl PowerBehavior for Rage {
-  fn on_use_card (&self, context: &mut PowerHookContext, card: &SingleCard) {
+  fn on_use_card(&self, context: &mut PowerHookContext, card: &SingleCard) {
     if card.card_info.card_type == CardType::Attack {
       context.action_bottom(GainBlockAction {
         creature_index: context.owner_index(),
@@ -661,7 +656,7 @@ impl PowerBehavior for Brutality {
 
 impl PowerBehavior for DarkEmbrace {
   fn on_exhaust(&self, context: &mut PowerHookContext, card: &SingleCard) {
-    context.action_bottom (DrawCards (1));
+    context.action_bottom(DrawCards(1));
   }
 }
 
@@ -680,8 +675,6 @@ impl PowerBehavior for Juggernaut {
     //TODO
   }
 }
-
-
 
 impl PowerBehavior for Split {}
 impl PowerBehavior for Unknown {}

@@ -1,9 +1,9 @@
-#![allow (unused_variables)]
+#![allow(unused_variables)]
 
 use enum_map::Enum;
 use serde::{Deserialize, Serialize};
-use std::convert::From;
 use smallvec::SmallVec;
+use std::convert::From;
 
 //use crate::actions::*;
 use crate::simulation::*;
@@ -98,7 +98,7 @@ pub trait CardBehaviorContext {
   fn card(&self) -> &SingleCard {
     self.state().card_in_play.as_ref().unwrap()
   }
-  fn upgraded(&self) -> bool{
+  fn upgraded(&self) -> bool {
     self.card().upgrades > 0
   }
   fn with_upgrade<T>(&self, upgraded: T, normal: T) -> T {
@@ -114,7 +114,6 @@ pub struct PlayCardContext<'a, 'b> {
   pub runner: &'a mut Runner<'b>,
   pub target: usize,
 }
-
 
 impl<'a, 'b> CardBehaviorContext for PlayCardContext<'a, 'b> {
   fn action(&mut self, action: impl Action) {
@@ -137,7 +136,7 @@ pub struct ConsiderCardContext<'a> {
 
 impl<'a> CardBehaviorContext for ConsiderCardContext<'a> {
   fn action(&mut self, action: impl Action) {
-    self.actions.push (action.into());
+    self.actions.push(action.into());
   }
   fn target(&self) -> usize {
     self.target
@@ -150,9 +149,18 @@ impl<'a> CardBehaviorContext for ConsiderCardContext<'a> {
   }
 }
 
-pub fn card_actions (state: &CombatState, card: SingleCard, target: usize) -> SmallVec<[DynAction; 4]> {
-  let mut context = ConsiderCardContext {state, target, card: card.clone(), actions: SmallVec::new(),};
-  card.card_info.id.behavior (&mut context);
+pub fn card_actions(
+  state: &CombatState,
+  card: SingleCard,
+  target: usize,
+) -> SmallVec<[DynAction; 4]> {
+  let mut context = ConsiderCardContext {
+    state,
+    target,
+    card: card.clone(),
+    actions: SmallVec::new(),
+  };
+  card.card_info.id.behavior(&mut context);
   context.actions
 }
 
@@ -282,7 +290,7 @@ cards! {
   ["Spot Weakness", SpotWeakness, Skill, Uncommon, 1, HAS_TARGET, {}],
   ["Uppercut", Uppercut, Attack, Uncommon, 2, HAS_TARGET, {}],
   ["Whirlwind", Whirlwind, Attack, Uncommon, X_COST, HAS_TARGET, {}],
-  
+
   ["Barricade", Barricade, Power, Rare, 3, NO_TARGET, {upgraded_cost: 2,}],
   ["Berserk", Berserk, Power, Rare, 0, NO_TARGET, {}],
   ["Bludgeon", Bludgeon, Attack, Rare, 3, HAS_TARGET, {}],
@@ -293,7 +301,7 @@ cards! {
   ["Immolate", Immolate, Attack, Rare, 2, NO_TARGET, {}],
   ["Impervious", Impervious, Skill, Rare, 2, NO_TARGET, {exhausts: true,}],
   ["Juggernaut", Juggernaut, Power, Rare, 2, NO_TARGET, {}],
-  
+
   ["Injury", Injury, Curse, Special, UNPLAYABLE, NO_TARGET, {}],
   ["AscendersBane", AscendersBane, Curse, Special, UNPLAYABLE, NO_TARGET, {ethereal: true,}],
   ["Dazed", Dazed, Status, Special, UNPLAYABLE, NO_TARGET, {ethereal: true,}],
@@ -330,7 +338,9 @@ impl CardBehavior for Anger {
 impl CardBehavior for Armaments {
   fn behavior(self, context: &mut impl CardBehaviorContext) {
     context.block(5);
-    context.action(ArmamentsAction {upgraded: context.upgraded()});
+    context.action(ArmamentsAction {
+      upgraded: context.upgraded(),
+    });
   }
 }
 
@@ -468,7 +478,7 @@ impl CardBehavior for WildStrike {
 impl CardBehavior for BattleTrance {
   fn behavior(self, context: &mut impl CardBehaviorContext) {
     context.draw_cards(context.with_upgrade(4, 3));
-    context.power_self (PowerId::NoDraw, -1);
+    context.power_self(PowerId::NoDraw, -1);
   }
 }
 
@@ -499,13 +509,13 @@ impl CardBehavior for Carnage {
 
 impl CardBehavior for Combust {
   fn behavior(self, context: &mut impl CardBehaviorContext) {
-    context.power_self (PowerId::Combust, context.with_upgrade (7, 5));
+    context.power_self(PowerId::Combust, context.with_upgrade(7, 5));
   }
 }
 
 impl CardBehavior for Corruption {
   fn behavior(self, context: &mut impl CardBehaviorContext) {
-    context.power_self (PowerId::Corruption, -1);
+    context.power_self(PowerId::Corruption, -1);
   }
 }
 
@@ -536,26 +546,26 @@ impl CardBehavior for Entrench {
 
 impl CardBehavior for Evolve {
   fn behavior(self, context: &mut impl CardBehaviorContext) {
-    context.power_self (PowerId::Evolve, context.with_upgrade (2, 1));
+    context.power_self(PowerId::Evolve, context.with_upgrade(2, 1));
   }
 }
 
 impl CardBehavior for FeelNoPain {
   fn behavior(self, context: &mut impl CardBehaviorContext) {
-    context.power_self (PowerId::FeelNoPain, context.with_upgrade (4, 3));
+    context.power_self(PowerId::FeelNoPain, context.with_upgrade(4, 3));
   }
 }
 
 impl CardBehavior for FireBreathing {
   fn behavior(self, context: &mut impl CardBehaviorContext) {
-    context.power_self (PowerId::FireBreathing, 1);
+    context.power_self(PowerId::FireBreathing, 1);
   }
 }
 
 impl CardBehavior for FlameBarrier {
   fn behavior(self, context: &mut impl CardBehaviorContext) {
     context.block(context.with_upgrade(16, 12));
-    context.power_self (PowerId::FlameBarrier, context.with_upgrade (6, 4));
+    context.power_self(PowerId::FlameBarrier, context.with_upgrade(6, 4));
   }
 }
 
@@ -613,7 +623,7 @@ impl CardBehavior for Pummel {
 
 impl CardBehavior for Rage {
   fn behavior(self, context: &mut impl CardBehaviorContext) {
-    context.power_self (PowerId::Rage, context.with_upgrade (5, 3));
+    context.power_self(PowerId::Rage, context.with_upgrade(5, 3));
   }
 }
 
@@ -665,7 +675,7 @@ impl CardBehavior for SeverSoul {
 
 impl CardBehavior for Sentinel {
   fn behavior(self, context: &mut impl CardBehaviorContext) {
-    context.block (context.with_upgrade (8, 5));
+    context.block(context.with_upgrade(8, 5));
     //TODO
   }
 }
@@ -707,7 +717,7 @@ impl CardBehavior for Barricade {
 
 impl CardBehavior for Berserk {
   fn behavior(self, context: &mut impl CardBehaviorContext) {
-    context.power_self (PowerId::Berserk, 1) ;
+    context.power_self(PowerId::Berserk, 1);
     context.power_self(PowerId::Vulnerable, context.with_upgrade(1, 2));
   }
 }
@@ -745,7 +755,7 @@ impl CardBehavior for DoubleTap {
 impl CardBehavior for Immolate {
   fn behavior(self, context: &mut impl CardBehaviorContext) {
     context.attack_target(context.with_upgrade(28, 21));
-    context.action (DiscardNewCard(SingleCard::create(CardId::Burn)));
+    context.action(DiscardNewCard(SingleCard::create(CardId::Burn)));
   }
 }
 
@@ -760,7 +770,6 @@ impl CardBehavior for Juggernaut {
     context.power_self(PowerId::Juggernaut, context.with_upgrade(7, 5));
   }
 }
-
 
 impl CardBehavior for Injury {}
 impl CardBehavior for AscendersBane {}

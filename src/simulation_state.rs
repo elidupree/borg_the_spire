@@ -191,12 +191,11 @@ impl CombatState {
     observed: &communication::GameState,
     previous: Option<&CombatState>,
   ) -> Option<CombatState> {
-  
     let combat = observed.combat_state.as_ref()?;
     let mut draw_pile: Vec<SingleCard> = combat.draw_pile.iter().map(From::from).collect();
     // explicitly sort, partly to make sure my AI doesn't accidentally cheat
     draw_pile.sort();
-    
+
     let mut result = CombatState {
       draw_pile,
       discard_pile: combat.discard_pile.iter().map(From::from).collect(),
@@ -207,7 +206,7 @@ impl CombatState {
       fresh_subaction_queue: Vec::new(),
       stale_subaction_stack: Vec::new(),
       actions: VecDeque::new(),
-      player: Player::from_communication_mod(&combat.player, & observed.relics),
+      player: Player::from_communication_mod(&combat.player, &observed.relics),
       turn_number: combat.turn,
       turn_has_ended: false,
       monsters: combat
@@ -299,14 +298,22 @@ impl From<&communication::Relic> for Power {
 }
 
 impl Player {
-  fn from_communication_mod(player: &communication::Player, relics: & [communication::Relic]) -> Player {
+  fn from_communication_mod(
+    player: &communication::Player,
+    relics: &[communication::Relic],
+  ) -> Player {
     Player {
       energy: player.energy,
       creature: Creature {
         hitpoints: player.current_hp,
         max_hitpoints: player.max_hp,
         block: player.block,
-        powers: relics.iter().map(Power::from).filter(|p| p.power_id != PowerId::Unknown).chain (player.powers.iter().map (From::from)).collect(),
+        powers: relics
+          .iter()
+          .map(Power::from)
+          .filter(|p| p.power_id != PowerId::Unknown)
+          .chain(player.powers.iter().map(From::from))
+          .collect(),
       },
     }
   }
@@ -330,9 +337,11 @@ impl SingleCard {
       card_info: Arc::new(info),
     }
   }
-  
-  pub fn upgrade (&mut self) {
-    if self.upgrades == 0 {self.upgrades = 1;}
+
+  pub fn upgrade(&mut self) {
+    if self.upgrades == 0 {
+      self.upgrades = 1;
+    }
   }
 }
 

@@ -13,11 +13,11 @@ ordered-float = "1.0"
 arrayvec = { version = "0.4", features = ["serde-1"]}
 smallvec = { version = "0.6", features = ["serde"]}
 retain_mut = "0.1.0"
-rocket = "0.4.2"
-rocket_contrib = { version = "0.4.2", features = ["json"]}
-typed-html = "0.2.1"
+rocket = "0.4.6"
+rocket_contrib = { version = "0.4.6", features = ["json"]}
+typed-html = { git = "https://github.com/bodil/typed-html/", version = "0.2.2" }
 parking_lot = "0.9"
-derivative = { git = "https://github.com/mcarton/rust-derivative" }
+derivative = "2.2.0"
 enum-map = "0.6.2"
 array_ext = "0.2.0"
 

@@ -1,8 +1,8 @@
 //use arrayvec::ArrayVec;
-use ordered_float::OrderedFloat;
-use rand::{seq::SliceRandom};
 use array_ext::Array;
 use enum_map::EnumMap;
+use ordered_float::OrderedFloat;
+use rand::seq::SliceRandom;
 use std::collections::{HashSet, VecDeque};
 
 use crate::actions::*;
@@ -49,16 +49,29 @@ pub struct FastStrategyMonster {
 impl Strategy for FastStrategy {
   fn choose_choice(&self, state: &CombatState) -> Vec<Choice> {
     let legal_choices = state.legal_choices();
-    
-    let incoming_damage = state.monsters.iter().enumerate().map (| (index, monster) | {
-      if monster.gone {0} else {
-        crate::simulation_state::monsters::intent_actions (state, index).into_iter().map (| action | {
-          if let DynAction::DamageAction (action) = action {
-            action.info.output
-          } else {0}
-        }).sum::<i32>()
-      }
-    }).sum::<i32>() - state.player.creature.block;
+
+    let incoming_damage = state
+      .monsters
+      .iter()
+      .enumerate()
+      .map(|(index, monster)| {
+        if monster.gone {
+          0
+        } else {
+          crate::simulation_state::monsters::intent_actions(state, index)
+            .into_iter()
+            .map(|action| {
+              if let DynAction::DamageAction(action) = action {
+                action.info.output
+              } else {
+                0
+              }
+            })
+            .sum::<i32>()
+        }
+      })
+      .sum::<i32>()
+      - state.player.creature.block;
 
     vec![legal_choices
       .into_iter()
@@ -72,26 +85,38 @@ pub struct OffspringBuilder<'a, T> {
   mutation_rate: f64,
 }
 
-impl<'a, T> OffspringBuilder <'a, T> {
-  pub fn new (parents: &[& 'a T])->OffspringBuilder <'a, T> {
-    let mutation_rate: f64 = rand::random::<f64>()*rand::random::<f64>()*rand::random::<f64>();
-    let mut weighted_parents: Vec<_> = parents.iter().map (| parent | (*parent, rand::random())).collect();
-    let total_weight: f64 = weighted_parents.iter().map (| (_parent, weight) | weight).sum();
+impl<'a, T> OffspringBuilder<'a, T> {
+  pub fn new(parents: &[&'a T]) -> OffspringBuilder<'a, T> {
+    let mutation_rate: f64 = rand::random::<f64>() * rand::random::<f64>() * rand::random::<f64>();
+    let mut weighted_parents: Vec<_> = parents
+      .iter()
+      .map(|parent| (*parent, rand::random()))
+      .collect();
+    let total_weight: f64 = weighted_parents
+      .iter()
+      .map(|(_parent, weight)| weight)
+      .sum();
     for (parent, weight) in &mut weighted_parents {
       *weight /= total_weight;
     }
-    
+
     OffspringBuilder {
-      weighted_parents, mutation_rate
+      weighted_parents,
+      mutation_rate,
     }
   }
-  
-  pub fn combine_f64 (&self, get: impl Fn (& T)->f64)->f64 {
+
+  pub fn combine_f64(&self, get: impl Fn(&T) -> f64) -> f64 {
     if rand::random::<f64>() < self.mutation_rate {
       rand::random()
-    }
-    else {
-      get (& self.weighted_parents.choose_weighted (&mut rand::thread_rng(), | (_parent, weight) | *weight).unwrap().0)
+    } else {
+      get(
+        &self
+          .weighted_parents
+          .choose_weighted(&mut rand::thread_rng(), |(_parent, weight)| *weight)
+          .unwrap()
+          .0,
+      )
     }
   }
 }
@@ -102,15 +127,14 @@ impl FastStrategy {
       Choice::EndTurn(_) => 0.0,
       Choice::PlayCard(PlayCard { card, target }) => {
         let mut result = self.card_priorities[card.card_info.id];
-        for action in crate::simulation_state::cards::card_actions (state, card.clone(),*target) {
+        for action in crate::simulation_state::cards::card_actions(state, card.clone(), *target) {
           match action {
-            DynAction::DamageAction (action) => {
-              
+            DynAction::DamageAction(action) => {}
+            DynAction::GainBlockAction(action) => {
+              result +=
+                std::cmp::min(action.amount, incoming_damage) as f64 * self.block_priority * 0.1;
             }
-            DynAction::GainBlockAction (action) => {
-              result += std::cmp::min (action.amount, incoming_damage) as f64*self.block_priority * 0.1;
-            }
-            _=> {}
+            _ => {}
           }
         }
         if card.card_info.has_target {
@@ -131,18 +155,18 @@ impl FastStrategy {
       block_priority: rand::random(),
     }
   }
-  
-  pub fn offspring(parents: & [&FastStrategy])->FastStrategy {
-    let builder = OffspringBuilder::new (parents);
-    
+
+  pub fn offspring(parents: &[&FastStrategy]) -> FastStrategy {
+    let builder = OffspringBuilder::new(parents);
+
     FastStrategy {
-      card_priorities: EnumMap::from(| card_id |
-        builder.combine_f64 (| parent | parent.card_priorities [card_id])
-      ),
-      monsters: Array::from_fn(| index | FastStrategyMonster {
-        target_priority: builder.combine_f64 (| parent | parent.monsters [index].target_priority),
+      card_priorities: EnumMap::from(|card_id| {
+        builder.combine_f64(|parent| parent.card_priorities[card_id])
       }),
-      block_priority: builder.combine_f64 (| parent | parent.block_priority),
+      monsters: Array::from_fn(|index| FastStrategyMonster {
+        target_priority: builder.combine_f64(|parent| parent.monsters[index].target_priority),
+      }),
+      block_priority: builder.combine_f64(|parent| parent.block_priority),
     }
   }
 }

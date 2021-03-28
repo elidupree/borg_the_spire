@@ -263,7 +263,7 @@ pub fn run(root_path: PathBuf) {
   rocket::custom(
     Config::build(Environment::Development)
       .address("localhost")
-      .port(3508)
+      .port(3509)
       .log_level(LoggingLevel::Off)
       .unwrap(),
   )

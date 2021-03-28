@@ -1,5 +1,4 @@
-#![allow (unused_variables)]
-
+#![allow(unused_variables)]
 
 use array_ext::*;
 use arrayvec::ArrayVec;
@@ -156,8 +155,10 @@ pub fn apply_end_of_turn_powers(runner: &mut Runner) {
 }
 pub fn start_creature_turn(runner: &mut Runner, creature_index: CreatureIndex) {
   power_hook!(runner, creature_index, at_start_of_turn());
-  let creature = runner.state_mut().get_creature_mut (creature_index);
-  if ! creature.has_power (PowerId::Barricade) {creature.block = 0;}
+  let creature = runner.state_mut().get_creature_mut(creature_index);
+  if !creature.has_power(PowerId::Barricade) {
+    creature.block = 0;
+  }
   // TODO: make this actually post-draw
   power_hook!(runner, creature_index, at_start_of_turn_post_draw());
 }
@@ -166,7 +167,7 @@ impl Action for StartMonsterTurn {
   fn execute(&self, runner: &mut Runner) {
     if let Some(monster) = runner.state_mut().monsters.get_mut(self.0) {
       if !monster.gone {
-        start_creature_turn (runner, CreatureIndex::Monster (self.0));
+        start_creature_turn(runner, CreatureIndex::Monster(self.0));
       }
       if !runner.state().combat_over() {
         runner.action_now(&StartMonsterTurn(self.0 + 1));
@@ -207,11 +208,17 @@ impl Action for FinishMonsterTurn {
       let state = runner.state_mut();
       state.turn_number += 1;
       state.turn_has_ended = false;
-      start_creature_turn (runner, CreatureIndex::Player);
+      start_creature_turn(runner, CreatureIndex::Player);
       let state = runner.state_mut();
-      state.player.energy = 3 + state.player.creature.powers.iter().map (| power | power.power_id.inherent_energy()).sum::<i32>();
+      state.player.energy = 3
+        + state
+          .player
+          .creature
+          .powers
+          .iter()
+          .map(|power| power.power_id.inherent_energy())
+          .sum::<i32>();
       runner.action_now(&DrawCards(5));
-      
     }
   }
 }
@@ -320,10 +327,10 @@ impl Action for DrawCardRandom {
 
 impl Action for DrawCards {
   fn execute(&self, runner: &mut Runner) {
-    if runner.state().player.creature.has_power (PowerId::NoDraw) {
-      return
+    if runner.state().player.creature.has_power(PowerId::NoDraw) {
+      return;
     }
-    
+
     //TODO: more nuanced
     if self.0 <= 0 {
       return;
@@ -444,21 +451,18 @@ impl Action for DiscardNewCard {
   }
 }
 
-
 impl Action for ArmamentsAction {
-  fn determinism(&self, state: & CombatState)->Determinism {
+  fn determinism(&self, state: &CombatState) -> Determinism {
     if self.upgraded {
       Determinism::Deterministic
-    }
-    else {
+    } else {
       // TODO: Determinism::Choice
       Determinism::Random(Distribution(
-        (0..state.hand.len())
-          .map(|i| (1.0, i as i32)).collect()
+        (0..state.hand.len()).map(|i| (1.0, i as i32)).collect(),
       ))
     }
   }
-  
+
   fn execute(&self, runner: &mut Runner) {
     if self.upgraded {
       for card in &mut runner.state_mut().hand {
@@ -470,7 +474,6 @@ impl Action for ArmamentsAction {
     runner.state_mut().hand[random_value as usize].upgrade()
   }
 }
-
 
 impl Action for InitializeMonsterInnateDamageAmount {
   fn determinism(&self, state: &CombatState) -> Determinism {

@@ -67,14 +67,14 @@ macro_rules! power_hook {
 }
 
 mod actions;
+mod benchmarks;
 mod communication_mod_state;
 mod cow;
 mod interface;
+mod neural_net_ai;
 mod simulation;
 mod simulation_state;
 mod start_and_strategy_ai;
-mod neural_net_ai;
-mod benchmarks;
 
 fn main() {
   println!("ready");
@@ -89,12 +89,12 @@ fn main() {
   //writeln!(file, "Hello BtS 2").unwrap();
 
   let arguments: Vec<String> = std::env::args().collect();
-  
+
   if arguments[1] == "benchmarks" {
     benchmarks::run_benchmarks();
-    return
+    return;
   }
-  
+
   interface::run(PathBuf::from(arguments[1].clone()));
 
   /*let input = std::io::stdin();
