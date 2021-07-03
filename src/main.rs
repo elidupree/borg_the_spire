@@ -3,7 +3,8 @@
 #[macro_use]
 extern crate rocket;
 
-use std::path::PathBuf;
+use clap::{App, AppSettings, Arg, SubCommand};
+use std::path::{Path, PathBuf};
 //use std::io::BufRead;
 
 //use std::time::{Duration, Instant};
@@ -75,8 +76,43 @@ mod neural_net_ai;
 mod simulation;
 mod simulation_state;
 mod start_and_strategy_ai;
+mod watch;
 
 fn main() {
+  let matches = App::new("Borg the Spire")
+    .version("0.1")
+    .author("Eli Dupree <vcs@elidupree.com>")
+    .subcommand(
+      SubCommand::with_name("communicate").arg(Arg::with_name("root_path").required(true)),
+    )
+    .subcommand(
+      SubCommand::with_name("watch")
+        .setting(AppSettings::TrailingVarArg)
+        .arg(Arg::with_name("executable_original"))
+        .arg(Arg::with_name("executable_copy"))
+        .arg(Arg::with_name("args").multiple(true)),
+    )
+    .subcommand(SubCommand::with_name("benchmark"))
+    .get_matches();
+
+  match matches.subcommand() {
+    ("communicate", Some(matches)) => {
+      interface::run(PathBuf::from(matches.value_of("root_path").unwrap()));
+    }
+    ("watch", Some(matches)) => {
+      println!("ready");
+      watch::watch(
+        matches.value_of("executable_original").unwrap(),
+        matches.value_of("executable_copy").unwrap(),
+        &matches.values_of("args").unwrap().collect::<Vec<&str>>(),
+      );
+    }
+    ("benchmark", Some(_matches)) => {
+      benchmarks::run_benchmarks();
+    }
+    _ => {}
+  }
+
   println!("ready");
   eprintln!("Hello BtS");
 
@@ -87,15 +123,6 @@ fn main() {
   .unwrap();*/
 
   //writeln!(file, "Hello BtS 2").unwrap();
-
-  let arguments: Vec<String> = std::env::args().collect();
-
-  if arguments[1] == "benchmarks" {
-    benchmarks::run_benchmarks();
-    return;
-  }
-
-  interface::run(PathBuf::from(arguments[1].clone()));
 
   /*let input = std::io::stdin();
   let mut input = input.lock();
