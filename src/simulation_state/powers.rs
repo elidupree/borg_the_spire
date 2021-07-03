@@ -403,7 +403,7 @@ impl PowerBehavior for Dexterity {
 }
 
 impl PowerBehavior for Thorns {
-  fn on_attacked(&self, context: &mut PowerHookContext, info: DamageInfo, damage: i32) {
+  fn on_attacked(&self, context: &mut PowerHookContext, info: DamageInfo, _damage: i32) {
     if info.owner != context.owner_index() && info.damage_type == DamageType::Normal {
       context.action_top(DamageAction {
         target: info.owner,
@@ -603,7 +603,7 @@ impl PowerBehavior for Evolve {
 }
 
 impl PowerBehavior for FeelNoPain {
-  fn on_exhaust(&self, context: &mut PowerHookContext, card: &SingleCard) {
+  fn on_exhaust(&self, context: &mut PowerHookContext, _card: &SingleCard) {
     context.action_bottom(GainBlockAction {
       creature_index: context.owner_index(),
       amount: context.amount(),
@@ -655,7 +655,7 @@ impl PowerBehavior for Brutality {
 }
 
 impl PowerBehavior for DarkEmbrace {
-  fn on_exhaust(&self, context: &mut PowerHookContext, card: &SingleCard) {
+  fn on_exhaust(&self, context: &mut PowerHookContext, _card: &SingleCard) {
     context.action_bottom(DrawCards(1));
   }
 }
@@ -671,7 +671,7 @@ impl PowerBehavior for DoubleTap {
 }
 
 impl PowerBehavior for Juggernaut {
-  fn on_gained_block(&self, context: &mut PowerHookContext, block: f64) {
+  fn on_gained_block(&self, _context: &mut PowerHookContext, _block: f64) {
     //TODO
   }
 }

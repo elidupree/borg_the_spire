@@ -81,7 +81,7 @@ fn logistic(x: f64) -> f64 {
 impl ChoiceWeights {
   fn get(&self, choice: &Choice) -> &[f64] {
     match choice {
-      Choice::PlayCard (PlayCard {card, target}) => {
+      Choice::PlayCard (PlayCard {card, target: _}) => {
         &self.play_card_weights [card.card_info.id] [min (card.upgrades as usize, 1)]
       }
       Choice::EndTurn (_) => {
@@ -92,7 +92,7 @@ impl ChoiceWeights {
   }
   fn get_mut(&mut self, choice: &Choice) -> &mut [f64] {
     match choice {
-      Choice::PlayCard (PlayCard {card, target}) => {
+      Choice::PlayCard (PlayCard {card, target: _}) => {
         &mut self.play_card_weights [card.card_info.id] [min (card.upgrades as usize, 1)]
       }
       Choice::EndTurn (_) => {
@@ -219,7 +219,7 @@ impl NeuralStrategy {
           .choice_weights
           .play_card_weights
           .iter_mut()
-          .flat_map(|(id, weights)| weights.iter_mut().flatten()),
+          .flat_map(|(_id, weights)| weights.iter_mut().flatten()),
       )
     {
       if random::<f64>() < mutation_rate {
@@ -351,6 +351,6 @@ impl NeuralStrategy {
       self.backpropagate(&analysis, &mut new_version, &choice_made, result.score);
     }
 
-    std::mem::replace(self, new_version);
+    *self = new_version;
   }
 }

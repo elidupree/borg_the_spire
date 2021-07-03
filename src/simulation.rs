@@ -1,7 +1,6 @@
 use derivative::Derivative;
 use serde::{Deserialize, Serialize};
 use smallvec::{smallvec, SmallVec};
-use std::collections::HashSet;
 use std::fmt::Write;
 use std::ops::{Add, AddAssign, Mul};
 //use rand::{Rng, SeedableRng};

@@ -1,6 +1,5 @@
 use std::fs;
-use std::path::PathBuf;
-use std::process::{Child, Command};
+use std::process::Command;
 use std::time::Duration;
 
 pub fn watch(executable_original: &str, executable_copy: &str, args: &[&str]) {

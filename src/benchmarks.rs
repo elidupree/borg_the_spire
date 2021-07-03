@@ -2,7 +2,7 @@ use ordered_float::OrderedFloat;
 use rand::seq::SliceRandom;
 use std::time::{Duration, Instant};
 
-use crate::actions::*;
+//use crate::actions::*;
 use crate::neural_net_ai::NeuralStrategy;
 use crate::simulation::*;
 use crate::simulation_state::*;
@@ -16,7 +16,7 @@ pub trait StrategyOptimizer {
   fn report(&self) -> &Self::Strategy;
 }
 
-struct CandidateStrategy<T> {
+pub struct CandidateStrategy<T> {
   strategy: T,
   playouts: usize,
   total_score: f64,
@@ -243,8 +243,8 @@ pub fn run_benchmark (name: & str, state: & CombatState, optimization_playouts: 
 }*/
 
 pub fn run_benchmarks() {
-  let optimization_playouts = 1000000;
-  let test_playouts = 10000;
+  //let optimization_playouts = 1000000;
+  //let test_playouts = 10000;
   let ghost_file = std::fs::File::open("data/hexaghost.json").unwrap();
   let ghost_state: CombatState =
     serde_json::from_reader(std::io::BufReader::new(ghost_file)).unwrap();
@@ -269,24 +269,24 @@ pub fn run_benchmarks() {
     ExplorationOptimizer::new(|_: &[CandidateStrategy<NeuralStrategy>]| {
       NeuralStrategy::new_random(&ghost_state, 16)
     });
-  let mut neural_training_only = NeuralStrategy::new_random(&ghost_state, 16);
+  //let mut neural_training_only = NeuralStrategy::new_random(&ghost_state, 16);
 
-  let mut neural_random_training: ExplorationOptimizer<NeuralStrategy, _> =
-    ExplorationOptimizer::new(|candidates: &[CandidateStrategy<NeuralStrategy>]| {
-      if candidates.len() < 1 || rand::random::<f64>() < 0.4 {
-        NeuralStrategy::new_random(&ghost_state, 16)
-      } else {
-        let mut improved = //candidates.choose (&mut thread_rng).clone();
-        candidates.iter().enumerate().max_by_key(| (index, strategy) | {
-          (strategy.playouts, -(*index as i32))
-        }).unwrap().1.strategy.clone();
+  /*let mut neural_random_training: ExplorationOptimizer<NeuralStrategy, _> =
+  ExplorationOptimizer::new(|candidates: &[CandidateStrategy<NeuralStrategy>]| {
+    if candidates.len() < 1 || rand::random::<f64>() < 0.4 {
+      NeuralStrategy::new_random(&ghost_state, 16)
+    } else {
+      let mut improved = //candidates.choose (&mut thread_rng).clone();
+      candidates.iter().enumerate().max_by_key(| (index, strategy) | {
+        (strategy.playouts, -(*index as i32))
+      }).unwrap().1.strategy.clone();
 
-        for _ in 0..30 {
-          improved.do_training_playout(&ghost_state);
-        }
-        improved
+      for _ in 0..30 {
+        improved.do_training_playout(&ghost_state);
       }
-    });
+      improved
+    }
+  });*/
 
   let mut neural_mutating: ExplorationOptimizer<NeuralStrategy, _> =
     ExplorationOptimizer::new(|candidates: &[CandidateStrategy<NeuralStrategy>]| {

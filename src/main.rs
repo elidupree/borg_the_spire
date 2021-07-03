@@ -1,10 +1,10 @@
-#![feature(proc_macro_hygiene, decl_macro)]
+#![feature(proc_macro_hygiene, decl_macro, array_map)]
 
 #[macro_use]
 extern crate rocket;
 
 use clap::{App, AppSettings, Arg, SubCommand};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 //use std::io::BufRead;
 
 //use std::time::{Duration, Instant};
@@ -70,11 +70,11 @@ macro_rules! power_hook {
 mod actions;
 mod benchmarks;
 mod communication_mod_state;
-mod cow;
+//mod cow;
 mod interface;
 mod neural_net_ai;
 mod simulation;
-mod simulation_state;
+pub mod simulation_state;
 mod start_and_strategy_ai;
 mod watch;
 

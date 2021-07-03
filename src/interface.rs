@@ -2,13 +2,12 @@ use parking_lot::Mutex;
 use rocket::config::{Config, Environment, LoggingLevel};
 use rocket::response::NamedFile;
 use rocket::State;
+use rocket_contrib::json::Json;
 use serde::{Deserialize, Serialize};
 use std::io::BufRead;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
-//use rocket::response::content::Json;
-use rocket_contrib::json::Json;
 use typed_html::dom::DOMTree;
 use typed_html::elements::FlowContent;
 use typed_html::{html, text};
@@ -69,10 +68,10 @@ impl SearchState {
         }
       });
       let mut hypothetical_evaluated_state = start.state.clone();
-      let next_turn = start.state.turn_number + 1;
+      //let next_turn = start.state.turn_number + 1;
       let mut runner = Runner::new(&mut hypothetical_evaluated_state, true, true);
       run_until_unable(&mut runner);
-      let log = runner.debug_log().to_string();
+      //let log = runner.debug_log().to_string();
       html! {
         <div class="starting-point">
           <div class="starting-point-heading">
@@ -128,6 +127,7 @@ pub struct RocketState {
   root_path: PathBuf,
 }
 
+#[allow(unused)]
 #[post("/content", data = "<interface_state>")]
 fn content(interface_state: Json<InterfaceState>, rocket_state: State<RocketState>) -> String {
   let application_state = rocket_state.application_state.lock();

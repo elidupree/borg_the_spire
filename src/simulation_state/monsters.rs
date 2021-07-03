@@ -52,10 +52,10 @@ impl<'a> IntentChoiceContext<'a> {
     self.monster_index
   }
 
-  fn creature_index(&self) -> CreatureIndex {
+  pub fn creature_index(&self) -> CreatureIndex {
     CreatureIndex::Monster(self.monster_index())
   }
-  fn monster(&self) -> &Monster {
+  pub fn monster(&self) -> &Monster {
     &self.state().monsters[self.monster_index()]
   }
 

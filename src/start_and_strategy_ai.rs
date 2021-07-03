@@ -96,7 +96,7 @@ impl<'a, T> OffspringBuilder<'a, T> {
       .iter()
       .map(|(_parent, weight)| weight)
       .sum();
-    for (parent, weight) in &mut weighted_parents {
+    for (_parent, weight) in &mut weighted_parents {
       *weight /= total_weight;
     }
 
@@ -129,7 +129,7 @@ impl FastStrategy {
         let mut result = self.card_priorities[card.card_info.id];
         for action in crate::simulation_state::cards::card_actions(state, card.clone(), *target) {
           match action {
-            DynAction::DamageAction(action) => {}
+            DynAction::DamageAction(_action) => {}
             DynAction::GainBlockAction(action) => {
               result +=
                 std::cmp::min(action.amount, incoming_damage) as f64 * self.block_priority * 0.1;
