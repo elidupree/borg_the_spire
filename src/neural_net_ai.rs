@@ -6,9 +6,9 @@ use std::cmp::min;
 use std::iter;
 
 use crate::actions::*;
+use crate::ai_utils::{CombatResult, Strategy};
 use crate::simulation::*;
 use crate::simulation_state::*;
-use crate::start_and_strategy_ai::{CombatResult, Strategy};
 
 /*
 

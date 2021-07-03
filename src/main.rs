@@ -71,6 +71,7 @@ mod actions;
 mod benchmarks;
 mod communication_mod_state;
 //mod cow;
+mod ai_utils;
 mod interface;
 mod neural_net_ai;
 mod simulation;

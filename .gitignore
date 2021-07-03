@@ -3,3 +3,4 @@
 /last_state.json
 **/*.rs.bk
 .idea
+*_profdata

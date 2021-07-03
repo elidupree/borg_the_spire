@@ -12,6 +12,7 @@ use typed_html::dom::DOMTree;
 use typed_html::elements::FlowContent;
 use typed_html::{html, text};
 
+use crate::ai_utils::play_out;
 use crate::communication_mod_state;
 use crate::simulation::*;
 use crate::simulation_state::*;

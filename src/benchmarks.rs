@@ -3,12 +3,11 @@ use rand::seq::SliceRandom;
 use std::time::{Duration, Instant};
 
 //use crate::actions::*;
+use crate::ai_utils::{collect_starting_points, play_out, CombatResult, Strategy};
 use crate::neural_net_ai::NeuralStrategy;
 use crate::simulation::*;
 use crate::simulation_state::*;
-use crate::start_and_strategy_ai::{
-  collect_starting_points, play_out, CombatResult, FastStrategy, Strategy,
-};
+use crate::start_and_strategy_ai::FastStrategy;
 
 pub trait StrategyOptimizer {
   type Strategy: Strategy;
