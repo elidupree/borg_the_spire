@@ -74,6 +74,8 @@ mod communication_mod_state;
 mod ai_utils;
 mod interface;
 mod neural_net_ai;
+//mod omniscient_search;
+mod seed_system;
 mod simulation;
 pub mod simulation_state;
 mod start_and_strategy_ai;

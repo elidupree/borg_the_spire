@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use std::convert::From;
 
+use crate::seed_system::Distribution;
 use crate::simulation::*;
 use crate::simulation_state::*;
 
