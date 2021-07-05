@@ -172,7 +172,7 @@ fn inputs(state: &CombatState) -> Vec<f64> {
 }
 
 fn random_weight() -> f64 {
-  rand::thread_rng().gen_range(-1.0, 1.0)
+  rand::thread_rng().gen_range(-1.0..1.0)
 }
 
 fn random_weights(hidden_layer_size: usize) -> Vec<f64> {

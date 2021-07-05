@@ -76,6 +76,7 @@ mod interface;
 mod neural_net_ai;
 //mod omniscient_search;
 mod seed_system;
+mod seeds_concrete;
 mod simulation;
 pub mod simulation_state;
 mod start_and_strategy_ai;

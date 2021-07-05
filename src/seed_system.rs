@@ -1,7 +1,14 @@
 use derivative::Derivative;
+use ordered_float::NotNan;
+use rand::{Rng, SeedableRng};
+use rand_pcg::Pcg64Mcg;
 use serde::{Deserialize, Serialize};
 use smallvec::{smallvec, SmallVec};
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::hash::Hash;
 use std::ops::{Add, AddAssign, Mul};
+use std::rc::Rc;
 
 #[derive(Clone, PartialEq, Serialize, Deserialize, Debug, Derivative)]
 pub struct Distribution(pub SmallVec<[(f64, i32); 4]>);
@@ -56,5 +63,75 @@ impl Distribution {
     else_value: impl Into<Distribution>,
   ) -> Distribution {
     (then_value.into() * probability) + (else_value.into() * (1.0 - probability))
+  }
+}
+
+pub trait GameState {
+  fn random_choices(&self) -> Option<Distribution>;
+}
+
+pub trait ChoiceLineageIdentity<G> {
+  fn get(state: &G, choice: i32) -> Self;
+}
+
+pub trait SeedView<C>: Clone {
+  fn gen(&mut self, identity: C) -> f64;
+}
+
+/// The presence or absence of a non-chosen choice has no effect on which choice is chosen,
+/// and the presence or absence of ANY choice has no effect on how many times `seed.gen()` is called for any other choice.
+pub fn choose_choice<G: GameState, C: ChoiceLineageIdentity<G>, S: SeedView<C>>(
+  state: &G,
+  seed: &mut S,
+) -> i32 {
+  let distribution = state.random_choices().unwrap();
+  distribution
+    .0
+    .into_iter()
+    .min_by_key(|&(weight, choice)| {
+      let identity = C::get(state, choice);
+      let value = seed.gen(identity);
+      NotNan::new(value / weight).unwrap()
+    })
+    .unwrap()
+    .1
+}
+
+#[derive(Clone, Debug)]
+pub struct SingleSeedView<C> {
+  lineages: Rc<SingleSeedLineages<C>>,
+  prior_requests: HashMap<C, usize>,
+}
+
+#[derive(Debug)]
+struct SingleSeedLineage {
+  generated_values: Vec<f64>,
+  generator: Pcg64Mcg,
+}
+
+type SingleSeedLineages<C> = RefCell<HashMap<C, SingleSeedLineage>>;
+
+impl<C: Clone + Eq + Hash> SeedView<C> for SingleSeedView<C> {
+  fn gen(&mut self, identity: C) -> f64 {
+    let mut lineages = self.lineages.borrow_mut();
+    let prior_requests = self.prior_requests.entry(identity.clone()).or_insert(0);
+    let lineage = lineages
+      .entry(identity)
+      .or_insert_with(|| SingleSeedLineage {
+        generated_values: Vec::new(),
+        generator: Pcg64Mcg::from_entropy(),
+      });
+    let result = lineage
+      .generated_values
+      .get(*prior_requests)
+      .copied()
+      .unwrap_or_else(|| {
+        assert_eq!(*prior_requests, lineage.generated_values.len());
+        let result = lineage.generator.gen();
+        lineage.generated_values.push(result);
+        result
+      });
+    *prior_requests += 1;
+    result
   }
 }
