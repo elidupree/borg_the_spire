@@ -128,6 +128,15 @@ pub struct SingleSeedView<C> {
   prior_requests: HashMap<C, usize>,
 }
 
+impl<C> Default for SingleSeedView<C> {
+  fn default() -> Self {
+    SingleSeedView {
+      lineages: Rc::new(RefCell::new(HashMap::new())),
+      prior_requests: HashMap::new(),
+    }
+  }
+}
+
 #[derive(Debug)]
 struct SingleSeedLineage {
   generated_values: Vec<f64>,

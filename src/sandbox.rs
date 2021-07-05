@@ -1,5 +1,6 @@
 use crate::ai_utils::Strategy;
-use crate::seed_system::Unseeded;
+use crate::seed_system::SingleSeedView;
+use crate::seeds_concrete::CombatChoiceLineageIdentity;
 use crate::simulation::{run_until_unable, Runner, StandardRunner};
 use crate::simulation_state::CombatState;
 use crate::start_and_strategy_ai::PurelyRandomStrategy;
@@ -31,12 +32,15 @@ pub fn play_some<S: Strategy>(runner: &mut impl Runner, strategy: &S) {
 
 pub fn combat_sandbox(state: CombatState) {
   println!("{}", state);
-  for _ in 0..5 {
-    let mut state = state.clone();
-    play_some(
-      &mut StandardRunner::new(&mut state, Unseeded, false),
-      &PurelyRandomStrategy,
-    );
-    println!("{}", state);
+  for _ in 0..3 {
+    let seed = SingleSeedView::<CombatChoiceLineageIdentity>::default();
+    for _ in 0..3 {
+      let mut state = state.clone();
+      play_some(
+        &mut StandardRunner::new(&mut state, seed.clone(), false),
+        &PurelyRandomStrategy,
+      );
+      println!("{}", state);
+    }
   }
 }
