@@ -75,6 +75,7 @@ mod ai_utils;
 mod interface;
 mod neural_net_ai;
 //mod omniscient_search;
+mod sandbox;
 mod seed_system;
 mod seeds_concrete;
 mod simulation;
@@ -97,6 +98,7 @@ fn main() {
         .arg(Arg::with_name("args").multiple(true)),
     )
     .subcommand(SubCommand::with_name("benchmark"))
+    .subcommand(SubCommand::with_name("sandbox").arg(Arg::with_name("root_path").required(true)))
     .get_matches();
 
   match matches.subcommand() {
@@ -113,6 +115,9 @@ fn main() {
     }
     ("benchmark", Some(_matches)) => {
       benchmarks::run_benchmarks();
+    }
+    ("sandbox", Some(matches)) => {
+      sandbox::run(PathBuf::from(matches.value_of("root_path").unwrap()));
     }
     _ => {}
   }

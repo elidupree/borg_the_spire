@@ -347,7 +347,7 @@ impl SingleCard {
 
 impl Display for Player {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-    write!(f, "({}) {:?}", self.energy, self.creature)
+    write!(f, "({}) {}", self.energy, self.creature)
   }
 }
 
@@ -358,7 +358,7 @@ impl Display for Monster {
     } else {
       write!(
         f,
-        "{:?} i{} {:?}",
+        "{:?} i{} {}",
         self.monster_id,
         self
           .move_history
@@ -411,6 +411,52 @@ impl Display for SingleCard {
     }
     if self.cost != self.start_combat_cost() {
       write!(f, "({})", self.cost)?;
+    }
+    Ok(())
+  }
+}
+
+impl Display for CombatState {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    write!(f, "Turn {}.", self.turn_number)?;
+    write!(f, "\n\nMonsters:\n")?;
+    for monster in &self.monsters {
+      write!(f, "{}\n", monster)?;
+    }
+    write!(f, "\nPlayer: {}", self.player)?;
+    write!(f, "\nHand: ")?;
+    for card in &self.hand {
+      write!(f, "{}, ", card)?;
+    }
+    write!(f, "\nDraw: ")?;
+    for card in &self.draw_pile {
+      write!(f, "{}, ", card)?;
+    }
+    write!(f, "\nDiscard: ")?;
+    for card in &self.discard_pile {
+      write!(f, "{}, ", card)?;
+    }
+    write!(f, "\nExhaust: ")?;
+    for card in &self.exhaust_pile {
+      write!(f, "{}, ", card)?;
+    }
+    if !self.limbo.is_empty() {
+      write!(f, "\nLimbo: ")?;
+      for card in &self.limbo {
+        write!(f, "{}, ", card)?;
+      }
+    }
+    if let Some(card) = &self.card_in_play {
+      write!(f, "\nCard in play: {}", card)?;
+    }
+    if !self.fresh_subaction_queue.is_empty() {
+      write!(f, "Fresh subactions: {:?}\n", self.fresh_subaction_queue)?;
+    }
+    if !self.stale_subaction_stack.is_empty() {
+      write!(f, "Stale subactions: {:?}\n", self.stale_subaction_stack)?;
+    }
+    if !self.actions.is_empty() {
+      write!(f, "Actions: {:?}\n", self.actions)?;
     }
     Ok(())
   }
