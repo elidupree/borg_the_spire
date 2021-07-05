@@ -13,11 +13,11 @@ pub struct IntentChoiceContext<'a> {
   pub monster_index: usize,
   pub monster: &'a Monster,
   pub ascension: i32,
-  num_distribution: Vec<(i32, Distribution)>,
+  num_distribution: Vec<(i32, Distribution<i32>)>,
 }
 
 impl<'a> IntentChoiceContext<'a> {
-  pub fn if_num_lt(&mut self, threshold: i32, value: impl Into<Distribution>) {
+  pub fn if_num_lt(&mut self, threshold: i32, value: impl Into<Distribution<i32>>) {
     if threshold
       > self
         .num_distribution
@@ -27,17 +27,17 @@ impl<'a> IntentChoiceContext<'a> {
       self.num_distribution.push((threshold, value.into()));
     }
   }
-  pub fn if_num_leq(&mut self, threshold: i32, value: impl Into<Distribution>) {
+  pub fn if_num_leq(&mut self, threshold: i32, value: impl Into<Distribution<i32>>) {
     self.if_num_lt(threshold + 1, value);
   }
-  pub fn if_num_geq(&mut self, threshold: i32, value: impl Into<Distribution>) {
+  pub fn if_num_geq(&mut self, threshold: i32, value: impl Into<Distribution<i32>>) {
     // hack, assume that no function checks both greater and less
     self.if_num_lt(100 - threshold, value);
   }
-  pub fn else_num(&mut self, value: impl Into<Distribution>) {
+  pub fn else_num(&mut self, value: impl Into<Distribution<i32>>) {
     self.if_num_lt(100, value);
   }
-  pub fn always(&mut self, value: impl Into<Distribution>) {
+  pub fn always(&mut self, value: impl Into<Distribution<i32>>) {
     self.if_num_lt(100, value);
   }
   pub fn first_move(&self) -> bool {
@@ -70,8 +70,8 @@ impl<'a> IntentChoiceContext<'a> {
     &self,
     max_repeats: Repeats,
     intent: i32,
-    alternative: impl Into<Distribution>,
-  ) -> Distribution {
+    alternative: impl Into<Distribution<i32>>,
+  ) -> Distribution<i32> {
     if self.did_repeats(max_repeats, intent) {
       alternative.into()
     } else {
@@ -90,7 +90,7 @@ impl<'a> IntentChoiceContext<'a> {
     }
   }
 
-  pub fn final_distribution(self) -> Distribution {
+  pub fn final_distribution(self) -> Distribution<i32> {
     let mut start = 0;
     let mut result = Distribution::new();
     for (excluded, distribution) in self.num_distribution {
@@ -101,7 +101,7 @@ impl<'a> IntentChoiceContext<'a> {
   }
 }
 
-pub fn intent_choice_distribution(state: &CombatState, monster_index: usize) -> Distribution {
+pub fn intent_choice_distribution(state: &CombatState, monster_index: usize) -> Distribution<i32> {
   let state = state;
   let monster = &state.monsters[monster_index];
 

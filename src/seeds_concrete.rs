@@ -1,23 +1,78 @@
-use crate::seed_system::{ChoiceLineageIdentity, MaybeSeedView, NeverSeed, NoRandomness};
+use crate::actions::{
+  AttackDamageRandomEnemyAction, ChooseMonsterIntent, DynAction, GainBlockRandomMonsterAction,
+  InitializeMonsterInnateDamageAmount,
+};
+use crate::seed_system::{
+  ChoiceLineageIdentity, GameState, MaybeSeedView, NeverSeed, NoRandomness,
+};
+use crate::simulation::MonsterIndex;
 use crate::simulation_state::{CombatState, SingleCard};
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
-pub struct CombatChoiceLineageIdentity {
-  turn: i32,
-  identity: CombatChoiceLineageIdentityWithoutTurn,
+impl GameState for CombatState {
+  type RandomForkType = DynAction;
+  type RandomChoice = i32;
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
-pub enum CombatChoiceLineageIdentityWithoutTurn {
-  DrawCard(SingleCard),
-  MonsterIntent(i32),
-  Other,
+pub enum CombatChoiceLineageIdentity {
+  DrawCard {
+    turn: i32,
+    card: SingleCard,
+  },
+  ChooseMonsterIntent {
+    turn: i32,
+    monster_index: MonsterIndex,
+    intent: i32,
+  },
+  AttackRandomEnemy {
+    target: MonsterIndex,
+    damage: i32,
+  },
+  InitializeMonsterInnateDamageAmount {
+    monster_index: MonsterIndex,
+  },
+  GainBlockRandomMonster {
+    turn: i32,
+    target: MonsterIndex,
+  },
+  Uncategorized {
+    value: i32,
+  },
 }
 
 impl ChoiceLineageIdentity<CombatState> for CombatChoiceLineageIdentity {
-  fn get(state: &CombatState, choice: i32) -> Self {
-    unimplemented!()
+  fn get(state: &CombatState, action: &DynAction, &choice: &i32) -> Self {
+    match action {
+      DynAction::DrawCardRandom(_) => CombatChoiceLineageIdentity::DrawCard {
+        turn: state.turn_number,
+        card: state.draw_pile[choice as usize].clone(),
+      },
+      &DynAction::ChooseMonsterIntent(ChooseMonsterIntent(monster_index)) => {
+        CombatChoiceLineageIdentity::ChooseMonsterIntent {
+          turn: state.turn_number,
+          monster_index,
+          intent: choice,
+        }
+      }
+      &DynAction::AttackDamageRandomEnemyAction(AttackDamageRandomEnemyAction { damage }) => {
+        CombatChoiceLineageIdentity::AttackRandomEnemy {
+          target: choice as MonsterIndex,
+          damage,
+        }
+      }
+      &DynAction::InitializeMonsterInnateDamageAmount(InitializeMonsterInnateDamageAmount {
+        monster_index,
+        ..
+      }) => CombatChoiceLineageIdentity::InitializeMonsterInnateDamageAmount { monster_index },
+      DynAction::GainBlockRandomMonsterAction(GainBlockRandomMonsterAction { .. }) => {
+        CombatChoiceLineageIdentity::GainBlockRandomMonster {
+          turn: state.turn_number,
+          target: choice as MonsterIndex,
+        }
+      }
+      _ => CombatChoiceLineageIdentity::Uncategorized { value: choice },
+    }
   }
 }
 

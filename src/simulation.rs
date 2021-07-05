@@ -19,10 +19,12 @@ pub enum CardChoiceType {
 }
 */
 
+pub type MonsterIndex = usize;
+
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, Debug)]
 pub enum CreatureIndex {
   Player,
-  Monster(usize),
+  Monster(MonsterIndex),
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, Debug)]
@@ -85,7 +87,7 @@ pub enum PowerType {
 #[derivative(Default)]
 pub enum Determinism {
   Choice,
-  Random(Distribution),
+  Random(Distribution<i32>),
   #[derivative(Default)]
   Deterministic,
 }
@@ -153,7 +155,7 @@ impl<'a, Seed: MaybeSeedView<CombatState>> StandardRunner<'a, Seed> {
       Determinism::Deterministic => action.execute(self),
       Determinism::Random(distribution) => {
         let random_value = match self.seed.as_seed() {
-          Some(seed) => choose_choice(&*self.state, &distribution, seed),
+          Some(seed) => choose_choice(&*self.state, &action.clone().into(), &distribution, seed),
           None => {
             assert_eq!(distribution.0.len(), 1);
             distribution.0.first().unwrap().1
