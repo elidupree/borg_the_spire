@@ -152,7 +152,13 @@ impl<'a, Seed: MaybeSeedView<CombatState>> StandardRunner<'a, Seed> {
     match action.determinism(self.state()) {
       Determinism::Deterministic => action.execute(self),
       Determinism::Random(distribution) => {
-        let random_value = choose_choice(&*self.state, &distribution, self.seed.as_seed().unwrap());
+        let random_value = match self.seed.as_seed() {
+          Some(seed) => choose_choice(&*self.state, &distribution, seed),
+          None => {
+            assert_eq!(distribution.0.len(), 1);
+            distribution.0.first().unwrap().1
+          }
+        };
         action.execute_random(self, random_value);
       }
       Determinism::Choice => unreachable!(),
