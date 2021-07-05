@@ -3,7 +3,7 @@ use derivative::Derivative;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::convert::From;
-use std::fmt::{self, Debug, Formatter};
+use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
@@ -76,7 +76,7 @@ pub struct CombatState {
   pub actions: VecDeque<DynAction>,
 }
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Debug)]
 pub struct SingleCard {
   pub misc: i32,
   pub cost: i32,
@@ -129,7 +129,7 @@ impl Default for CardInfo {
   }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
 pub struct Creature {
   pub hitpoints: i32,
   pub max_hitpoints: i32,
@@ -154,7 +154,7 @@ pub struct Monster {
   pub gone: bool,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
 pub struct Power {
   pub power_id: PowerId,
   pub amount: i32,
@@ -345,20 +345,45 @@ impl SingleCard {
   }
 }
 
-impl Debug for Creature {
+impl Display for Player {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    write!(f, "({}) {:?}", self.energy, self.creature)
+  }
+}
+
+impl Display for Monster {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    if self.gone {
+      write!(f, "({:?})", self.monster_id)
+    } else {
+      write!(
+        f,
+        "{:?} i{} {:?}",
+        self.monster_id,
+        self
+          .move_history
+          .last()
+          .map_or("?".to_string(), ToString::to_string),
+        self.creature
+      )
+    }
+  }
+}
+
+impl Display for Creature {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
     write!(f, "{}/{}", self.hitpoints, self.max_hitpoints)?;
     if self.block > 0 {
       write!(f, "(+{})", self.block)?;
     }
     for power in &self.powers {
-      write!(f, " {:?}", power)?;
+      write!(f, " {}", power)?;
     }
     Ok(())
   }
 }
 
-impl Debug for Power {
+impl Display for Power {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
     write!(f, "{:?}", self.power_id)?;
     if self.amount != 0 {
@@ -371,7 +396,7 @@ impl Debug for Power {
   }
 }
 
-impl Debug for SingleCard {
+impl Display for SingleCard {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
     write!(f, "{:?}", self.card_info.id)?;
 

@@ -30,21 +30,21 @@ impl CombatState {
       .map(|monster| {
         html! {
           <div class="monster">
-            {text! ("{:?} i{} {:?}", monster.monster_id, monster.move_history.last().map_or("?".to_string(), ToString::to_string), monster.creature)}
+            {text! ("{}", monster)}
           </div>
         }
       });
     let hand = self.hand.iter().map(|card| {
       html! {
         <div class="card">
-          {text! ("{:?}", card)}
+          {text! ("{}", card)}
         </div>
       }
     });
     html! {
       <div class="combat-state">
         <div class="player">
-          {text! ("({}) {:?}", self.player.energy, self.player.creature)}
+          {text! ("{}", self.player)}
         </div>
         <div class="monsters">
           {monsters}
