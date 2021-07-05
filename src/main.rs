@@ -122,8 +122,8 @@ fn main() {
     _ => {}
   }
 
-  println!("ready");
-  eprintln!("Hello BtS");
+  //println!("ready");
+  //eprintln!("Hello BtS");
 
   /*let mut file = std::fs::OpenOptions::new()
   .create(true)

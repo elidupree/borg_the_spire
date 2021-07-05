@@ -169,6 +169,19 @@ impl FastStrategy {
 }
 
 #[derive(Clone, Debug)]
+pub struct PurelyRandomStrategy;
+
+impl Strategy for PurelyRandomStrategy {
+  fn choose_choice(&self, state: &CombatState) -> Vec<Choice> {
+    vec![state
+      .legal_choices()
+      .choose(&mut rand::thread_rng())
+      .unwrap()
+      .clone()]
+  }
+}
+
+#[derive(Clone, Debug)]
 pub struct SomethingStrategy {}
 
 impl Strategy for SomethingStrategy {
