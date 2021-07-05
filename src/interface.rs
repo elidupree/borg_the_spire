@@ -14,6 +14,7 @@ use typed_html::{html, text};
 
 use crate::ai_utils::play_out;
 use crate::communication_mod_state;
+use crate::seed_system::Unseeded;
 use crate::simulation::*;
 use crate::simulation_state::*;
 use crate::start_and_strategy_ai::*;
@@ -70,7 +71,7 @@ impl SearchState {
       });
       let mut hypothetical_evaluated_state = start.state.clone();
       //let next_turn = start.state.turn_number + 1;
-      let mut runner = Runner::new(&mut hypothetical_evaluated_state, true, true);
+      let mut runner = StandardRunner::new(&mut hypothetical_evaluated_state, Unseeded, true);
       run_until_unable(&mut runner);
       //let log = runner.debug_log().to_string();
       html! {
@@ -116,7 +117,7 @@ impl ApplicationState {
       self.combat_state = Some(state.clone());
       let mut playout_state = state.clone();
       self.search_state = Some(SearchState::new(state));
-      let mut runner = Runner::new(&mut playout_state, true, true);
+      let mut runner = StandardRunner::new(&mut playout_state, Unseeded, true);
       play_out(&mut runner, &SomethingStrategy {});
       self.debug_log = runner.debug_log().to_string();
     }

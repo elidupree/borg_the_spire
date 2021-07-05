@@ -6,6 +6,7 @@ use rand::seq::SliceRandom;
 
 use crate::actions::*;
 use crate::ai_utils::{collect_starting_points, play_out, CombatResult, Strategy};
+use crate::seed_system::Unseeded;
 use crate::simulation::*;
 use crate::simulation_state::*;
 
@@ -185,7 +186,7 @@ impl Strategy for SomethingStrategy {
 
     let combos = collect_starting_points(state.clone(), 200);
     let choices = combos.into_iter().map(|(mut state, choices)| {
-      run_until_unable(&mut Runner::new(&mut state, true, false));
+      run_until_unable(&mut StandardRunner::new(&mut state, Unseeded, false));
       let score = self.evaluate(&state);
       (choices, score)
     });
@@ -258,7 +259,7 @@ impl StartingPoint {
       if strategy.visits < max_strategy_visits {
         let mut state = self.state.clone();
         play_out(
-          &mut Runner::new(&mut state, true, false),
+          &mut StandardRunner::new(&mut state, Unseeded, false),
           &strategy.strategy,
         );
         let result = CombatResult::new(&state);

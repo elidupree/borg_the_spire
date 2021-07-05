@@ -5,6 +5,7 @@ use std::time::{Duration, Instant};
 //use crate::actions::*;
 use crate::ai_utils::{collect_starting_points, play_out, CombatResult, Strategy};
 use crate::neural_net_ai::NeuralStrategy;
+use crate::seed_system::Unseeded;
 use crate::simulation::*;
 use crate::simulation_state::*;
 use crate::start_and_strategy_ai::FastStrategy;
@@ -23,7 +24,10 @@ pub struct CandidateStrategy<T> {
 
 fn playout_result(state: &CombatState, strategy: &impl Strategy) -> CombatResult {
   let mut state = state.clone();
-  play_out(&mut Runner::new(&mut state, true, false), strategy);
+  play_out(
+    &mut StandardRunner::new(&mut state, Unseeded, false),
+    strategy,
+  );
   CombatResult::new(&state)
 }
 
@@ -35,7 +39,7 @@ impl<'a, T: Strategy> Strategy for MetaStrategy<'a, T> {
   fn choose_choice(&self, state: &CombatState) -> Vec<Choice> {
     let combos = collect_starting_points(state.clone(), 200);
     let choices = combos.into_iter().map(|(mut state, choices)| {
-      run_until_unable(&mut Runner::new(&mut state, true, false));
+      run_until_unable(&mut StandardRunner::new(&mut state, Unseeded, false));
       let num_attempts = 200;
       let score = (0..num_attempts)
         .map(|_| playout_result(&state, self.0).score)

@@ -2,10 +2,9 @@ use derivative::Derivative;
 use serde::{Deserialize, Serialize};
 use std::fmt::Write;
 //use rand::{Rng, SeedableRng};
-use rand::seq::SliceRandom;
 
 use crate::actions::*;
-use crate::seed_system::Distribution;
+use crate::seed_system::{choose_choice, Distribution, MaybeSeedView};
 pub use crate::simulation_state::cards::CardBehavior;
 pub use crate::simulation_state::monsters::MonsterBehavior;
 use crate::simulation_state::*;
@@ -97,27 +96,37 @@ pub trait Action: Clone + Into<DynAction> {
     Determinism::Deterministic
   }
   #[allow(unused)]
-  fn execute(&self, runner: &mut Runner) {
+  fn execute(&self, runner: &mut impl Runner) {
     panic!("an action didn't define the correct apply method for its determinism")
   }
   #[allow(unused)]
-  fn execute_random(&self, runner: &mut Runner, random_value: i32) {
+  fn execute_random(&self, runner: &mut impl Runner, random_value: i32) {
     panic!("an action didn't define the correct apply method for its determinism")
   }
 }
 
-pub struct Runner<'a> {
+pub trait Runner {
+  fn state(&self) -> &CombatState;
+  fn state_mut(&mut self) -> &mut CombatState;
+
+  fn can_apply(&self, action: &impl Action) -> bool;
+  fn action_now(&mut self, action: &impl Action);
+  fn action_top(&mut self, action: impl Action);
+  fn action_bottom(&mut self, action: impl Action);
+}
+
+pub struct StandardRunner<'a, Seed: MaybeSeedView<CombatState>> {
   state: &'a mut CombatState,
-  allow_random: bool,
+  seed: Seed,
   debug: bool,
   log: String,
 }
 
-impl<'a> Runner<'a> {
-  pub fn new(state: &'a mut CombatState, allow_random: bool, debug: bool) -> Self {
-    Runner {
+impl<'a, Seed: MaybeSeedView<CombatState>> StandardRunner<'a, Seed> {
+  pub fn new(state: &'a mut CombatState, seed: Seed, debug: bool) -> Self {
+    StandardRunner {
       state,
-      allow_random,
+      seed,
       debug,
       log: String::new(),
     }
@@ -126,12 +135,9 @@ impl<'a> Runner<'a> {
   pub fn can_apply_impl(&self, action: &impl Action) -> bool {
     match action.determinism(self.state()) {
       Determinism::Deterministic => true,
-      Determinism::Random(distribution) => self.allow_random || distribution.0.len() == 1,
+      Determinism::Random(distribution) => self.seed.is_seed() || distribution.0.len() == 1,
       Determinism::Choice => false,
     }
-  }
-  pub fn can_apply(&self, action: &impl Action) -> bool {
-    self.can_apply_impl(action) && !self.state().combat_over()
   }
   pub fn apply_impl(&mut self, action: &impl Action) {
     if self.debug {
@@ -146,11 +152,7 @@ impl<'a> Runner<'a> {
     match action.determinism(self.state()) {
       Determinism::Deterministic => action.execute(self),
       Determinism::Random(distribution) => {
-        let random_value = distribution
-          .0
-          .choose_weighted(&mut rand::thread_rng(), |(weight, _)| *weight)
-          .unwrap()
-          .1;
+        let random_value = choose_choice(&*self.state, &distribution, self.seed.as_seed().unwrap());
         action.execute_random(self, random_value);
       }
       Determinism::Choice => unreachable!(),
@@ -165,7 +167,22 @@ impl<'a> Runner<'a> {
       .unwrap();
     }
   }
-  pub fn action_now(&mut self, action: &impl Action) {
+  pub fn debug_log(&self) -> &str {
+    &self.log
+  }
+}
+impl<'a, Seed: MaybeSeedView<CombatState>> Runner for StandardRunner<'a, Seed> {
+  fn state(&self) -> &CombatState {
+    self.state
+  }
+  fn state_mut(&mut self) -> &mut CombatState {
+    self.state
+  }
+
+  fn can_apply(&self, action: &impl Action) -> bool {
+    self.can_apply_impl(action) && !self.state().combat_over()
+  }
+  fn action_now(&mut self, action: &impl Action) {
     if self.state().fresh_subaction_queue.is_empty() && self.can_apply(action) {
       self.apply_impl(action);
     } else {
@@ -175,25 +192,15 @@ impl<'a> Runner<'a> {
         .push(action.clone().into());
     }
   }
-  pub fn action_top(&mut self, action: impl Action) {
+  fn action_top(&mut self, action: impl Action) {
     self.state_mut().actions.push_front(action.into());
   }
-  pub fn action_bottom(&mut self, action: impl Action) {
+  fn action_bottom(&mut self, action: impl Action) {
     self.state_mut().actions.push_back(action.into());
-  }
-
-  pub fn state(&self) -> &CombatState {
-    self.state
-  }
-  pub fn state_mut(&mut self) -> &mut CombatState {
-    self.state
-  }
-  pub fn debug_log(&self) -> &str {
-    &self.log
   }
 }
 
-pub fn run_until_unable(runner: &mut Runner) {
+pub fn run_until_unable(runner: &mut impl Runner) {
   loop {
     if runner.state().combat_over() {
       break;

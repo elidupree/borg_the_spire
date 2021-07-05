@@ -7,6 +7,7 @@ use std::iter;
 
 use crate::actions::*;
 use crate::ai_utils::{CombatResult, Strategy};
+use crate::seed_system::Unseeded;
 use crate::simulation::*;
 use crate::simulation_state::*;
 
@@ -319,7 +320,7 @@ impl NeuralStrategy {
 
   pub fn do_training_playout(&mut self, state: &CombatState) {
     let mut playout_state = state.clone();
-    let mut runner = Runner::new(&mut playout_state, true, false);
+    let mut runner = StandardRunner::new(&mut playout_state, Unseeded, false);
     let mut analyses: Vec<(CombatStateAnalysis, ChoiceAnalysis)> = Vec::new();
 
     run_until_unable(&mut runner);

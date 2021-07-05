@@ -66,35 +66,49 @@ impl Distribution {
   }
 }
 
-pub trait GameState {
-  fn random_choices(&self) -> Option<Distribution>;
-}
-
 pub trait ChoiceLineageIdentity<G> {
   fn get(state: &G, choice: i32) -> Self;
 }
 
-pub trait SeedView<C>: Clone {
-  fn gen(&mut self, identity: C) -> f64;
+pub trait SeedView<G>: Clone {
+  type ChoiceLineageIdentity: ChoiceLineageIdentity<G>;
+  fn gen(&mut self, identity: Self::ChoiceLineageIdentity) -> f64;
 }
 
 /// The presence or absence of a non-chosen choice has no effect on which choice is chosen,
 /// and the presence or absence of ANY choice has no effect on how many times `seed.gen()` is called for any other choice.
-pub fn choose_choice<G: GameState, C: ChoiceLineageIdentity<G>, S: SeedView<C>>(
+pub fn choose_choice<G, S: SeedView<G>>(
   state: &G,
+  distribution: &Distribution,
   seed: &mut S,
 ) -> i32 {
-  let distribution = state.random_choices().unwrap();
   distribution
     .0
-    .into_iter()
-    .min_by_key(|&(weight, choice)| {
-      let identity = C::get(state, choice);
+    .iter()
+    .min_by_key(|&&(weight, choice)| {
+      let identity = S::ChoiceLineageIdentity::get(state, choice);
       let value = seed.gen(identity);
       NotNan::new(value / weight).unwrap()
     })
     .unwrap()
     .1
+}
+
+impl<G> ChoiceLineageIdentity<G> for () {
+  fn get(_state: &G, _choice: i32) -> Self {
+    ()
+  }
+}
+
+#[derive(Clone, Debug, Default, Derivative)]
+pub struct Unseeded;
+
+impl<G> SeedView<G> for Unseeded {
+  type ChoiceLineageIdentity = ();
+
+  fn gen(&mut self, _identity: ()) -> f64 {
+    rand::random()
+  }
 }
 
 #[derive(Clone, Debug)]
@@ -111,7 +125,9 @@ struct SingleSeedLineage {
 
 type SingleSeedLineages<C> = RefCell<HashMap<C, SingleSeedLineage>>;
 
-impl<C: Clone + Eq + Hash> SeedView<C> for SingleSeedView<C> {
+impl<G, C: Clone + Eq + Hash + ChoiceLineageIdentity<G>> SeedView<G> for SingleSeedView<C> {
+  type ChoiceLineageIdentity = C;
+
   fn gen(&mut self, identity: C) -> f64 {
     let mut lineages = self.lineages.borrow_mut();
     let prior_requests = self.prior_requests.entry(identity.clone()).or_insert(0);
@@ -133,5 +149,34 @@ impl<C: Clone + Eq + Hash> SeedView<C> for SingleSeedView<C> {
       });
     *prior_requests += 1;
     result
+  }
+}
+
+pub trait MaybeSeedView<G> {
+  type SelfAsSeed: SeedView<G>;
+  fn is_seed(&self) -> bool;
+  fn as_seed(&mut self) -> Option<&mut Self::SelfAsSeed>;
+}
+
+impl<G, S: SeedView<G>> MaybeSeedView<G> for S {
+  type SelfAsSeed = Self;
+  fn is_seed(&self) -> bool {
+    true
+  }
+  fn as_seed(&mut self) -> Option<&mut Self::SelfAsSeed> {
+    Some(self)
+  }
+}
+
+#[derive(Clone, Debug)]
+pub struct NoRandomness;
+#[derive(Clone, Debug)]
+pub enum NeverSeed {}
+
+impl<G> SeedView<G> for NeverSeed {
+  type ChoiceLineageIdentity = ();
+
+  fn gen(&mut self, _identity: Self::ChoiceLineageIdentity) -> f64 {
+    unreachable!()
   }
 }

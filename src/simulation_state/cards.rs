@@ -110,12 +110,12 @@ pub trait CardBehaviorContext {
   }
 }
 
-pub struct PlayCardContext<'a, 'b> {
-  pub runner: &'a mut Runner<'b>,
+pub struct PlayCardContext<'a, R: Runner> {
+  pub runner: &'a mut R,
   pub target: usize,
 }
 
-impl<'a, 'b> CardBehaviorContext for PlayCardContext<'a, 'b> {
+impl<'a, R: Runner> CardBehaviorContext for PlayCardContext<'a, R> {
   fn action(&mut self, action: impl Action) {
     self.runner.action_bottom(action);
   }

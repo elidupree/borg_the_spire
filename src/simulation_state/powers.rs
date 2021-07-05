@@ -6,8 +6,8 @@ use crate::simulation::*;
 use crate::simulation_state::*;
 use PowerType::{Buff, Debuff, Relic};
 
-pub struct PowerHookContext<'a, 'b> {
-  pub runner: &'a mut Runner<'b>,
+pub struct PowerHookContext<'a, R: Runner> {
+  pub runner: &'a mut R,
   pub owner: CreatureIndex,
   pub power_index: usize,
 }
@@ -36,7 +36,7 @@ impl<'a> PowerNumericHookContext<'a> {
   }
 }
 
-impl<'a, 'b> PowerHookContext<'a, 'b> {
+impl<'a, R: Runner> PowerHookContext<'a, R> {
   pub fn state(&self) -> &CombatState {
     self.runner.state()
   }
@@ -175,31 +175,43 @@ pub trait PowerBehavior {
   ) -> f64 {
     damage
   }
-  fn at_start_of_turn(&self, context: &mut PowerHookContext) {}
-  fn during_turn(&self, context: &mut PowerHookContext) {}
-  fn at_start_of_turn_post_draw(&self, context: &mut PowerHookContext) {}
-  fn at_end_of_turn(&self, context: &mut PowerHookContext) {}
-  fn at_end_of_round(&self, context: &mut PowerHookContext) {}
-  fn on_attacked(&self, context: &mut PowerHookContext, info: DamageInfo, damage: i32) {}
-  fn on_attack(&self, context: &mut PowerHookContext, damage: i32, target: CreatureIndex) {}
+  fn at_start_of_turn(&self, context: &mut PowerHookContext<impl Runner>) {}
+  fn during_turn(&self, context: &mut PowerHookContext<impl Runner>) {}
+  fn at_start_of_turn_post_draw(&self, context: &mut PowerHookContext<impl Runner>) {}
+  fn at_end_of_turn(&self, context: &mut PowerHookContext<impl Runner>) {}
+  fn at_end_of_round(&self, context: &mut PowerHookContext<impl Runner>) {}
+  fn on_attacked(
+    &self,
+    context: &mut PowerHookContext<impl Runner>,
+    info: DamageInfo,
+    damage: i32,
+  ) {
+  }
+  fn on_attack(
+    &self,
+    context: &mut PowerHookContext<impl Runner>,
+    damage: i32,
+    target: CreatureIndex,
+  ) {
+  }
   fn on_attacked_to_change_damage(&self, context: &PowerNumericHookContext, damage: i32) -> i32 {
     damage
   }
-  fn on_inflict_damage(&self, context: &mut PowerHookContext) {}
-  fn on_card_draw(&self, context: &mut PowerHookContext, card: &SingleCard) {}
-  fn on_use_card(&self, context: &mut PowerHookContext, card: &SingleCard) {}
-  fn on_after_use_card(&self, context: &mut PowerHookContext, card: &SingleCard) {}
-  fn on_specific_trigger(&self, context: &mut PowerHookContext) {}
-  fn on_death(&self, context: &mut PowerHookContext) {}
-  fn at_energy_gain(&self, context: &mut PowerHookContext) {}
-  fn on_exhaust(&self, context: &mut PowerHookContext, card: &SingleCard) {}
+  fn on_inflict_damage(&self, context: &mut PowerHookContext<impl Runner>) {}
+  fn on_card_draw(&self, context: &mut PowerHookContext<impl Runner>, card: &SingleCard) {}
+  fn on_use_card(&self, context: &mut PowerHookContext<impl Runner>, card: &SingleCard) {}
+  fn on_after_use_card(&self, context: &mut PowerHookContext<impl Runner>, card: &SingleCard) {}
+  fn on_specific_trigger(&self, context: &mut PowerHookContext<impl Runner>) {}
+  fn on_death(&self, context: &mut PowerHookContext<impl Runner>) {}
+  fn at_energy_gain(&self, context: &mut PowerHookContext<impl Runner>) {}
+  fn on_exhaust(&self, context: &mut PowerHookContext<impl Runner>, card: &SingleCard) {}
   fn modify_block(&self, context: &PowerNumericHookContext, block: f64) -> f64 {
     block
   }
-  fn on_gained_block(&self, context: &mut PowerHookContext, block: f64) {}
-  fn on_remove(&self, context: &mut PowerHookContext) {}
-  fn on_energy_recharge(&self, context: &mut PowerHookContext) {}
-  fn on_after_card_played(&self, context: &mut PowerHookContext, card: &SingleCard) {}
+  fn on_gained_block(&self, context: &mut PowerHookContext<impl Runner>, block: f64) {}
+  fn on_remove(&self, context: &mut PowerHookContext<impl Runner>) {}
+  fn on_energy_recharge(&self, context: &mut PowerHookContext<impl Runner>) {}
+  fn on_after_card_played(&self, context: &mut PowerHookContext<impl Runner>, card: &SingleCard) {}
 }
 
 //pub fn
@@ -215,15 +227,6 @@ macro_rules! powers {
     #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Debug)]
     pub struct $Variant;)*
 
-    impl std::ops::Deref for PowerId {
-      type Target = dyn PowerBehavior;
-      fn deref (&self)->&'static dyn PowerBehavior {
-        match self {
-          $(PowerId::$Variant => &$Variant,)*
-        }
-      }
-    }
-
     impl From<& str> for PowerId {
       fn from (source: & str)->PowerId {
         match source {
@@ -237,6 +240,176 @@ macro_rules! powers {
       pub fn power_type(&self)->PowerType {
         match self {
           $(PowerId::$Variant => $power_type,)*
+        }
+      }
+    }
+
+    impl PowerBehavior for PowerId {
+      fn inherent_energy(&self) -> i32 {
+        match self {
+          $(PowerId::$Variant => $Variant.inherent_energy(),)*
+        }
+      }
+
+      fn priority(&self) -> i32 {
+        match self {
+          $(PowerId::$Variant => $Variant.priority(),)*
+        }
+      }
+      fn stack_power(&self, power: &mut Power, stack_amount: i32) {
+        match self {
+          $(PowerId::$Variant => $Variant.stack_power(power, stack_amount),)*
+        }
+      }
+      fn reduce_power(&self, power: &mut Power, reduce_amount: i32) {
+        match self {
+          $(PowerId::$Variant => $Variant.reduce_power(power, reduce_amount),)*
+        }
+      }
+
+      fn at_damage_give(
+        &self,
+        context: &PowerNumericHookContext,
+        damage: f64,
+        damage_type: DamageType,
+      ) -> f64 {
+        match self {
+          $(PowerId::$Variant => $Variant.at_damage_give(context, damage, damage_type),)*
+        }
+      }
+      fn at_damage_final_receive(
+        &self,
+        context: &PowerNumericHookContext,
+        damage: f64,
+        damage_type: DamageType,
+      ) -> f64 {
+        match self {
+          $(PowerId::$Variant => $Variant.at_damage_final_receive(context, damage, damage_type),)*
+        }
+      }
+      fn at_damage_receive(
+        &self,
+        context: &PowerNumericHookContext,
+        damage: f64,
+        damage_type: DamageType,
+      ) -> f64 {
+        match self {
+          $(PowerId::$Variant => $Variant.at_damage_receive(context, damage, damage_type),)*
+        }
+      }
+      fn at_start_of_turn(&self, context: &mut PowerHookContext<impl Runner>) {
+        match self {
+          $(PowerId::$Variant => $Variant.at_start_of_turn(context),)*
+        }
+      }
+      fn during_turn(&self, context: &mut PowerHookContext<impl Runner>) {
+        match self {
+          $(PowerId::$Variant => $Variant.during_turn(context),)*
+        }
+      }
+      fn at_start_of_turn_post_draw(&self, context: &mut PowerHookContext<impl Runner>) {
+        match self {
+          $(PowerId::$Variant => $Variant.at_start_of_turn_post_draw(context),)*
+        }
+      }
+      fn at_end_of_turn(&self, context: &mut PowerHookContext<impl Runner>) {
+        match self {
+          $(PowerId::$Variant => $Variant.at_end_of_turn(context),)*
+        }
+      }
+      fn at_end_of_round(&self, context: &mut PowerHookContext<impl Runner>) {
+        match self {
+          $(PowerId::$Variant => $Variant.at_end_of_round(context),)*
+        }
+      }
+      fn on_attacked(
+        &self,
+        context: &mut PowerHookContext<impl Runner>,
+        info: DamageInfo,
+        damage: i32,
+      ) {
+        match self {
+          $(PowerId::$Variant => $Variant.on_attacked(context, info, damage),)*
+        }
+      }
+      fn on_attack(
+        &self,
+        context: &mut PowerHookContext<impl Runner>,
+        damage: i32,
+        target: CreatureIndex,
+      ) {
+        match self {
+          $(PowerId::$Variant => $Variant.on_attack(context, damage, target),)*
+        }
+      }
+      fn on_attacked_to_change_damage(&self, context: &PowerNumericHookContext, damage: i32) -> i32 {
+        match self {
+          $(PowerId::$Variant => $Variant.on_attacked_to_change_damage(context, damage),)*
+        }
+      }
+      fn on_inflict_damage(&self, context: &mut PowerHookContext<impl Runner>) {
+        match self {
+          $(PowerId::$Variant => $Variant.on_inflict_damage(context),)*
+        }
+      }
+      fn on_card_draw(&self, context: &mut PowerHookContext<impl Runner>, card: &SingleCard) {
+        match self {
+          $(PowerId::$Variant => $Variant.on_card_draw(context, card),)*
+        }
+      }
+      fn on_use_card(&self, context: &mut PowerHookContext<impl Runner>, card: &SingleCard) {
+        match self {
+          $(PowerId::$Variant => $Variant.on_use_card(context, card),)*
+        }
+      }
+      fn on_after_use_card(&self, context: &mut PowerHookContext<impl Runner>, card: &SingleCard) {
+        match self {
+          $(PowerId::$Variant => $Variant.on_after_use_card(context, card),)*
+        }
+      }
+      fn on_specific_trigger(&self, context: &mut PowerHookContext<impl Runner>) {
+        match self {
+          $(PowerId::$Variant => $Variant.on_specific_trigger(context),)*
+        }
+      }
+      fn on_death(&self, context: &mut PowerHookContext<impl Runner>) {
+        match self {
+          $(PowerId::$Variant => $Variant.on_death(context),)*
+        }
+      }
+      fn at_energy_gain(&self, context: &mut PowerHookContext<impl Runner>) {
+        match self {
+          $(PowerId::$Variant => $Variant.at_energy_gain(context),)*
+        }
+      }
+      fn on_exhaust(&self, context: &mut PowerHookContext<impl Runner>, card: &SingleCard) {
+        match self {
+          $(PowerId::$Variant => $Variant.on_exhaust(context, card),)*
+        }
+      }
+      fn modify_block(&self, context: &PowerNumericHookContext, block: f64) -> f64 {
+        match self {
+          $(PowerId::$Variant => $Variant.modify_block(context, block),)*
+        }
+      }
+      fn on_gained_block(&self, context: &mut PowerHookContext<impl Runner>, block: f64) {
+        match self {
+          $(PowerId::$Variant => $Variant.on_gained_block(context, block),)*
+        }
+      }
+      fn on_remove(&self, context: &mut PowerHookContext<impl Runner>) {
+        match self {
+          $(PowerId::$Variant => $Variant.on_remove(context),)*
+        }
+      }
+      fn on_energy_recharge(&self, context: &mut PowerHookContext<impl Runner>) {
+        match self {
+          $(PowerId::$Variant => $Variant.on_energy_recharge(context),)*
+        }
+      }
+      fn on_after_card_played(&self, context: &mut PowerHookContext<impl Runner>, card: &SingleCard) {
+        match self {
+          $(PowerId::$Variant => $Variant.on_after_card_played(context, card),)*
         }
       }
     }
@@ -310,7 +483,7 @@ powers! {
 }
 
 impl PowerBehavior for Vulnerable {
-  fn at_end_of_round(&self, context: &mut PowerHookContext) {
+  fn at_end_of_round(&self, context: &mut PowerHookContext<impl Runner>) {
     context.reduce_this_power();
   }
   fn at_damage_receive(
@@ -330,7 +503,7 @@ impl PowerBehavior for Frail {
   fn priority(&self) -> i32 {
     10
   }
-  fn at_end_of_round(&self, context: &mut PowerHookContext) {
+  fn at_end_of_round(&self, context: &mut PowerHookContext<impl Runner>) {
     context.reduce_this_power();
   }
   fn modify_block(&self, _context: &PowerNumericHookContext, block: f64) -> f64 {
@@ -342,7 +515,7 @@ impl PowerBehavior for Weak {
   fn priority(&self) -> i32 {
     99
   }
-  fn at_end_of_round(&self, context: &mut PowerHookContext) {
+  fn at_end_of_round(&self, context: &mut PowerHookContext<impl Runner>) {
     context.reduce_this_power();
   }
   fn at_damage_give(
@@ -403,7 +576,12 @@ impl PowerBehavior for Dexterity {
 }
 
 impl PowerBehavior for Thorns {
-  fn on_attacked(&self, context: &mut PowerHookContext, info: DamageInfo, _damage: i32) {
+  fn on_attacked(
+    &self,
+    context: &mut PowerHookContext<impl Runner>,
+    info: DamageInfo,
+    _damage: i32,
+  ) {
     if info.owner != context.owner_index() && info.damage_type == DamageType::Normal {
       context.action_top(DamageAction {
         target: info.owner,
@@ -414,7 +592,7 @@ impl PowerBehavior for Thorns {
 }
 
 impl PowerBehavior for Ritual {
-  fn at_end_of_round(&self, context: &mut PowerHookContext) {
+  fn at_end_of_round(&self, context: &mut PowerHookContext<impl Runner>) {
     if context.remove_just_applied() {
       context.power_owner_bottom(PowerId::Strength, context.amount());
     }
@@ -422,7 +600,12 @@ impl PowerBehavior for Ritual {
 }
 
 impl PowerBehavior for CurlUp {
-  fn on_attacked(&self, context: &mut PowerHookContext, info: DamageInfo, damage: i32) {
+  fn on_attacked(
+    &self,
+    context: &mut PowerHookContext<impl Runner>,
+    info: DamageInfo,
+    damage: i32,
+  ) {
     // hack: using amount == 0 instead of this.triggered
     if context.amount() > 0
       && damage < context.owner_creature().hitpoints
@@ -441,19 +624,24 @@ impl PowerBehavior for CurlUp {
 impl PowerBehavior for Thievery {}
 
 impl PowerBehavior for SporeCloud {
-  fn on_death(&self, context: &mut PowerHookContext) {
+  fn on_death(&self, context: &mut PowerHookContext<impl Runner>) {
     context.power_player_top(PowerId::Vulnerable, context.amount());
   }
 }
 
 impl PowerBehavior for Entangled {
-  fn at_end_of_round(&self, context: &mut PowerHookContext) {
+  fn at_end_of_round(&self, context: &mut PowerHookContext<impl Runner>) {
     context.remove_this_power();
   }
 }
 
 impl PowerBehavior for Angry {
-  fn on_attacked(&self, context: &mut PowerHookContext, info: DamageInfo, damage: i32) {
+  fn on_attacked(
+    &self,
+    context: &mut PowerHookContext<impl Runner>,
+    info: DamageInfo,
+    damage: i32,
+  ) {
     if info.owner == CreatureIndex::Player && damage > 0 && info.damage_type == DamageType::Normal {
       context.power_owner_top(PowerId::Strength, context.amount());
     }
@@ -461,7 +649,7 @@ impl PowerBehavior for Angry {
 }
 
 impl PowerBehavior for Enrage {
-  fn on_use_card(&self, context: &mut PowerHookContext, card: &SingleCard) {
+  fn on_use_card(&self, context: &mut PowerHookContext<impl Runner>, card: &SingleCard) {
     if card.card_info.card_type == CardType::Skill {
       context.power_owner_top(PowerId::Strength, context.amount());
     }
@@ -469,13 +657,13 @@ impl PowerBehavior for Enrage {
 }
 
 impl PowerBehavior for Artifact {
-  fn on_specific_trigger(&self, context: &mut PowerHookContext) {
+  fn on_specific_trigger(&self, context: &mut PowerHookContext<impl Runner>) {
     context.reduce_this_power();
   }
 }
 
 impl PowerBehavior for Metallicize {
-  fn at_end_of_turn(&self, context: &mut PowerHookContext) {
+  fn at_end_of_turn(&self, context: &mut PowerHookContext<impl Runner>) {
     context.action_bottom(GainBlockAction {
       creature_index: context.owner_index(),
       amount: context.amount(),
@@ -496,13 +684,18 @@ impl PowerBehavior for Flight {
     damage / 2.0
   }
 
-  fn on_attacked(&self, context: &mut PowerHookContext, info: DamageInfo, damage: i32) {
+  fn on_attacked(
+    &self,
+    context: &mut PowerHookContext<impl Runner>,
+    info: DamageInfo,
+    damage: i32,
+  ) {
     if damage > 0 && info.damage_type == DamageType::Normal {
       context.reduce_this_power();
     }
   }
 
-  fn at_start_of_turn(&self, context: &mut PowerHookContext) {
+  fn at_start_of_turn(&self, context: &mut PowerHookContext<impl Runner>) {
     let deficiency = context.this_power().misc - context.amount();
     if deficiency > 0 {
       context.power_owner_top(PowerId::Flight, deficiency);
@@ -511,20 +704,25 @@ impl PowerBehavior for Flight {
 }
 
 impl PowerBehavior for NoDraw {
-  fn at_end_of_turn(&self, context: &mut PowerHookContext) {
+  fn at_end_of_turn(&self, context: &mut PowerHookContext<impl Runner>) {
     context.remove_this_power();
   }
 }
 
 impl PowerBehavior for PlatedArmor {
-  fn at_end_of_turn(&self, context: &mut PowerHookContext) {
+  fn at_end_of_turn(&self, context: &mut PowerHookContext<impl Runner>) {
     context.action_bottom(GainBlockAction {
       creature_index: context.owner_index(),
       amount: context.this_power().amount,
     });
   }
 
-  fn on_attacked(&self, context: &mut PowerHookContext, info: DamageInfo, damage: i32) {
+  fn on_attacked(
+    &self,
+    context: &mut PowerHookContext<impl Runner>,
+    info: DamageInfo,
+    damage: i32,
+  ) {
     if damage > 0 && info.damage_type == DamageType::Normal {
       context.reduce_this_power();
     }
@@ -568,7 +766,7 @@ impl PowerBehavior for PenNib {
   fn priority(&self) -> i32 {
     6
   }
-  fn on_use_card(&self, context: &mut PowerHookContext, card: &SingleCard) {
+  fn on_use_card(&self, context: &mut PowerHookContext<impl Runner>, card: &SingleCard) {
     if card.card_info.card_type == CardType::Attack {
       context.remove_this_power();
     }
@@ -595,7 +793,7 @@ impl PowerBehavior for Corruption {
 }
 
 impl PowerBehavior for Evolve {
-  fn on_card_draw(&self, context: &mut PowerHookContext, card: &SingleCard) {
+  fn on_card_draw(&self, context: &mut PowerHookContext<impl Runner>, card: &SingleCard) {
     if card.card_info.card_type == CardType::Status {
       context.action_bottom(DrawCards(context.amount()));
     }
@@ -603,7 +801,7 @@ impl PowerBehavior for Evolve {
 }
 
 impl PowerBehavior for FeelNoPain {
-  fn on_exhaust(&self, context: &mut PowerHookContext, _card: &SingleCard) {
+  fn on_exhaust(&self, context: &mut PowerHookContext<impl Runner>, _card: &SingleCard) {
     context.action_bottom(GainBlockAction {
       creature_index: context.owner_index(),
       amount: context.amount(),
@@ -616,16 +814,21 @@ impl PowerBehavior for FireBreathing {
 }
 
 impl PowerBehavior for FlameBarrier {
-  fn on_attacked(&self, context: &mut PowerHookContext, info: DamageInfo, damage: i32) {
+  fn on_attacked(
+    &self,
+    context: &mut PowerHookContext<impl Runner>,
+    info: DamageInfo,
+    damage: i32,
+  ) {
     Thorns.on_attacked(context, info, damage)
   }
-  fn at_start_of_turn(&self, context: &mut PowerHookContext) {
+  fn at_start_of_turn(&self, context: &mut PowerHookContext<impl Runner>) {
     context.remove_this_power();
   }
 }
 
 impl PowerBehavior for Rage {
-  fn on_use_card(&self, context: &mut PowerHookContext, card: &SingleCard) {
+  fn on_use_card(&self, context: &mut PowerHookContext<impl Runner>, card: &SingleCard) {
     if card.card_info.card_type == CardType::Attack {
       context.action_bottom(GainBlockAction {
         creature_index: context.owner_index(),
@@ -633,7 +836,7 @@ impl PowerBehavior for Rage {
       });
     }
   }
-  fn at_end_of_turn(&self, context: &mut PowerHookContext) {
+  fn at_end_of_turn(&self, context: &mut PowerHookContext<impl Runner>) {
     context.remove_this_power();
   }
 }
@@ -645,7 +848,7 @@ impl PowerBehavior for Rupture {
 impl PowerBehavior for Barricade {}
 
 impl PowerBehavior for Berserk {
-  fn at_start_of_turn(&self, context: &mut PowerHookContext) {
+  fn at_start_of_turn(&self, context: &mut PowerHookContext<impl Runner>) {
     context.action_bottom(GainEnergyAction(context.amount()))
   }
 }
@@ -655,13 +858,13 @@ impl PowerBehavior for Brutality {
 }
 
 impl PowerBehavior for DarkEmbrace {
-  fn on_exhaust(&self, context: &mut PowerHookContext, _card: &SingleCard) {
+  fn on_exhaust(&self, context: &mut PowerHookContext<impl Runner>, _card: &SingleCard) {
     context.action_bottom(DrawCards(1));
   }
 }
 
 impl PowerBehavior for DemonForm {
-  fn at_start_of_turn_post_draw(&self, context: &mut PowerHookContext) {
+  fn at_start_of_turn_post_draw(&self, context: &mut PowerHookContext<impl Runner>) {
     context.power_owner_bottom(PowerId::Strength, context.amount());
   }
 }
@@ -671,7 +874,7 @@ impl PowerBehavior for DoubleTap {
 }
 
 impl PowerBehavior for Juggernaut {
-  fn on_gained_block(&self, _context: &mut PowerHookContext, _block: f64) {
+  fn on_gained_block(&self, _context: &mut PowerHookContext<impl Runner>, _block: f64) {
     //TODO
   }
 }

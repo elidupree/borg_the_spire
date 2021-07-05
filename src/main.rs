@@ -42,7 +42,7 @@ macro_rules! power_hook {
       let owner = $owner;
       let index = $power_index;
       let power_id = runner.state().get_creature (owner).powers [index].power_id;
-      power_id.$hook (&mut $crate::simulation_state::powers::PowerHookContext {runner, owner, power_index: index}, $($arguments)*);
+      $crate::simulation_state::powers::PowerBehavior::$hook (&power_id, &mut $crate::simulation_state::powers::PowerHookContext {runner, owner, power_index: index}, $($arguments)*);
     }
   };
   ($runner: expr, $owner: expr, $hook: ident ( $($arguments:tt)*)) => {
@@ -61,7 +61,7 @@ macro_rules! power_hook {
       let owner = $owner;
       let creature = state.get_creature(owner);
       for (index, power) in creature.powers.iter().enumerate() {
-        $lval = power.power_id.$hook (&$crate::simulation_state::powers::PowerNumericHookContext {state, owner, power_index: index}, $($arguments)*);
+        $lval = $crate::simulation_state::powers::PowerBehavior::$hook (&power.power_id, &$crate::simulation_state::powers::PowerNumericHookContext {state, owner, power_index: index}, $($arguments)*);
       }
     }
   };

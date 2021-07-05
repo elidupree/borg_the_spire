@@ -117,8 +117,8 @@ pub fn intent_choice_distribution(state: &CombatState, monster_index: usize) -> 
   context.final_distribution()
 }
 
-pub struct DoIntentContext<'a, 'b> {
-  pub runner: &'a mut Runner<'b>,
+pub struct DoIntentContext<'a, R: Runner> {
+  pub runner: &'a mut R,
   pub monster_index: usize,
 }
 
@@ -212,7 +212,7 @@ pub trait IntentEffectsContext {
   fn undefined_intent(&mut self) {}
 }
 
-impl<'a, 'b> IntentEffectsContext for DoIntentContext<'a, 'b> {
+impl<'a, R: Runner> IntentEffectsContext for DoIntentContext<'a, R> {
   fn action(&mut self, action: impl Action) {
     self.runner.action_bottom(action)
   }
@@ -236,8 +236,8 @@ impl<'a> IntentEffectsContext for ConsiderIntentContext<'a> {
   }
 }
 
-impl<'a, 'b> DoIntentContext<'a, 'b> {
-  pub fn new(runner: &'a mut Runner<'b>, monster_index: usize) -> Self {
+impl<'a, R: Runner> DoIntentContext<'a, R> {
+  pub fn new(runner: &'a mut R, monster_index: usize) -> Self {
     DoIntentContext {
       runner,
       monster_index,
@@ -259,7 +259,7 @@ pub fn intent_actions(state: &CombatState, monster_index: usize) -> SmallVec<[Dy
 pub trait MonsterBehavior: Sized + Copy + Into<MonsterId> {
   fn make_intent_distribution(self, context: &mut IntentChoiceContext);
 
-  fn after_choosing_intent(self, runner: &mut Runner, monster_index: usize) {}
+  fn after_choosing_intent(self, runner: &mut impl Runner, monster_index: usize) {}
   fn intent_effects(self, context: &mut impl IntentEffectsContext);
 }
 
@@ -294,7 +294,7 @@ macro_rules! monsters {
         $(MonsterId::$Variant => $Variant.make_intent_distribution (context),)*
         }
       }
-      fn after_choosing_intent (self, runner: &mut Runner, monster_index: usize) {
+      fn after_choosing_intent (self, runner: &mut impl Runner, monster_index: usize) {
         match self {
         $(MonsterId::$Variant => $Variant.after_choosing_intent (runner, monster_index),)*
         }
@@ -362,7 +362,7 @@ impl MonsterBehavior for RedLouse {
     context.if_num_lt(25, context.with_max_repeats(max_buff_repeats, 4, 3));
     context.else_num(context.with_max_repeats(Repeats(2), 3, 4));
   }
-  fn after_choosing_intent(self, runner: &mut Runner, monster_index: usize) {
+  fn after_choosing_intent(self, runner: &mut impl Runner, monster_index: usize) {
     if runner.state().monster_intent(monster_index) == 3 {
       let ascension = runner.state().monsters[monster_index].ascension;
       let bonus = if ascension >= 2 { 1 } else { 0 };
@@ -388,7 +388,7 @@ impl MonsterBehavior for GreenLouse {
   fn make_intent_distribution(self, context: &mut IntentChoiceContext) {
     RedLouse.make_intent_distribution(context);
   }
-  fn after_choosing_intent(self, runner: &mut Runner, monster_index: usize) {
+  fn after_choosing_intent(self, runner: &mut impl Runner, monster_index: usize) {
     RedLouse.after_choosing_intent(runner, monster_index);
   }
 
@@ -833,7 +833,7 @@ impl MonsterBehavior for Lagavulin {
       context.always(5);
     }
   }
-  fn after_choosing_intent(self, runner: &mut Runner, monster_index: usize) {
+  fn after_choosing_intent(self, runner: &mut impl Runner, monster_index: usize) {
     let monster = &runner.state().monsters[monster_index];
     let intent = monster.intent();
     if intent == 1 || intent == 3 && monster.creature.power_amount(PowerId::Metallicize) >= 8 {
