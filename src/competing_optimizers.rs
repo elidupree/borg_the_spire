@@ -1,5 +1,6 @@
 use ordered_float::OrderedFloat;
 use rand::seq::SliceRandom;
+use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
 
 //use crate::actions::*;
@@ -54,19 +55,19 @@ impl<'a, T: Strategy> Strategy for MetaStrategy<'a, T> {
   }
 }
 
-pub struct ExplorationOptimizer<T, F> {
+pub struct ExplorationOptimizer<T> {
   candidate_strategies: Vec<CandidateStrategy<T>>,
-  new_strategy: F,
+  new_strategy: Box<dyn Fn(&[CandidateStrategy<T>]) -> T>,
   passes: usize,
   current_pass_index: usize,
 }
 
-impl<T, F> ExplorationOptimizer<T, F> {
+impl<T> ExplorationOptimizer<T> {
   pub fn max_strategy_playouts(&self) -> usize {
     ((self.passes as f64).sqrt() + 2.0) as usize
   }
 
-  pub fn new(new_strategy: F) -> Self {
+  pub fn new(new_strategy: Box<dyn Fn(&[CandidateStrategy<T>]) -> T>) -> Self {
     ExplorationOptimizer {
       candidate_strategies: Vec::new(),
       new_strategy,
@@ -89,9 +90,7 @@ impl<T, F> ExplorationOptimizer<T, F> {
   }
 }
 
-impl<T: Strategy, F: Fn(&[CandidateStrategy<T>]) -> T> StrategyOptimizer
-  for ExplorationOptimizer<T, F>
-{
+impl<T: Strategy> StrategyOptimizer for ExplorationOptimizer<T> {
   type Strategy = T;
   fn step(&mut self, state: &CombatState) {
     loop {
@@ -151,7 +150,7 @@ impl StrategyOptimizer for NeuralStrategy {
   }
 }
 
-pub fn benchmark_step(name: &str, state: &CombatState, optimizer: &mut impl StrategyOptimizer) {
+pub fn optimizer_step(name: &str, state: &CombatState, optimizer: &mut impl StrategyOptimizer) {
   println!("Optimizing {}…", name);
   let start = Instant::now();
   let mut steps = 0;
@@ -245,33 +244,107 @@ pub fn run_benchmark (name: & str, state: & CombatState, optimization_playouts: 
   println!();
 }*/
 
-pub fn run_benchmarks() {
-  //let optimization_playouts = 1000000;
-  //let test_playouts = 10000;
+pub trait Competitor {
+  fn step(&mut self, state: &CombatState);
+}
+struct OptimizerCompetitor<T> {
+  name: String,
+  optimizer: T,
+}
+impl<T: StrategyOptimizer> Competitor for OptimizerCompetitor<T> {
+  fn step(&mut self, state: &CombatState) {
+    optimizer_step(&self.name, state, &mut self.optimizer);
+  }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum CompetitorSpecification {
+  ExplorationOptimizer(ExplorationOptimizerSpecification),
+}
+#[derive(Copy, Clone, Serialize, Deserialize, Debug)]
+pub enum ExplorationOptimizerSpecification {
+  FastRandom,
+  FastGenetic,
+  NeuralRandom,
+  NeuralMutating,
+}
+
+impl CompetitorSpecification {
+  pub fn build(self) -> Box<dyn Competitor> {
+    match self {
+      CompetitorSpecification::ExplorationOptimizer(specification) => specification.build(),
+    }
+  }
+}
+impl ExplorationOptimizerSpecification {
+  pub fn build(self) -> Box<dyn Competitor> {
+    let name = format!("{:?}", self);
+    match self {
+      ExplorationOptimizerSpecification::FastRandom => Box::new(OptimizerCompetitor {
+        name,
+        optimizer: ExplorationOptimizer::new(Box::new(
+          |_: &[CandidateStrategy<FastStrategy>]| FastStrategy::random(),
+        )),
+      }),
+      ExplorationOptimizerSpecification::FastGenetic => Box::new(OptimizerCompetitor {
+        name,
+        optimizer: ExplorationOptimizer::new(Box::new(
+          |candidates: &[CandidateStrategy<FastStrategy>]| {
+            if candidates.len() < 2 {
+              FastStrategy::random()
+            } else {
+              FastStrategy::offspring(
+                &candidates
+                  .choose_multiple(&mut rand::thread_rng(), 2)
+                  .map(|candidate| &candidate.strategy)
+                  .collect::<Vec<_>>(),
+              )
+            }
+          },
+        )),
+      }),
+      ExplorationOptimizerSpecification::NeuralRandom => Box::new(OptimizerCompetitor {
+        name,
+        optimizer: ExplorationOptimizer::new(Box::new(
+          |_: &[CandidateStrategy<NeuralStrategy>]| NeuralStrategy::new_random(16),
+        )),
+      }),
+      ExplorationOptimizerSpecification::NeuralMutating => Box::new(OptimizerCompetitor {
+        name,
+        optimizer: ExplorationOptimizer::new(Box::new(
+          |candidates: &[CandidateStrategy<NeuralStrategy>]| {
+            if candidates.len() < 1 || rand::random::<f64>() < 0.4 {
+              NeuralStrategy::new_random(16)
+            } else {
+              candidates
+                .choose(&mut rand::thread_rng())
+                .unwrap()
+                .strategy
+                .mutated()
+            }
+          },
+        )),
+      }),
+    }
+  }
+}
+
+pub fn run(competitors: impl IntoIterator<Item = CompetitorSpecification>) {
+  let mut competitors: Vec<_> = competitors
+    .into_iter()
+    .map(CompetitorSpecification::build)
+    .collect();
   let ghost_file = std::fs::File::open("data/hexaghost.json").unwrap();
   let ghost_state: CombatState =
     serde_json::from_reader(std::io::BufReader::new(ghost_file)).unwrap();
-
-  let mut fast_random: ExplorationOptimizer<FastStrategy, _> =
-    ExplorationOptimizer::new(|_: &[CandidateStrategy<FastStrategy>]| FastStrategy::random());
-  let mut fast_genetic: ExplorationOptimizer<FastStrategy, _> =
-    ExplorationOptimizer::new(|candidates: &[CandidateStrategy<FastStrategy>]| {
-      if candidates.len() < 2 {
-        FastStrategy::random()
-      } else {
-        FastStrategy::offspring(
-          &candidates
-            .choose_multiple(&mut rand::thread_rng(), 2)
-            .map(|candidate| &candidate.strategy)
-            .collect::<Vec<_>>(),
-        )
-      }
-    });
-
-  let mut neural_random_only: ExplorationOptimizer<NeuralStrategy, _> =
-    ExplorationOptimizer::new(|_: &[CandidateStrategy<NeuralStrategy>]| {
-      NeuralStrategy::new_random(&ghost_state, 16)
-    });
+  for iteration in 0..20 {
+    println!("Iteration {}:", iteration);
+    for competitor in &mut competitors {
+      competitor.step(&ghost_state);
+    }
+  }
+  //let optimization_playouts = 1000000;
+  //let test_playouts = 10000;
   //let mut neural_training_only = NeuralStrategy::new_random(&ghost_state, 16);
 
   /*let mut neural_random_training: ExplorationOptimizer<NeuralStrategy, _> =
@@ -291,42 +364,6 @@ pub fn run_benchmarks() {
     }
   });*/
 
-  let mut neural_mutating: ExplorationOptimizer<NeuralStrategy, _> =
-    ExplorationOptimizer::new(|candidates: &[CandidateStrategy<NeuralStrategy>]| {
-      if candidates.len() < 1 || rand::random::<f64>() < 0.4 {
-        NeuralStrategy::new_random(&ghost_state, 16)
-      } else {
-        candidates
-          .choose(&mut rand::thread_rng())
-          .unwrap()
-          .strategy
-          .mutated()
-      }
-    });
-
-  for _ in 0..20 {
-    benchmark_step(
-      "Hexaghost (FastStrategy, random)",
-      &ghost_state,
-      &mut fast_random,
-    );
-    benchmark_step(
-      "Hexaghost (FastStrategy, genetic)",
-      &ghost_state,
-      &mut fast_genetic,
-    );
-    benchmark_step(
-      "Hexaghost (NeuralStrategy, random only)",
-      &ghost_state,
-      &mut neural_random_only,
-    );
-    //benchmark_step("Hexaghost (NeuralStrategy, training only)", & ghost_state, &mut neural_training_only);
-    //benchmark_step("Hexaghost (NeuralStrategy, random/training)", & ghost_state, &mut neural_random_training);
-    benchmark_step(
-      "Hexaghost (NeuralStrategy, mutating)",
-      &ghost_state,
-      &mut neural_mutating,
-    );
-    println!();
-  }
+  //benchmark_step("Hexaghost (NeuralStrategy, training only)", & ghost_state, &mut neural_training_only);
+  //benchmark_step("Hexaghost (NeuralStrategy, random/training)", & ghost_state, &mut neural_random_training);
 }

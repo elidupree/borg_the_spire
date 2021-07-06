@@ -181,8 +181,8 @@ fn random_weights(hidden_layer_size: usize) -> Vec<f64> {
 }
 
 impl NeuralStrategy {
-  pub fn new_random(state: &CombatState, hidden_layer_size: usize) -> Self {
-    let inputs = inputs(state);
+  pub fn new_random(hidden_layer_size: usize) -> Self {
+    let inputs = inputs(&CombatState::default());
     let input_weights = inputs
       .iter()
       .map(|_| random_weights(hidden_layer_size))

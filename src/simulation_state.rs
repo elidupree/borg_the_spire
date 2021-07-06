@@ -37,7 +37,7 @@ pub fn compare_cards_unordered(first: &[SingleCard], second: &[SingleCard]) -> b
   first_sorted == second_sorted
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, Derivative)]
+#[derive(Clone, Serialize, Deserialize, Debug, Derivative, Default)]
 #[derivative(PartialEq, Eq, Hash)]
 pub struct CombatState {
   #[derivative(
@@ -129,7 +129,7 @@ impl Default for CardInfo {
   }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug, Default)]
 pub struct Creature {
   pub hitpoints: i32,
   pub max_hitpoints: i32,
@@ -137,7 +137,7 @@ pub struct Creature {
   pub powers: Vec<Power>,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug, Default)]
 pub struct Player {
   pub creature: Creature,
   pub energy: i32,

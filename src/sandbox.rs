@@ -18,7 +18,7 @@ pub fn run(root_path: PathBuf) {
 
 pub fn play_some<S: Strategy>(runner: &mut impl Runner, strategy: &S) {
   run_until_unable(runner);
-  while runner.state().turn_number < 2 && !runner.state().combat_over() {
+  while runner.state().turn_number < 3 && !runner.state().combat_over() {
     let choices = strategy.choose_choice(runner.state());
     for choice in choices {
       assert!(runner.state().fresh_subaction_queue.is_empty());

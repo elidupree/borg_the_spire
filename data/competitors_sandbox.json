@@ -1,0 +1,4 @@
+[
+  {"ExplorationOptimizer": "FastRandom"},
+  {"ExplorationOptimizer": "FastGenetic"}
+]

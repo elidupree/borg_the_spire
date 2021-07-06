@@ -3,6 +3,7 @@
 #[macro_use]
 extern crate rocket;
 
+use crate::competing_optimizers::CompetitorSpecification;
 use clap::{App, AppSettings, Arg, SubCommand};
 use std::path::PathBuf;
 //use std::io::BufRead;
@@ -68,8 +69,8 @@ macro_rules! power_hook {
 }
 
 mod actions;
-mod benchmarks;
 mod communication_mod_state;
+mod competing_optimizers;
 //mod cow;
 mod ai_utils;
 mod interface;
@@ -97,7 +98,9 @@ fn main() {
         .arg(Arg::with_name("executable_copy"))
         .arg(Arg::with_name("args").multiple(true)),
     )
-    .subcommand(SubCommand::with_name("benchmark"))
+    .subcommand(
+      SubCommand::with_name("run_competing_optimizers").arg(Arg::with_name("competitor_spec_file")),
+    )
     .subcommand(SubCommand::with_name("sandbox").arg(Arg::with_name("root_path").required(true)))
     .get_matches();
 
@@ -113,8 +116,11 @@ fn main() {
         &matches.values_of("args").unwrap().collect::<Vec<&str>>(),
       );
     }
-    ("benchmark", Some(_matches)) => {
-      benchmarks::run_benchmarks();
+    ("run_competing_optimizers", Some(matches)) => {
+      let file = std::fs::File::open(matches.value_of("competitor_spec_file").unwrap()).unwrap();
+      let competitors: Vec<CompetitorSpecification> =
+        serde_json::from_reader(std::io::BufReader::new(file)).unwrap();
+      competing_optimizers::run(competitors);
     }
     ("sandbox", Some(matches)) => {
       sandbox::run(PathBuf::from(matches.value_of("root_path").unwrap()));
