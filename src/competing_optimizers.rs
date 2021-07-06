@@ -11,10 +11,17 @@ use crate::simulation::*;
 use crate::simulation_state::*;
 use crate::start_and_strategy_ai::FastStrategy;
 
-pub trait StrategyOptimizer {
+pub trait StrategyOptimizer: 'static {
   type Strategy: Strategy;
   fn step(&mut self, state: &CombatState);
   fn report(&self) -> &Self::Strategy;
+}
+
+pub trait ExplorationOptimizerKind {
+  type ExplorationOptimizer<T: Strategy + 'static>: StrategyOptimizer<Strategy = T>;
+  fn new<T: Strategy + 'static>(
+    new_strategy: Box<dyn Fn(&[CandidateStrategy<T>]) -> T>,
+  ) -> Self::ExplorationOptimizer<T>;
 }
 
 pub struct CandidateStrategy<T> {
@@ -55,20 +62,21 @@ impl<'a, T: Strategy> Strategy for MetaStrategy<'a, T> {
   }
 }
 
-pub struct ExplorationOptimizer<T> {
+pub struct OriginalExplorationOptimizerKind;
+pub struct OriginalExplorationOptimizer<T> {
   candidate_strategies: Vec<CandidateStrategy<T>>,
   new_strategy: Box<dyn Fn(&[CandidateStrategy<T>]) -> T>,
   passes: usize,
   current_pass_index: usize,
 }
 
-impl<T> ExplorationOptimizer<T> {
+impl<T> OriginalExplorationOptimizer<T> {
   pub fn max_strategy_playouts(&self) -> usize {
     ((self.passes as f64).sqrt() + 2.0) as usize
   }
 
   pub fn new(new_strategy: Box<dyn Fn(&[CandidateStrategy<T>]) -> T>) -> Self {
-    ExplorationOptimizer {
+    OriginalExplorationOptimizer {
       candidate_strategies: Vec::new(),
       new_strategy,
       passes: 0,
@@ -90,7 +98,17 @@ impl<T> ExplorationOptimizer<T> {
   }
 }
 
-impl<T: Strategy> StrategyOptimizer for ExplorationOptimizer<T> {
+impl ExplorationOptimizerKind for OriginalExplorationOptimizerKind {
+  type ExplorationOptimizer<T: Strategy + 'static> = OriginalExplorationOptimizer<T>;
+
+  fn new<T: Strategy + 'static>(
+    new_strategy: Box<dyn Fn(&[CandidateStrategy<T>]) -> T>,
+  ) -> Self::ExplorationOptimizer<T> {
+    OriginalExplorationOptimizer::new(new_strategy)
+  }
+}
+
+impl<T: Strategy + 'static> StrategyOptimizer for OriginalExplorationOptimizer<T> {
   type Strategy = T;
   fn step(&mut self, state: &CombatState) {
     loop {
@@ -259,36 +277,57 @@ impl<T: StrategyOptimizer> Competitor for OptimizerCompetitor<T> {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum CompetitorSpecification {
-  ExplorationOptimizer(ExplorationOptimizerSpecification),
+  ExplorationOptimizer(
+    ExplorationOptimizerKindSpecification,
+    StrategyAndGeneratorSpecification,
+  ),
 }
 #[derive(Copy, Clone, Serialize, Deserialize, Debug)]
-pub enum ExplorationOptimizerSpecification {
+pub enum StrategyAndGeneratorSpecification {
   FastRandom,
   FastGenetic,
   NeuralRandom,
   NeuralMutating,
 }
+#[derive(Copy, Clone, Serialize, Deserialize, Debug)]
+pub enum ExplorationOptimizerKindSpecification {
+  Original,
+}
 
 impl CompetitorSpecification {
   pub fn build(self) -> Box<dyn Competitor> {
     match self {
-      CompetitorSpecification::ExplorationOptimizer(specification) => specification.build(),
+      CompetitorSpecification::ExplorationOptimizer(optimizer, strategy) => {
+        optimizer.build(strategy)
+      }
     }
   }
 }
-impl ExplorationOptimizerSpecification {
-  pub fn build(self) -> Box<dyn Competitor> {
-    let name = format!("{:?}", self);
+impl ExplorationOptimizerKindSpecification {
+  pub fn build(self, strategy: StrategyAndGeneratorSpecification) -> Box<dyn Competitor> {
     match self {
-      ExplorationOptimizerSpecification::FastRandom => Box::new(OptimizerCompetitor {
+      ExplorationOptimizerKindSpecification::Original => {
+        strategy.build::<OriginalExplorationOptimizerKind>(self)
+      }
+    }
+  }
+}
+impl StrategyAndGeneratorSpecification {
+  pub fn build<K: ExplorationOptimizerKind>(
+    self,
+    optimizer: ExplorationOptimizerKindSpecification,
+  ) -> Box<dyn Competitor> {
+    let name = format!("{:?}/{:?}", optimizer, self);
+    match self {
+      StrategyAndGeneratorSpecification::FastRandom => Box::new(OptimizerCompetitor {
         name,
-        optimizer: ExplorationOptimizer::new(Box::new(
-          |_: &[CandidateStrategy<FastStrategy>]| FastStrategy::random(),
-        )),
+        optimizer: K::new(Box::new(|_: &[CandidateStrategy<FastStrategy>]| {
+          FastStrategy::random()
+        })),
       }),
-      ExplorationOptimizerSpecification::FastGenetic => Box::new(OptimizerCompetitor {
+      StrategyAndGeneratorSpecification::FastGenetic => Box::new(OptimizerCompetitor {
         name,
-        optimizer: ExplorationOptimizer::new(Box::new(
+        optimizer: K::new(Box::new(
           |candidates: &[CandidateStrategy<FastStrategy>]| {
             if candidates.len() < 2 {
               FastStrategy::random()
@@ -303,15 +342,15 @@ impl ExplorationOptimizerSpecification {
           },
         )),
       }),
-      ExplorationOptimizerSpecification::NeuralRandom => Box::new(OptimizerCompetitor {
+      StrategyAndGeneratorSpecification::NeuralRandom => Box::new(OptimizerCompetitor {
         name,
-        optimizer: ExplorationOptimizer::new(Box::new(
-          |_: &[CandidateStrategy<NeuralStrategy>]| NeuralStrategy::new_random(16),
-        )),
+        optimizer: K::new(Box::new(|_: &[CandidateStrategy<NeuralStrategy>]| {
+          NeuralStrategy::new_random(16)
+        })),
       }),
-      ExplorationOptimizerSpecification::NeuralMutating => Box::new(OptimizerCompetitor {
+      StrategyAndGeneratorSpecification::NeuralMutating => Box::new(OptimizerCompetitor {
         name,
-        optimizer: ExplorationOptimizer::new(Box::new(
+        optimizer: K::new(Box::new(
           |candidates: &[CandidateStrategy<NeuralStrategy>]| {
             if candidates.len() < 1 || rand::random::<f64>() < 0.4 {
               NeuralStrategy::new_random(16)

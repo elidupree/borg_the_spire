@@ -1,4 +1,4 @@
 [
-  {"ExplorationOptimizer": "FastRandom"},
-  {"ExplorationOptimizer": "FastGenetic"}
+  {"ExplorationOptimizer": ["Original","FastRandom"]},
+  {"ExplorationOptimizer": ["Original","FastGenetic"]}
 ]
