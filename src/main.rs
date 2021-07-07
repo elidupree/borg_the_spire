@@ -77,6 +77,7 @@ mod ai_utils;
 mod interface;
 mod neural_net_ai;
 //mod omniscient_search;
+mod representative_sampling;
 mod sandbox;
 mod seed_system;
 mod seeds_concrete;
