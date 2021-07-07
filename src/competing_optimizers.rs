@@ -33,7 +33,7 @@ pub struct CandidateStrategy<T> {
   total_score: f64,
 }
 
-fn playout_result(
+pub fn playout_result(
   state: &CombatState,
   seed: impl SeedView<CombatState>,
   strategy: &impl Strategy,

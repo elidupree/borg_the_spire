@@ -1,4 +1,5 @@
 use crate::ai_utils::Strategy;
+use crate::competing_optimizers::playout_result;
 use crate::seed_system::SeedView;
 use crate::simulation_state::CombatState;
 use ordered_float::OrderedFloat;
@@ -114,7 +115,7 @@ pub fn representative_subgroup<'a, T>(
 }
 
 //exploiter_scores is indexed first by exploiting-strategy index and then by seed index
-pub fn representative_seed_subgroup<T: SeedView<CombatState>, S: Strategy>(
+pub fn representative_seed_subgroup<T: SeedView<CombatState>>(
   corpus: &[&T],
   exploiter_scores: &[&[f64]],
   subgroup_size: usize,
@@ -133,4 +134,76 @@ pub fn representative_seed_subgroup<T: SeedView<CombatState>, S: Strategy>(
     .into_iter()
     .map(|&index| corpus[index].clone())
     .collect()
+}
+
+struct RepresentativeSeedSearchLayerExploiter {
+  hypothesized_average_score: f64,
+  scores: Vec<f64>,
+}
+
+pub struct RepresentativeSeedSearchLayer<T> {
+  seeds: Vec<T>,
+  best_scores: Vec<f64>,
+  exploiters: Vec<RepresentativeSeedSearchLayerExploiter>,
+}
+
+impl<T: SeedView<CombatState>> RepresentativeSeedSearchLayer<T> {
+  pub fn new(seeds: Vec<T>, starting_state: &CombatState, strategy: &impl Strategy) -> Self {
+    let scores = seeds
+      .iter()
+      .map(|seed| playout_result(starting_state, seed.clone(), strategy).score)
+      .collect();
+
+    RepresentativeSeedSearchLayer {
+      seeds,
+      best_scores: scores,
+      exploiters: Vec::new(),
+    }
+  }
+  /**
+  Try a strategy which is hypothesized to be better than the current best.
+
+  Typically, `strategy` will be a strategy that has been optimized on a subset of the current seeds, and performs better than the current best on the subset. This function evaluates it on the entire corpus, and checks whether it indeed performs better. If it does, we replace the current best with the new strategy; if it doesn't, we add it to our collection of "exploiters", and return a new subset that tries to resist the exploitation used by `strategy` as well as all previous exploiters.
+  */
+  pub fn try_strategy(
+    &mut self,
+    starting_state: &CombatState,
+    strategy: &impl Strategy,
+    hypothesized_average_score: f64,
+    subgroup_size: usize,
+    rng: &mut impl Rng,
+  ) -> Result<(), Vec<T>> {
+    let scores: Vec<f64> = self
+      .seeds
+      .iter()
+      .map(|seed| playout_result(starting_state, seed.clone(), strategy).score)
+      .collect();
+    let sum = scores.iter().sum::<f64>();
+    if sum > self.best_scores.iter().sum::<f64>() {
+      let average = sum / self.seeds.len() as f64;
+      self
+        .exploiters
+        .retain(|e| e.hypothesized_average_score > average);
+      self.best_scores = scores;
+      Ok(())
+    } else {
+      self
+        .exploiters
+        .push(RepresentativeSeedSearchLayerExploiter {
+          hypothesized_average_score,
+          scores,
+        });
+      let new_subgroup = representative_seed_subgroup(
+        &self.seeds.iter().collect::<Vec<_>>(),
+        &self
+          .exploiters
+          .iter()
+          .map(|e| e.scores.as_slice())
+          .collect::<Vec<_>>(),
+        subgroup_size,
+        rng,
+      );
+      Err(new_subgroup)
+    }
+  }
 }
