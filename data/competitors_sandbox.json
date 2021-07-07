@@ -1,4 +1,10 @@
 [
   {"ExplorationOptimizer": ["Original","FastRandom"]},
-  {"ExplorationOptimizer": ["Original","FastGenetic"]}
+  {"ExplorationOptimizer": ["Original","FastGenetic"]},
+  {"ExplorationOptimizer": [{"IndependentSeeds": 30},"FastRandom"]},
+  {"ExplorationOptimizer": [{"IndependentSeeds": 30},"FastGenetic"]},
+  {"ExplorationOptimizer": [{"IndependentSeeds": 100},"FastRandom"]},
+  {"ExplorationOptimizer": [{"IndependentSeeds": 100},"FastGenetic"]},
+  {"ExplorationOptimizer": [{"IndependentSeeds": 300},"FastRandom"]},
+  {"ExplorationOptimizer": [{"IndependentSeeds": 300},"FastGenetic"]}
 ]

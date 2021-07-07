@@ -1,4 +1,4 @@
-use ordered_float::OrderedFloat;
+use ordered_float::{NotNan, OrderedFloat};
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
@@ -6,10 +6,12 @@ use std::time::{Duration, Instant};
 //use crate::actions::*;
 use crate::ai_utils::{collect_starting_points, play_out, CombatResult, Strategy};
 use crate::neural_net_ai::NeuralStrategy;
-use crate::seed_system::Unseeded;
+use crate::seed_system::{SeedView, SingleSeedView, Unseeded};
+use crate::seeds_concrete::CombatChoiceLineageIdentity;
 use crate::simulation::*;
 use crate::simulation_state::*;
 use crate::start_and_strategy_ai::FastStrategy;
+use std::collections::BTreeMap;
 
 pub trait StrategyOptimizer: 'static {
   type Strategy: Strategy;
@@ -20,7 +22,8 @@ pub trait StrategyOptimizer: 'static {
 pub trait ExplorationOptimizerKind {
   type ExplorationOptimizer<T: Strategy + 'static>: StrategyOptimizer<Strategy = T>;
   fn new<T: Strategy + 'static>(
-    new_strategy: Box<dyn Fn(&[CandidateStrategy<T>]) -> T>,
+    self,
+    new_strategy: Box<dyn Fn(&[&T]) -> T>,
   ) -> Self::ExplorationOptimizer<T>;
 }
 
@@ -30,12 +33,13 @@ pub struct CandidateStrategy<T> {
   total_score: f64,
 }
 
-fn playout_result(state: &CombatState, strategy: &impl Strategy) -> CombatResult {
+fn playout_result(
+  state: &CombatState,
+  seed: impl SeedView<CombatState>,
+  strategy: &impl Strategy,
+) -> CombatResult {
   let mut state = state.clone();
-  play_out(
-    &mut StandardRunner::new(&mut state, Unseeded, false),
-    strategy,
-  );
+  play_out(&mut StandardRunner::new(&mut state, seed, false), strategy);
   CombatResult::new(&state)
 }
 
@@ -50,7 +54,7 @@ impl<'a, T: Strategy> Strategy for MetaStrategy<'a, T> {
       run_until_unable(&mut StandardRunner::new(&mut state, Unseeded, false));
       let num_attempts = 200;
       let score = (0..num_attempts)
-        .map(|_| playout_result(&state, self.0).score)
+        .map(|_| playout_result(&state, Unseeded, self.0).score)
         .sum::<f64>()
         / num_attempts as f64;
       (choices, score)
@@ -65,7 +69,7 @@ impl<'a, T: Strategy> Strategy for MetaStrategy<'a, T> {
 pub struct OriginalExplorationOptimizerKind;
 pub struct OriginalExplorationOptimizer<T> {
   candidate_strategies: Vec<CandidateStrategy<T>>,
-  new_strategy: Box<dyn Fn(&[CandidateStrategy<T>]) -> T>,
+  new_strategy: Box<dyn Fn(&[&T]) -> T>,
   passes: usize,
   current_pass_index: usize,
 }
@@ -75,7 +79,7 @@ impl<T> OriginalExplorationOptimizer<T> {
     ((self.passes as f64).sqrt() + 2.0) as usize
   }
 
-  pub fn new(new_strategy: Box<dyn Fn(&[CandidateStrategy<T>]) -> T>) -> Self {
+  pub fn new(new_strategy: Box<dyn Fn(&[&T]) -> T>) -> Self {
     OriginalExplorationOptimizer {
       candidate_strategies: Vec::new(),
       new_strategy,
@@ -102,7 +106,8 @@ impl ExplorationOptimizerKind for OriginalExplorationOptimizerKind {
   type ExplorationOptimizer<T: Strategy + 'static> = OriginalExplorationOptimizer<T>;
 
   fn new<T: Strategy + 'static>(
-    new_strategy: Box<dyn Fn(&[CandidateStrategy<T>]) -> T>,
+    self,
+    new_strategy: Box<dyn Fn(&[&T]) -> T>,
   ) -> Self::ExplorationOptimizer<T> {
     OriginalExplorationOptimizer::new(new_strategy)
   }
@@ -124,7 +129,13 @@ impl<T: Strategy + 'static> StrategyOptimizer for OriginalExplorationOptimizer<T
 
         self.passes += 1;
         self.candidate_strategies.push(CandidateStrategy {
-          strategy: (self.new_strategy)(&self.candidate_strategies),
+          strategy: (self.new_strategy)(
+            &self
+              .candidate_strategies
+              .iter()
+              .map(|c| &c.strategy)
+              .collect::<Vec<_>>(),
+          ),
           playouts: 0,
           total_score: 0.0,
         });
@@ -136,7 +147,7 @@ impl<T: Strategy + 'static> StrategyOptimizer for OriginalExplorationOptimizer<T
       self.current_pass_index += 1;
 
       if strategy.playouts < max_strategy_playouts {
-        let result = playout_result(state, &strategy.strategy);
+        let result = playout_result(state, Unseeded, &strategy.strategy);
         strategy.total_score += result.score;
         strategy.playouts += 1;
         return;
@@ -148,12 +159,89 @@ impl<T: Strategy + 'static> StrategyOptimizer for OriginalExplorationOptimizer<T
     let best = self.best_strategy();
 
     println!(
-      "ExplorationOptimizer reporting strategy with {} playouts, running average {}",
+      "OriginalExplorationOptimizer reporting strategy with {} playouts, running average {}",
       best.playouts,
       (best.total_score / best.playouts as f64)
     );
 
     &best.strategy
+  }
+}
+
+pub struct IndependentSeedsExplorationOptimizerKind {
+  num_seeds: usize,
+}
+pub struct IndependentSeedsExplorationOptimizer<T> {
+  candidate_strategies: BTreeMap<NotNan<f64>, T>,
+  new_strategy: Box<dyn Fn(&[&T]) -> T>,
+  seeds: Vec<SingleSeedView<CombatChoiceLineageIdentity>>,
+  steps: usize,
+}
+
+impl<T> IndependentSeedsExplorationOptimizer<T> {
+  pub fn new(num_seeds: usize, new_strategy: Box<dyn Fn(&[&T]) -> T>) -> Self {
+    IndependentSeedsExplorationOptimizer {
+      candidate_strategies: BTreeMap::new(),
+      new_strategy,
+      seeds: (0..num_seeds).map(|_| SingleSeedView::default()).collect(),
+      steps: 0,
+    }
+  }
+}
+
+impl ExplorationOptimizerKind for IndependentSeedsExplorationOptimizerKind {
+  type ExplorationOptimizer<T: Strategy + 'static> = IndependentSeedsExplorationOptimizer<T>;
+
+  fn new<T: Strategy + 'static>(
+    self,
+    new_strategy: Box<dyn Fn(&[&T]) -> T>,
+  ) -> Self::ExplorationOptimizer<T> {
+    IndependentSeedsExplorationOptimizer::new(self.num_seeds, new_strategy)
+  }
+}
+
+impl<T: Strategy + 'static> StrategyOptimizer for IndependentSeedsExplorationOptimizer<T> {
+  type Strategy = T;
+  fn step(&mut self, state: &CombatState) {
+    self.steps += 1;
+    let target_count = 1 + self.steps.next_power_of_two().trailing_zeros() as usize;
+    self.seeds.shuffle(&mut rand::thread_rng());
+    let strategy = (self.new_strategy)(&self.candidate_strategies.values().collect::<Vec<_>>());
+    let mut total_score = 0.0;
+    for (index, seed) in self.seeds.iter().enumerate() {
+      let result = playout_result(state, seed.clone(), &strategy);
+      total_score += result.score;
+      let average = total_score / (index + 1) as f64;
+      if target_count <= self.candidate_strategies.len()
+        && average
+          < self
+            .candidate_strategies
+            .first_key_value()
+            .unwrap()
+            .0
+            .into_inner()
+      {
+        return;
+      }
+    }
+    let average = total_score / self.seeds.len() as f64;
+    self
+      .candidate_strategies
+      .insert(NotNan::new(average).unwrap(), strategy);
+    if self.candidate_strategies.len() > target_count {
+      self.candidate_strategies.pop_first();
+    }
+  }
+
+  fn report(&self) -> &Self::Strategy {
+    let (average, best) = self.candidate_strategies.last_key_value().unwrap();
+
+    println!(
+      "IndependentSeedsExplorationOptimizer reporting strategy with average score of {} (worst: {}, steps: {})",
+      average, self.candidate_strategies.first_key_value().unwrap().0, self.steps
+    );
+
+    best
   }
 }
 
@@ -191,7 +279,7 @@ pub fn optimizer_step(name: &str, state: &CombatState, optimizer: &mut impl Stra
   let mut steps = 0;
   let mut total_test_score = 0.0;
   let elapsed = loop {
-    total_test_score += playout_result(state, strategy).score;
+    total_test_score += playout_result(state, Unseeded, strategy).score;
     steps += 1;
 
     let elapsed = start.elapsed();
@@ -292,6 +380,7 @@ pub enum StrategyAndGeneratorSpecification {
 #[derive(Copy, Clone, Serialize, Deserialize, Debug)]
 pub enum ExplorationOptimizerKindSpecification {
   Original,
+  IndependentSeeds(usize),
 }
 
 impl CompetitorSpecification {
@@ -307,7 +396,10 @@ impl ExplorationOptimizerKindSpecification {
   pub fn build(self, strategy: StrategyAndGeneratorSpecification) -> Box<dyn Competitor> {
     match self {
       ExplorationOptimizerKindSpecification::Original => {
-        strategy.build::<OriginalExplorationOptimizerKind>(self)
+        strategy.build(OriginalExplorationOptimizerKind, self)
+      }
+      ExplorationOptimizerKindSpecification::IndependentSeeds(num_seeds) => {
+        strategy.build(IndependentSeedsExplorationOptimizerKind { num_seeds }, self)
       }
     }
   }
@@ -315,54 +407,48 @@ impl ExplorationOptimizerKindSpecification {
 impl StrategyAndGeneratorSpecification {
   pub fn build<K: ExplorationOptimizerKind>(
     self,
+    kind: K,
     optimizer: ExplorationOptimizerKindSpecification,
   ) -> Box<dyn Competitor> {
     let name = format!("{:?}/{:?}", optimizer, self);
     match self {
       StrategyAndGeneratorSpecification::FastRandom => Box::new(OptimizerCompetitor {
         name,
-        optimizer: K::new(Box::new(|_: &[CandidateStrategy<FastStrategy>]| {
-          FastStrategy::random()
-        })),
+        optimizer: kind.new(Box::new(|_: &[&FastStrategy]| FastStrategy::random())),
       }),
       StrategyAndGeneratorSpecification::FastGenetic => Box::new(OptimizerCompetitor {
         name,
-        optimizer: K::new(Box::new(
-          |candidates: &[CandidateStrategy<FastStrategy>]| {
-            if candidates.len() < 2 {
-              FastStrategy::random()
-            } else {
-              FastStrategy::offspring(
-                &candidates
-                  .choose_multiple(&mut rand::thread_rng(), 2)
-                  .map(|candidate| &candidate.strategy)
-                  .collect::<Vec<_>>(),
-              )
-            }
-          },
-        )),
+        optimizer: kind.new(Box::new(|candidates: &[&FastStrategy]| {
+          if candidates.len() < 2 {
+            FastStrategy::random()
+          } else {
+            FastStrategy::offspring(
+              &candidates
+                .choose_multiple(&mut rand::thread_rng(), 2)
+                .copied()
+                .collect::<Vec<_>>(),
+            )
+          }
+        })),
       }),
       StrategyAndGeneratorSpecification::NeuralRandom => Box::new(OptimizerCompetitor {
         name,
-        optimizer: K::new(Box::new(|_: &[CandidateStrategy<NeuralStrategy>]| {
+        optimizer: kind.new(Box::new(|_: &[&NeuralStrategy]| {
           NeuralStrategy::new_random(16)
         })),
       }),
       StrategyAndGeneratorSpecification::NeuralMutating => Box::new(OptimizerCompetitor {
         name,
-        optimizer: K::new(Box::new(
-          |candidates: &[CandidateStrategy<NeuralStrategy>]| {
-            if candidates.len() < 1 || rand::random::<f64>() < 0.4 {
-              NeuralStrategy::new_random(16)
-            } else {
-              candidates
-                .choose(&mut rand::thread_rng())
-                .unwrap()
-                .strategy
-                .mutated()
-            }
-          },
-        )),
+        optimizer: kind.new(Box::new(|candidates: &[&NeuralStrategy]| {
+          if candidates.len() < 1 || rand::random::<f64>() < 0.4 {
+            NeuralStrategy::new_random(16)
+          } else {
+            candidates
+              .choose(&mut rand::thread_rng())
+              .unwrap()
+              .mutated()
+          }
+        })),
       }),
     }
   }
