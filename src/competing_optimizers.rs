@@ -176,6 +176,7 @@ pub struct IndependentSeedsExplorationOptimizer<T> {
   new_strategy: Box<dyn Fn(&[&T]) -> T>,
   seeds: Vec<SingleSeedView<CombatChoiceLineageIdentity>>,
   steps: usize,
+  total_accepted: usize,
 }
 
 impl<T> IndependentSeedsExplorationOptimizer<T> {
@@ -185,6 +186,7 @@ impl<T> IndependentSeedsExplorationOptimizer<T> {
       new_strategy,
       seeds: (0..num_seeds).map(|_| SingleSeedView::default()).collect(),
       steps: 0,
+      total_accepted: 0,
     }
   }
 }
@@ -228,6 +230,7 @@ impl<T: Strategy + 'static> StrategyOptimizer for IndependentSeedsExplorationOpt
     self
       .candidate_strategies
       .insert(NotNan::new(average).unwrap(), strategy);
+    self.total_accepted += 1;
     if self.candidate_strategies.len() > target_count {
       self.candidate_strategies.pop_first();
     }
@@ -237,8 +240,8 @@ impl<T: Strategy + 'static> StrategyOptimizer for IndependentSeedsExplorationOpt
     let (average, best) = self.candidate_strategies.last_key_value().unwrap();
 
     println!(
-      "IndependentSeedsExplorationOptimizer reporting strategy with average score of {} (worst: {}, steps: {})",
-      average, self.candidate_strategies.first_key_value().unwrap().0, self.steps
+      "IndependentSeedsExplorationOptimizer reporting strategy with average score of {} (worst: {}, count: {}, total accepted: {}, steps: {})",
+      average, self.candidate_strategies.first_key_value().unwrap().0, self.candidate_strategies.len(), self.total_accepted, self.steps
     );
 
     best
@@ -463,10 +466,11 @@ pub fn run(competitors: impl IntoIterator<Item = CompetitorSpecification>) {
   let ghost_state: CombatState =
     serde_json::from_reader(std::io::BufReader::new(ghost_file)).unwrap();
   for iteration in 0..20 {
-    println!("Iteration {}:", iteration);
+    println!("\nIteration {}:", iteration);
     for competitor in &mut competitors {
       competitor.step(&ghost_state);
     }
+    println!();
   }
   //let optimization_playouts = 1000000;
   //let test_playouts = 10000;
