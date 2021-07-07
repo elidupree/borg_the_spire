@@ -1,3 +1,6 @@
+use crate::ai_utils::Strategy;
+use crate::seed_system::SeedView;
+use crate::simulation_state::CombatState;
 use ordered_float::OrderedFloat;
 use rand::seq::IteratorRandom;
 use rand::Rng;
@@ -23,6 +26,7 @@ pub fn representative_subgroups<'a, T>(
   rng: &mut impl Rng,
 ) -> Vec<Vec<&'a T>> {
   assert_ne!(subgroup_size, 0, "`subgroup_size` must be nonzero");
+  assert_ne!(corpus.len(), 0, "`corpus` must be nonempty");
   let num_subgroups = corpus.len() / subgroup_size;
   assert_eq!(
     num_subgroups * subgroup_size,
@@ -107,4 +111,26 @@ pub fn representative_subgroup<'a, T>(
     .into_iter()
     .choose(rng)
     .unwrap()
+}
+
+//exploiter_scores is indexed first by exploiting-strategy index and then by seed index
+pub fn representative_seed_subgroup<T: SeedView<CombatState>, S: Strategy>(
+  corpus: &[&T],
+  exploiter_scores: &[&[f64]],
+  subgroup_size: usize,
+  rng: &mut impl Rng,
+) -> Vec<T> {
+  let subgroup_desirability = |seeds: &[&usize]| {
+    -exploiter_scores
+      .iter()
+      .map(|scores| seeds.iter().map(|&&seed| scores[seed]).sum::<f64>().powi(2))
+      .sum::<f64>()
+  };
+  let corpus_indices: Vec<usize> = (0..corpus.len()).collect();
+  let result_indices =
+    representative_subgroup(&corpus_indices, subgroup_size, subgroup_desirability, rng);
+  result_indices
+    .into_iter()
+    .map(|&index| corpus[index].clone())
+    .collect()
 }
