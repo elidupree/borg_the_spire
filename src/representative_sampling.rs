@@ -1,10 +1,12 @@
 use crate::ai_utils::Strategy;
-use crate::competing_optimizers::playout_result;
-use crate::seed_system::SeedView;
+use crate::competing_optimizers::{playout_result, ExplorationOptimizerKind, StrategyOptimizer};
+use crate::seed_system::{SeedView, SingleSeedView};
+use crate::seeds_concrete::CombatChoiceLineageIdentity;
 use crate::simulation_state::CombatState;
 use ordered_float::OrderedFloat;
-use rand::seq::IteratorRandom;
+use rand::seq::{IteratorRandom, SliceRandom};
 use rand::Rng;
+use std::rc::Rc;
 
 struct CandidateSubgroup<'a, T> {
   members: Vec<&'a T>,
@@ -32,7 +34,9 @@ pub fn representative_subgroups<'a, T>(
   assert_eq!(
     num_subgroups * subgroup_size,
     corpus.len(),
-    "`subgroup_size` must be a divisor of the corpus size"
+    "`subgroup_size` {} must be a divisor of the corpus size {}",
+    subgroup_size,
+    corpus.len()
   );
   let mut subgroups: Vec<CandidateSubgroup<T>> = corpus
     .chunks_exact(subgroup_size)
@@ -136,74 +140,285 @@ pub fn representative_seed_subgroup<T: SeedView<CombatState>>(
     .collect()
 }
 
-struct RepresentativeSeedSearchLayerExploiter {
-  hypothesized_average_score: f64,
+#[derive(Clone)]
+pub struct RepresentativeSeedSearchLayerStrategy<S> {
+  strategy: Rc<S>,
   scores: Vec<f64>,
+  average: f64,
 }
 
-pub struct RepresentativeSeedSearchLayer<T> {
-  seeds: Vec<T>,
-  best_scores: Vec<f64>,
-  exploiters: Vec<RepresentativeSeedSearchLayerExploiter>,
-}
-
-impl<T: SeedView<CombatState>> RepresentativeSeedSearchLayer<T> {
-  pub fn new(seeds: Vec<T>, starting_state: &CombatState, strategy: &impl Strategy) -> Self {
-    let scores = seeds
+impl<S: Strategy> RepresentativeSeedSearchLayerStrategy<S> {
+  fn new(
+    seeds: &[impl SeedView<CombatState>],
+    strategy: Rc<S>,
+    starting_state: &CombatState,
+  ) -> Self {
+    let scores: Vec<f64> = seeds
       .iter()
-      .map(|seed| playout_result(starting_state, seed.clone(), strategy).score)
+      .map(|seed| playout_result(starting_state, seed.clone(), &*strategy).score)
       .collect();
+    let average = scores.iter().sum::<f64>() / scores.len() as f64;
+    RepresentativeSeedSearchLayerStrategy {
+      strategy,
+      scores,
+      average,
+    }
+  }
+}
 
+pub struct RepresentativeSeedSearchLayer<S, T> {
+  seeds: Vec<T>,
+  max_exploiters: usize,
+  best_strategy: Rc<RepresentativeSeedSearchLayerStrategy<S>>,
+  exploiters: Vec<Rc<RepresentativeSeedSearchLayerStrategy<S>>>,
+}
+
+impl<S: Strategy, T: SeedView<CombatState>> RepresentativeSeedSearchLayer<S, T> {
+  pub fn new(
+    seeds: Vec<T>,
+    starting_state: &CombatState,
+    strategy: Rc<S>,
+    max_exploiters: usize,
+  ) -> Self {
+    let best_strategy = Rc::new(RepresentativeSeedSearchLayerStrategy::new(
+      &seeds,
+      strategy,
+      starting_state,
+    ));
+    let exploiters = vec![best_strategy.clone()];
     RepresentativeSeedSearchLayer {
       seeds,
-      best_scores: scores,
-      exploiters: Vec::new(),
+      max_exploiters,
+      best_strategy,
+      exploiters,
     }
+  }
+  pub fn reseed(&mut self, seeds: Vec<T>, starting_state: &CombatState) {
+    let current_strategies = self.strategies().map(|s| s.strategy.clone());
+    let new_strategies: Vec<_> = current_strategies
+      .map(|strategy| {
+        Rc::new(RepresentativeSeedSearchLayerStrategy::new(
+          &seeds,
+          strategy,
+          starting_state,
+        ))
+      })
+      .collect();
+    self.best_strategy = new_strategies
+      .iter()
+      .max_by_key(|s| OrderedFloat(s.average))
+      .unwrap()
+      .clone();
+    self.exploiters = new_strategies;
+    self.seeds = seeds;
+    self.drop_excess_exploiters();
+  }
+  pub fn strategies(&self) -> impl Iterator<Item = &Rc<RepresentativeSeedSearchLayerStrategy<S>>> {
+    std::iter::once(&self.best_strategy).chain(
+      self
+        .exploiters
+        .iter()
+        .filter(move |e| Rc::ptr_eq(e, &self.best_strategy)),
+    )
+  }
+  fn drop_excess_exploiters(&mut self) {
+    while self.exploiters.len() > self.max_exploiters {
+      // On each seed, each strategy grants credit to all strategies that are better than it; the strategy with the least credit at the end is dropped. Theoretically, for each strategy `S` and amount `p > 0.0` there's a fixed infinitesimal reward for "being better than strategy S by at least `p` points", which is shared evenly among all strategies that are at least `p` points better than S.
+      let mut total_credit: Vec<_> = self.exploiters.iter().map(|_| 0.0).collect();
+      for index in 0..self.seeds.len() {
+        let mut scores: Vec<_> = self
+          .exploiters
+          .iter()
+          .map(|e| e.scores[index])
+          .enumerate()
+          .collect();
+        scores.sort_by_key(|&(_, s)| OrderedFloat(s));
+        let (&(_, mut previous_score), rest) = scores.split_first().unwrap();
+        let mut remaining_creditors = rest.len();
+        let mut credit_to_remaining_creditors = 0.0;
+        for &(_, score) in rest {
+          let difference = score - previous_score;
+          credit_to_remaining_creditors += difference / remaining_creditors as f64;
+          total_credit[index] += credit_to_remaining_creditors;
+          remaining_creditors -= 1;
+          previous_score = score;
+        }
+      }
+      let worst_index = total_credit
+        .into_iter()
+        .enumerate()
+        .min_by_key(|&(_, c)| OrderedFloat(c))
+        .unwrap()
+        .0;
+      self.exploiters.remove(worst_index);
+    }
+  }
+
+  pub fn best_average(&self) -> f64 {
+    self.best_strategy.average
   }
   /**
   Try a strategy which is hypothesized to be better than the current best.
 
-  Typically, `strategy` will be a strategy that has been optimized on a subset of the current seeds, and performs better than the current best on the subset. This function evaluates it on the entire corpus, and checks whether it indeed performs better. If it does, we replace the current best with the new strategy; if it doesn't, we add it to our collection of "exploiters", and return a new subset that tries to resist the exploitation used by `strategy` as well as all previous exploiters.
+  Typically, `strategy` will be a strategy that has been optimized on a subset of the current seeds, and performs better than the current best on the subset. This function evaluates it on the entire corpus, and checks whether it indeed performs better.
+
+  The new strategy is always considered for inclusion in this layer's current corpus of exploiters.
+
+  If it performs better than the current best, we replace the current best with the new strategy; if it doesn't, we return a new subset that tries to resist the exploitation used by *all* of the current exploiters, probably including the strategy that was just attempted.
   */
-  pub fn try_strategy(
-    &mut self,
-    starting_state: &CombatState,
-    strategy: &impl Strategy,
-    hypothesized_average_score: f64,
-    subgroup_size: usize,
-    rng: &mut impl Rng,
-  ) -> Result<(), Vec<T>> {
-    let scores: Vec<f64> = self
-      .seeds
-      .iter()
-      .map(|seed| playout_result(starting_state, seed.clone(), strategy).score)
-      .collect();
-    let sum = scores.iter().sum::<f64>();
-    if sum > self.best_scores.iter().sum::<f64>() {
-      let average = sum / self.seeds.len() as f64;
-      self
-        .exploiters
-        .retain(|e| e.hypothesized_average_score > average);
-      self.best_scores = scores;
+  pub fn try_strategy(&mut self, starting_state: &CombatState, strategy: Rc<S>) -> Result<(), ()> {
+    let strategy = Rc::new(RepresentativeSeedSearchLayerStrategy::new(
+      &self.seeds,
+      strategy,
+      starting_state,
+    ));
+    self.exploiters.push(strategy.clone());
+    self.drop_excess_exploiters();
+    if strategy.average > self.best_strategy.average {
+      self.best_strategy = strategy;
       Ok(())
     } else {
-      self
-        .exploiters
-        .push(RepresentativeSeedSearchLayerExploiter {
-          hypothesized_average_score,
-          scores,
-        });
-      let new_subgroup = representative_seed_subgroup(
-        &self.seeds.iter().collect::<Vec<_>>(),
-        &self
-          .exploiters
-          .iter()
-          .map(|e| e.scores.as_slice())
-          .collect::<Vec<_>>(),
-        subgroup_size,
-        rng,
-      );
-      Err(new_subgroup)
+      Err(())
     }
+  }
+  pub fn make_subgroup(&self, subgroup_size: usize, rng: &mut impl Rng) -> Vec<T> {
+    representative_seed_subgroup(
+      &self.seeds.iter().collect::<Vec<_>>(),
+      &self
+        .exploiters
+        .iter()
+        .map(|e| e.scores.as_slice())
+        .collect::<Vec<_>>(),
+      subgroup_size,
+      rng,
+    )
+  }
+}
+
+pub struct FractalRepresentativeSeedSearch<S, T> {
+  layers: Vec<RepresentativeSeedSearchLayer<S, T>>,
+  lowest_seeds: Vec<T>,
+  new_strategy: Box<dyn Fn(&[&S]) -> S>,
+  steps: usize,
+  successes_at_lowest: usize,
+}
+impl<S, T> FractalRepresentativeSeedSearch<S, T> {
+  fn sublayer_size(index: usize) -> usize {
+    4 << index
+  }
+  fn layer_size(index: usize) -> usize {
+    Self::sublayer_size(index + 1)
+  }
+}
+
+impl<S: Strategy + 'static, T: SeedView<CombatState> + Default + 'static>
+  FractalRepresentativeSeedSearch<S, T>
+{
+  pub fn new(starting_state: &CombatState, new_strategy: Box<dyn Fn(&[&S]) -> S>) -> Self {
+    let seeds = (0..Self::layer_size(0)).map(|_| T::default()).collect();
+    let strategy: S = new_strategy(&[]);
+    let new_layer =
+      RepresentativeSeedSearchLayer::new(seeds, starting_state, Rc::new(strategy), 16);
+    let lowest_seeds = new_layer.make_subgroup(Self::sublayer_size(0), &mut rand::thread_rng());
+    FractalRepresentativeSeedSearch {
+      layers: vec![new_layer],
+      lowest_seeds,
+      new_strategy,
+      steps: 0,
+      successes_at_lowest: 0,
+    }
+  }
+}
+
+impl<S: Strategy + 'static, T: SeedView<CombatState> + Default + 'static> StrategyOptimizer
+  for FractalRepresentativeSeedSearch<S, T>
+{
+  type Strategy = S;
+  fn step(&mut self, state: &CombatState) {
+    self.steps += 1;
+    let strategy: S = (self.new_strategy)(
+      &self
+        .layers
+        .last()
+        .unwrap()
+        .strategies()
+        .map(|s| &*s.strategy)
+        .collect::<Vec<_>>(),
+    );
+    self.lowest_seeds.shuffle(&mut rand::thread_rng());
+    let mut total_score = 0.0;
+    for (index, seed) in self.lowest_seeds.iter().enumerate() {
+      let result = playout_result(state, seed.clone(), &strategy);
+      total_score += result.score;
+      let average = total_score / (index + 1) as f64;
+      if average < self.layers.first().unwrap().best_average() {
+        return;
+      }
+    }
+    let average = total_score / self.lowest_seeds.len() as f64;
+    self.successes_at_lowest += 1;
+
+    let mut previous_best_strategy = Rc::new(strategy);
+    let mut previous_best_average = average;
+    // Each layer is twice as big as the last, so it is twice as much work to try strategies on it. Thus, visit each layer only one-third as often as the last, keeping the total amortized cost only as great as that of the lowest layer.
+    let mut steps_thingy = self.successes_at_lowest;
+    let mut max_index: usize = 0;
+    while steps_thingy % 3 == 0 {
+      max_index += 1;
+      steps_thingy /= 3;
+    }
+    for index in 0..self.layers.len().min(max_index + 1) {
+      if previous_best_average > self.layers[index].best_strategy.average {
+        let result = self.layers[index].try_strategy(state, previous_best_strategy);
+        if let Err(_) = result {
+          for index in (0..index).rev() {
+            let new_subgroup = self.layers[index + 1]
+              .make_subgroup(Self::layer_size(index), &mut rand::thread_rng());
+            self.layers[index].reseed(new_subgroup, state);
+          }
+          self.lowest_seeds =
+            self.layers[0].make_subgroup(Self::sublayer_size(0), &mut rand::thread_rng());
+        }
+      }
+      previous_best_strategy = self.layers[index].best_strategy.strategy.clone();
+      previous_best_average = self.layers[index].best_strategy.average;
+    }
+    if max_index >= self.layers.len() {
+      assert_eq!(max_index, self.layers.len());
+      let last = self.layers.last().unwrap();
+      let mut seeds = last.seeds.clone();
+      assert_eq!(seeds.len(), Self::sublayer_size(max_index));
+      let extras = Self::layer_size(max_index) - Self::sublayer_size(max_index);
+      seeds.extend((0..extras).map(|_| T::default()));
+      assert_eq!(seeds.len(), Self::layer_size(max_index));
+      let best = last.best_strategy.strategy.clone();
+      let new_layer = RepresentativeSeedSearchLayer::new(seeds, state, best, 16);
+      self.layers.push(new_layer);
+    }
+  }
+
+  fn report(&self) -> &Self::Strategy {
+    let best = &self.layers.last().unwrap().best_strategy;
+
+    println!(
+      "FractalRepresentativeSeedSearch reporting strategy with average score of {} ({}/{} steps, {} layers, max {} seeds)",
+      best.average, self.steps, self.successes_at_lowest, self.layers.len(), self.layers.last().unwrap().seeds.len()
+    );
+
+    &best.strategy
+  }
+}
+
+pub struct FractalRepresentativeSeedSearchExplorationOptimizerKind;
+impl ExplorationOptimizerKind for FractalRepresentativeSeedSearchExplorationOptimizerKind {
+  type ExplorationOptimizer<T: Strategy + 'static> =
+    FractalRepresentativeSeedSearch<T, SingleSeedView<CombatChoiceLineageIdentity>>;
+
+  fn new<T: Strategy + 'static>(
+    self,
+    starting_state: &CombatState,
+    new_strategy: Box<dyn Fn(&[&T]) -> T>,
+  ) -> Self::ExplorationOptimizer<T> {
+    FractalRepresentativeSeedSearch::new(starting_state, new_strategy)
   }
 }

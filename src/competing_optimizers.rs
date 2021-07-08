@@ -6,6 +6,7 @@ use std::time::{Duration, Instant};
 //use crate::actions::*;
 use crate::ai_utils::{collect_starting_points, play_out, CombatResult, Strategy};
 use crate::neural_net_ai::NeuralStrategy;
+use crate::representative_sampling::FractalRepresentativeSeedSearchExplorationOptimizerKind;
 use crate::seed_system::{SeedView, SingleSeedView, Unseeded};
 use crate::seeds_concrete::CombatChoiceLineageIdentity;
 use crate::simulation::*;
@@ -23,6 +24,7 @@ pub trait ExplorationOptimizerKind {
   type ExplorationOptimizer<T: Strategy + 'static>: StrategyOptimizer<Strategy = T>;
   fn new<T: Strategy + 'static>(
     self,
+    starting_state: &CombatState,
     new_strategy: Box<dyn Fn(&[&T]) -> T>,
   ) -> Self::ExplorationOptimizer<T>;
 }
@@ -107,6 +109,7 @@ impl ExplorationOptimizerKind for OriginalExplorationOptimizerKind {
 
   fn new<T: Strategy + 'static>(
     self,
+    _starting_state: &CombatState,
     new_strategy: Box<dyn Fn(&[&T]) -> T>,
   ) -> Self::ExplorationOptimizer<T> {
     OriginalExplorationOptimizer::new(new_strategy)
@@ -196,6 +199,7 @@ impl ExplorationOptimizerKind for IndependentSeedsExplorationOptimizerKind {
 
   fn new<T: Strategy + 'static>(
     self,
+    _starting_state: &CombatState,
     new_strategy: Box<dyn Fn(&[&T]) -> T>,
   ) -> Self::ExplorationOptimizer<T> {
     IndependentSeedsExplorationOptimizer::new(self.num_seeds, new_strategy)
@@ -384,26 +388,38 @@ pub enum StrategyAndGeneratorSpecification {
 pub enum ExplorationOptimizerKindSpecification {
   Original,
   IndependentSeeds(usize),
+  FractalRepresentativeSeedSearch,
 }
 
 impl CompetitorSpecification {
-  pub fn build(self) -> Box<dyn Competitor> {
+  pub fn build(self, starting_state: &CombatState) -> Box<dyn Competitor> {
     match self {
       CompetitorSpecification::ExplorationOptimizer(optimizer, strategy) => {
-        optimizer.build(strategy)
+        optimizer.build(strategy, starting_state)
       }
     }
   }
 }
 impl ExplorationOptimizerKindSpecification {
-  pub fn build(self, strategy: StrategyAndGeneratorSpecification) -> Box<dyn Competitor> {
+  pub fn build(
+    self,
+    strategy: StrategyAndGeneratorSpecification,
+    starting_state: &CombatState,
+  ) -> Box<dyn Competitor> {
     match self {
       ExplorationOptimizerKindSpecification::Original => {
-        strategy.build(OriginalExplorationOptimizerKind, self)
+        strategy.build(OriginalExplorationOptimizerKind, self, starting_state)
       }
-      ExplorationOptimizerKindSpecification::IndependentSeeds(num_seeds) => {
-        strategy.build(IndependentSeedsExplorationOptimizerKind { num_seeds }, self)
-      }
+      ExplorationOptimizerKindSpecification::IndependentSeeds(num_seeds) => strategy.build(
+        IndependentSeedsExplorationOptimizerKind { num_seeds },
+        self,
+        starting_state,
+      ),
+      ExplorationOptimizerKindSpecification::FractalRepresentativeSeedSearch => strategy.build(
+        FractalRepresentativeSeedSearchExplorationOptimizerKind,
+        self,
+        starting_state,
+      ),
     }
   }
 }
@@ -412,59 +428,70 @@ impl StrategyAndGeneratorSpecification {
     self,
     kind: K,
     optimizer: ExplorationOptimizerKindSpecification,
+    starting_state: &CombatState,
   ) -> Box<dyn Competitor> {
     let name = format!("{:?}/{:?}", optimizer, self);
     match self {
       StrategyAndGeneratorSpecification::FastRandom => Box::new(OptimizerCompetitor {
         name,
-        optimizer: kind.new(Box::new(|_: &[&FastStrategy]| FastStrategy::random())),
+        optimizer: kind.new(
+          starting_state,
+          Box::new(|_: &[&FastStrategy]| FastStrategy::random()),
+        ),
       }),
       StrategyAndGeneratorSpecification::FastGenetic => Box::new(OptimizerCompetitor {
         name,
-        optimizer: kind.new(Box::new(|candidates: &[&FastStrategy]| {
-          if candidates.len() < 2 {
-            FastStrategy::random()
-          } else {
-            FastStrategy::offspring(
-              &candidates
-                .choose_multiple(&mut rand::thread_rng(), 2)
-                .copied()
-                .collect::<Vec<_>>(),
-            )
-          }
-        })),
+        optimizer: kind.new(
+          starting_state,
+          Box::new(|candidates: &[&FastStrategy]| {
+            if candidates.len() < 2 {
+              FastStrategy::random()
+            } else {
+              FastStrategy::offspring(
+                &candidates
+                  .choose_multiple(&mut rand::thread_rng(), 2)
+                  .copied()
+                  .collect::<Vec<_>>(),
+              )
+            }
+          }),
+        ),
       }),
       StrategyAndGeneratorSpecification::NeuralRandom => Box::new(OptimizerCompetitor {
         name,
-        optimizer: kind.new(Box::new(|_: &[&NeuralStrategy]| {
-          NeuralStrategy::new_random(16)
-        })),
+        optimizer: kind.new(
+          starting_state,
+          Box::new(|_: &[&NeuralStrategy]| NeuralStrategy::new_random(16)),
+        ),
       }),
       StrategyAndGeneratorSpecification::NeuralMutating => Box::new(OptimizerCompetitor {
         name,
-        optimizer: kind.new(Box::new(|candidates: &[&NeuralStrategy]| {
-          if candidates.len() < 1 || rand::random::<f64>() < 0.4 {
-            NeuralStrategy::new_random(16)
-          } else {
-            candidates
-              .choose(&mut rand::thread_rng())
-              .unwrap()
-              .mutated()
-          }
-        })),
+        optimizer: kind.new(
+          starting_state,
+          Box::new(|candidates: &[&NeuralStrategy]| {
+            if candidates.len() < 1 || rand::random::<f64>() < 0.4 {
+              NeuralStrategy::new_random(16)
+            } else {
+              candidates
+                .choose(&mut rand::thread_rng())
+                .unwrap()
+                .mutated()
+            }
+          }),
+        ),
       }),
     }
   }
 }
 
 pub fn run(competitors: impl IntoIterator<Item = CompetitorSpecification>) {
-  let mut competitors: Vec<_> = competitors
-    .into_iter()
-    .map(CompetitorSpecification::build)
-    .collect();
   let ghost_file = std::fs::File::open("data/hexaghost.json").unwrap();
   let ghost_state: CombatState =
     serde_json::from_reader(std::io::BufReader::new(ghost_file)).unwrap();
+  let mut competitors: Vec<_> = competitors
+    .into_iter()
+    .map(|s| CompetitorSpecification::build(s, &ghost_state))
+    .collect();
   for iteration in 0..20 {
     println!("\nIteration {}:", iteration);
     for competitor in &mut competitors {
