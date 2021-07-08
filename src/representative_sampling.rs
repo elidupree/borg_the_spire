@@ -193,9 +193,10 @@ impl<S: Strategy, T: SeedView<CombatState>> RepresentativeSeedSearchLayer<S, T> 
       exploiters,
     }
   }
-  pub fn reseed(&mut self, seeds: Vec<T>, starting_state: &CombatState) {
+  pub fn reseed(&mut self, seeds: Vec<T>, starting_state: &CombatState, best_from_above: Rc<S>) {
     let current_strategies = self.strategies().map(|s| s.strategy.clone());
     let new_strategies: Vec<_> = current_strategies
+      .chain(std::iter::once(best_from_above))
       .map(|strategy| {
         Rc::new(RepresentativeSeedSearchLayerStrategy::new(
           &seeds,
@@ -218,7 +219,7 @@ impl<S: Strategy, T: SeedView<CombatState>> RepresentativeSeedSearchLayer<S, T> 
       self
         .exploiters
         .iter()
-        .filter(move |e| Rc::ptr_eq(e, &self.best_strategy)),
+        .filter(move |e| !Rc::ptr_eq(e, &self.best_strategy)),
     )
   }
   fn drop_excess_exploiters(&mut self) {
@@ -376,7 +377,8 @@ impl<S: Strategy + 'static, T: SeedView<CombatState> + Default + 'static> Strate
           for index in (0..index).rev() {
             let new_subgroup = self.layers[index + 1]
               .make_subgroup(Self::layer_size(index), &mut rand::thread_rng());
-            self.layers[index].reseed(new_subgroup, state);
+            let best_from_above = self.layers[index + 1].best_strategy.strategy.clone();
+            self.layers[index].reseed(new_subgroup, state, best_from_above);
           }
           self.lowest_seeds =
             self.layers[0].make_subgroup(Self::sublayer_size(0), &mut rand::thread_rng());
@@ -406,6 +408,13 @@ impl<S: Strategy + 'static, T: SeedView<CombatState> + Default + 'static> Strate
       "FractalRepresentativeSeedSearch reporting strategy with average score of {} ({}/{} steps, {} layers, max {} seeds)",
       best.average, self.steps, self.successes_at_lowest, self.layers.len(), self.layers.last().unwrap().seeds.len()
     );
+    for layer in &self.layers {
+      let scores = layer
+        .strategies()
+        .map(|s| format!("{:.3}", s.average))
+        .collect::<Vec<_>>();
+      println!("{}: {}", layer.seeds.len(), scores.join(", "));
+    }
 
     &best.strategy
   }
