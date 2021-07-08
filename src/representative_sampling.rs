@@ -282,8 +282,13 @@ impl<S: Strategy, T: SeedView<CombatState>> RepresentativeSeedSearchLayer<S, T> 
       Err(())
     }
   }
-  pub fn make_subgroup(&self, subgroup_size: usize, rng: &mut impl Rng) -> Vec<T> {
-    representative_seed_subgroup(
+  pub fn make_subgroup(
+    &self,
+    starting_state: &CombatState,
+    subgroup_size: usize,
+    rng: &mut impl Rng,
+  ) -> Vec<T> {
+    let result = representative_seed_subgroup(
       &self.seeds.iter().collect::<Vec<_>>(),
       &self
         .exploiters
@@ -292,7 +297,28 @@ impl<S: Strategy, T: SeedView<CombatState>> RepresentativeSeedSearchLayer<S, T> 
         .collect::<Vec<_>>(),
       subgroup_size,
       rng,
-    )
+    );
+    for strategy in self.strategies() {
+      let a = strategy.average;
+      let b = RepresentativeSeedSearchLayerStrategy::new(
+        &result,
+        strategy.strategy.clone(),
+        starting_state,
+      )
+      .average;
+      let unavoidable_difference =
+        (((a * result.len() as f64).round() / result.len() as f64) - a).abs();
+      if (a - b).abs() > unavoidable_difference + (0.2 / result.len() as f64) {
+        println!(
+          "A strategy's average score had an unfortunately large difference in the subgroup: {}: {} -> {} ({})",
+          self.seeds.len(),
+          a,
+          b,
+          unavoidable_difference
+        )
+      }
+    }
+    result
   }
 }
 
@@ -302,6 +328,7 @@ pub struct FractalRepresentativeSeedSearch<S, T> {
   new_strategy: Box<dyn Fn(&[&S]) -> S>,
   steps: usize,
   successes_at_lowest: usize,
+  layer_updates: usize,
 }
 impl<S, T> FractalRepresentativeSeedSearch<S, T> {
   fn sublayer_size(index: usize) -> usize {
@@ -320,13 +347,18 @@ impl<S: Strategy + 'static, T: SeedView<CombatState> + Default + 'static>
     let strategy: S = new_strategy(&[]);
     let new_layer =
       RepresentativeSeedSearchLayer::new(seeds, starting_state, Rc::new(strategy), 16);
-    let lowest_seeds = new_layer.make_subgroup(Self::sublayer_size(0), &mut rand::thread_rng());
+    let lowest_seeds = new_layer.make_subgroup(
+      starting_state,
+      Self::sublayer_size(0),
+      &mut rand::thread_rng(),
+    );
     FractalRepresentativeSeedSearch {
       layers: vec![new_layer],
       lowest_seeds,
       new_strategy,
       steps: 0,
       successes_at_lowest: 0,
+      layer_updates: 0,
     }
   }
 }
@@ -359,12 +391,15 @@ impl<S: Strategy + 'static, T: SeedView<CombatState> + Default + 'static> Strate
     }
     if average >= self.layers.first().unwrap().best_average() {
       self.successes_at_lowest += 1;
+    } else if self.steps % 16 != 0 {
+      return;
     }
+    self.layer_updates += 1;
 
     let mut previous_best_strategy = Rc::new(strategy);
     let mut previous_best_average = average;
     // Each layer is twice as big as the last, so it is twice as much work to try strategies on it. Thus, visit each layer only one-third as often as the last, keeping the total amortized cost only as great as that of the lowest layer.
-    let mut steps_thingy = self.steps;
+    let mut steps_thingy = self.layer_updates;
     let mut max_index: usize = 0;
     while steps_thingy % 3 == 0 {
       max_index += 1;
@@ -375,13 +410,16 @@ impl<S: Strategy + 'static, T: SeedView<CombatState> + Default + 'static> Strate
         let result = self.layers[index].try_strategy(state, previous_best_strategy);
         if let Err(_) = result {
           for index in (0..index).rev() {
-            let new_subgroup = self.layers[index + 1]
-              .make_subgroup(Self::layer_size(index), &mut rand::thread_rng());
+            let new_subgroup = self.layers[index + 1].make_subgroup(
+              state,
+              Self::layer_size(index),
+              &mut rand::thread_rng(),
+            );
             let best_from_above = self.layers[index + 1].best_strategy.strategy.clone();
             self.layers[index].reseed(new_subgroup, state, best_from_above);
           }
           self.lowest_seeds =
-            self.layers[0].make_subgroup(Self::sublayer_size(0), &mut rand::thread_rng());
+            self.layers[0].make_subgroup(state, Self::sublayer_size(0), &mut rand::thread_rng());
         }
       }
       previous_best_strategy = self.layers[index].best_strategy.strategy.clone();
@@ -405,15 +443,31 @@ impl<S: Strategy + 'static, T: SeedView<CombatState> + Default + 'static> Strate
     let best = &self.layers.last().unwrap().best_strategy;
 
     println!(
-      "FractalRepresentativeSeedSearch reporting strategy with average score of {} ({}/{} steps, {} layers, max {} seeds)",
-      best.average, self.steps, self.successes_at_lowest, self.layers.len(), self.layers.last().unwrap().seeds.len()
+      "FractalRepresentativeSeedSearch reporting strategy with average score of {} ({}/{}/{} steps, {} layers, max {} seeds)",
+      best.average, self.steps, self.layer_updates, self.successes_at_lowest, self.layers.len(), self.layers.last().unwrap().seeds.len()
     );
     for layer in &self.layers {
-      let scores = layer
-        .strategies()
+      let strategies: Vec<_> = layer.strategies().collect();
+      let scores = strategies
+        .iter()
         .map(|s| format!("{:.3}", s.average))
         .collect::<Vec<_>>();
-      println!("{}: {}", layer.seeds.len(), scores.join(", "));
+      let score_with_exploiting = (0..layer.seeds.len())
+        .map(|index| {
+          strategies
+            .iter()
+            .map(|s| s.scores[index])
+            .max_by_key(|&f| OrderedFloat(f))
+            .unwrap()
+        })
+        .sum::<f64>()
+        / (layer.seeds.len() as f64);
+      println!(
+        "{}: [{:.3}] {}",
+        layer.seeds.len(),
+        score_with_exploiting,
+        scores.join(", ")
+      );
     }
 
     &best.strategy

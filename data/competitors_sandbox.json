@@ -1,8 +1,5 @@
 [
-  {"ExplorationOptimizer": ["Original","FastRandom"]},
   {"ExplorationOptimizer": ["Original","FastGenetic"]},
-  {"ExplorationOptimizer": [{"IndependentSeeds": 100},"FastRandom"]},
-  {"ExplorationOptimizer": [{"IndependentSeeds": 100},"FastGenetic"]},
   {"ExplorationOptimizer": ["FractalRepresentativeSeedSearch","FastRandom"]},
   {"ExplorationOptimizer": ["FractalRepresentativeSeedSearch","FastGenetic"]}
 ]
