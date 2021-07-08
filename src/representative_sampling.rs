@@ -225,21 +225,21 @@ impl<S: Strategy, T: SeedView<CombatState>> RepresentativeSeedSearchLayer<S, T> 
     while self.exploiters.len() > self.max_exploiters {
       // On each seed, each strategy grants credit to all strategies that are better than it; the strategy with the least credit at the end is dropped. Theoretically, for each strategy `S` and amount `p > 0.0` there's a fixed infinitesimal reward for "being better than strategy S by at least `p` points", which is shared evenly among all strategies that are at least `p` points better than S.
       let mut total_credit: Vec<_> = self.exploiters.iter().map(|_| 0.0).collect();
-      for index in 0..self.seeds.len() {
+      for seed_index in 0..self.seeds.len() {
         let mut scores: Vec<_> = self
           .exploiters
           .iter()
-          .map(|e| e.scores[index])
+          .map(|e| e.scores[seed_index])
           .enumerate()
           .collect();
         scores.sort_by_key(|&(_, s)| OrderedFloat(s));
         let (&(_, mut previous_score), rest) = scores.split_first().unwrap();
         let mut remaining_creditors = rest.len();
         let mut credit_to_remaining_creditors = 0.0;
-        for &(_, score) in rest {
+        for &(exploiter_index, score) in rest {
           let difference = score - previous_score;
           credit_to_remaining_creditors += difference / remaining_creditors as f64;
-          total_credit[index] += credit_to_remaining_creditors;
+          total_credit[exploiter_index] += credit_to_remaining_creditors;
           remaining_creditors -= 1;
           previous_score = score;
         }
@@ -347,21 +347,23 @@ impl<S: Strategy + 'static, T: SeedView<CombatState> + Default + 'static> Strate
     );
     self.lowest_seeds.shuffle(&mut rand::thread_rng());
     let mut total_score = 0.0;
+    let mut average = -999999999999.0;
     for (index, seed) in self.lowest_seeds.iter().enumerate() {
       let result = playout_result(state, seed.clone(), &strategy);
       total_score += result.score;
-      let average = total_score / (index + 1) as f64;
+      average = total_score / (index + 1) as f64;
       if average < self.layers.first().unwrap().best_average() {
-        return;
+        break;
       }
     }
-    let average = total_score / self.lowest_seeds.len() as f64;
-    self.successes_at_lowest += 1;
+    if average >= self.layers.first().unwrap().best_average() {
+      self.successes_at_lowest += 1;
+    }
 
     let mut previous_best_strategy = Rc::new(strategy);
     let mut previous_best_average = average;
     // Each layer is twice as big as the last, so it is twice as much work to try strategies on it. Thus, visit each layer only one-third as often as the last, keeping the total amortized cost only as great as that of the lowest layer.
-    let mut steps_thingy = self.successes_at_lowest;
+    let mut steps_thingy = self.steps;
     let mut max_index: usize = 0;
     while steps_thingy % 3 == 0 {
       max_index += 1;
