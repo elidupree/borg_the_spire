@@ -120,17 +120,17 @@ pub fn representative_subgroup<'a, T>(
 
 //exploiter_scores is indexed first by exploiting-strategy index and then by seed index
 pub fn representative_seed_subgroup(
-  exploiter_scores: &[&[f64]],
+  strategy_scores: &[&[f64]],
   subgroup_size: usize,
   rng: &mut impl Rng,
 ) -> Vec<usize> {
   let subgroup_desirability = |seeds: &[&usize]| {
-    -exploiter_scores
+    -strategy_scores
       .iter()
       .map(|scores| seeds.iter().map(|&&seed| scores[seed]).sum::<f64>().powi(2))
       .sum::<f64>()
   };
-  let corpus_indices: Vec<usize> = (0..exploiter_scores[0].len()).collect();
+  let corpus_indices: Vec<usize> = (0..strategy_scores[0].len()).collect();
   representative_subgroup(&corpus_indices, subgroup_size, subgroup_desirability, rng)
     .into_iter()
     .copied()
@@ -287,8 +287,7 @@ impl<S: Strategy, T: SeedView<CombatState>> RepresentativeSeedSearchLayer<S, T> 
   ) -> Vec<T> {
     let result_indices = representative_seed_subgroup(
       &self
-        .exploiters
-        .iter()
+        .strategies()
         .map(|e| e.scores.as_slice())
         .collect::<Vec<_>>(),
       subgroup_size,
