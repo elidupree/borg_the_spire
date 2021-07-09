@@ -3,77 +3,83 @@ use crate::actions::{
   InitializeMonsterInnateDamageAmount,
 };
 use crate::seed_system::{
-  ChoiceLineageIdentity, GameState, MaybeSeedView, NeverSeed, NoRandomness,
+  ChoiceLineages, ContainerKind, GameState, MaybeSeedView, NeverSeed, NoRandomness,
 };
 use crate::simulation::MonsterIndex;
-use crate::simulation_state::{CombatState, SingleCard};
-use serde::{Deserialize, Serialize};
+use crate::simulation_state::{CardId, CombatState, MAX_MONSTERS};
+use enum_map::EnumMap;
+use std::collections::HashMap;
+use std::fmt::Debug;
 
 impl GameState for CombatState {
   type RandomForkType = DynAction;
   type RandomChoice = i32;
 }
-
-#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
-pub enum CombatChoiceLineageIdentity {
-  DrawCard {
-    turn: i32,
-    card: SingleCard,
-  },
-  ChooseMonsterIntent {
-    turn: i32,
-    monster_index: MonsterIndex,
-    intent: i32,
-  },
-  AttackRandomEnemy {
-    target: MonsterIndex,
-    damage: i32,
-  },
-  InitializeMonsterInnateDamageAmount {
-    monster_index: MonsterIndex,
-  },
-  GainBlockRandomMonster {
-    turn: i32,
-    target: MonsterIndex,
-  },
-  Uncategorized {
-    value: i32,
-  },
+#[derive(Clone, Debug, Default)]
+struct TurnMap<T> {
+  values: Vec<T>,
 }
 
-impl ChoiceLineageIdentity<CombatState> for CombatChoiceLineageIdentity {
-  fn get(state: &CombatState, action: &DynAction, &choice: &i32) -> Self {
+impl<T: Default> TurnMap<T> {
+  fn get_mut(&mut self, turn: i32) -> &mut T {
+    let turn = turn as usize - 1;
+    if turn >= self.values.len() {
+      self.values.resize_with(turn + 1, Default::default);
+    }
+    &mut self.values[turn]
+  }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct CombatChoiceLineages<T> {
+  draw_card: EnumMap<CardId, TurnMap<T>>,
+  choose_monster_intent: [TurnMap<HashMap<i32, T>>; MAX_MONSTERS],
+  attack_random_enemy: [HashMap<i32, T>; MAX_MONSTERS],
+  initialize_monster_innate_damage_amount: [T; MAX_MONSTERS],
+  gain_block_random_monster: [TurnMap<T>; MAX_MONSTERS],
+  uncategorized: T,
+}
+pub struct CombatChoiceLineagesKind;
+
+impl<T: Default> ChoiceLineages<CombatState> for CombatChoiceLineages<T> {
+  type Lineage = T;
+  fn get_mut(&mut self, state: &CombatState, action: &DynAction, &choice: &i32) -> &mut T {
     match action {
-      DynAction::DrawCardRandom(_) => CombatChoiceLineageIdentity::DrawCard {
-        turn: state.turn_number,
-        card: state.draw_pile[choice as usize].clone(),
-      },
+      DynAction::DrawCardRandom(_) => {
+        let card = state.draw_pile[choice as usize].clone();
+        self.draw_card[card.card_info.id].get_mut(state.turn_number)
+      }
       &DynAction::ChooseMonsterIntent(ChooseMonsterIntent(monster_index)) => {
-        CombatChoiceLineageIdentity::ChooseMonsterIntent {
-          turn: state.turn_number,
-          monster_index,
-          intent: choice,
-        }
+        let intent = choice;
+        self.choose_monster_intent[monster_index]
+          .get_mut(state.turn_number)
+          .entry(intent)
+          .or_insert_with(Default::default)
       }
       &DynAction::AttackDamageRandomEnemyAction(AttackDamageRandomEnemyAction { damage }) => {
-        CombatChoiceLineageIdentity::AttackRandomEnemy {
-          target: choice as MonsterIndex,
-          damage,
-        }
+        let target = choice as MonsterIndex;
+        self.attack_random_enemy[target]
+          .entry(damage)
+          .or_insert_with(Default::default)
       }
       &DynAction::InitializeMonsterInnateDamageAmount(InitializeMonsterInnateDamageAmount {
         monster_index,
         ..
-      }) => CombatChoiceLineageIdentity::InitializeMonsterInnateDamageAmount { monster_index },
+      }) => self
+        .initialize_monster_innate_damage_amount
+        .get_mut(monster_index)
+        .unwrap(),
       DynAction::GainBlockRandomMonsterAction(GainBlockRandomMonsterAction { .. }) => {
-        CombatChoiceLineageIdentity::GainBlockRandomMonster {
-          turn: state.turn_number,
-          target: choice as MonsterIndex,
-        }
+        let target = choice as MonsterIndex;
+        self.gain_block_random_monster[target].get_mut(state.turn_number)
       }
-      _ => CombatChoiceLineageIdentity::Uncategorized { value: choice },
+      _ => &mut self.uncategorized,
     }
   }
+}
+
+impl ContainerKind for CombatChoiceLineagesKind {
+  type Container<T: Clone + Debug + Default> = CombatChoiceLineages<T>;
 }
 
 // This would prefer to live in the seed_system module, but it can't be implemented generically due to details of the orphan rule

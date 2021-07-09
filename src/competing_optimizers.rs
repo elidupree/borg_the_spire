@@ -8,7 +8,7 @@ use crate::ai_utils::{collect_starting_points, play_out, CombatResult, Strategy}
 use crate::neural_net_ai::NeuralStrategy;
 use crate::representative_sampling::FractalRepresentativeSeedSearchExplorationOptimizerKind;
 use crate::seed_system::{SeedView, SingleSeedView, Unseeded};
-use crate::seeds_concrete::CombatChoiceLineageIdentity;
+use crate::seeds_concrete::CombatChoiceLineagesKind;
 use crate::simulation::*;
 use crate::simulation_state::*;
 use crate::start_and_strategy_ai::FastStrategy;
@@ -177,7 +177,7 @@ pub struct IndependentSeedsExplorationOptimizerKind {
 pub struct IndependentSeedsExplorationOptimizer<T> {
   candidate_strategies: BTreeMap<NotNan<f64>, T>,
   new_strategy: Box<dyn Fn(&[&T]) -> T>,
-  seeds: Vec<SingleSeedView<CombatChoiceLineageIdentity>>,
+  seeds: Vec<SingleSeedView<CombatChoiceLineagesKind>>,
   steps: usize,
   total_accepted: usize,
 }

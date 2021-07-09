@@ -1,12 +1,9 @@
 use derivative::Derivative;
 use ordered_float::NotNan;
-use rand::{Rng, SeedableRng};
-use rand_pcg::Pcg64Mcg;
 use serde::{Deserialize, Serialize};
 use smallvec::{smallvec, SmallVec};
 use std::cell::RefCell;
-use std::collections::HashMap;
-use std::hash::Hash;
+use std::fmt::Debug;
 use std::ops::{Add, AddAssign, Mul};
 use std::rc::Rc;
 
@@ -75,13 +72,21 @@ pub trait GameState {
   type RandomChoice: Clone;
 }
 
-pub trait ChoiceLineageIdentity<G: GameState> {
-  fn get(state: &G, fork_type: &G::RandomForkType, choice: &G::RandomChoice) -> Self;
+pub trait ChoiceLineages<G: GameState> {
+  type Lineage;
+  fn get_mut(
+    &mut self,
+    state: &G,
+    fork_type: &G::RandomForkType,
+    choice: &G::RandomChoice,
+  ) -> &mut Self::Lineage;
+}
+pub trait ContainerKind {
+  type Container<T: Clone + Debug + Default>: Clone + Debug + Default;
 }
 
 pub trait SeedView<G: GameState>: Clone {
-  type ChoiceLineageIdentity: ChoiceLineageIdentity<G>;
-  fn gen(&mut self, identity: Self::ChoiceLineageIdentity) -> f64;
+  fn gen(&mut self, state: &G, fork_type: &G::RandomForkType, choice: &G::RandomChoice) -> f64;
 }
 
 /// The presence or absence of a non-chosen choice has no effect on which choice is chosen,
@@ -96,8 +101,7 @@ pub fn choose_choice<G: GameState, S: SeedView<G>>(
     .0
     .iter()
     .min_by_key(|&(weight, choice)| {
-      let identity = S::ChoiceLineageIdentity::get(state, fork_type, choice);
-      let value = seed.gen(identity);
+      let value = seed.gen(state, fork_type, choice);
       NotNan::new(value / weight).unwrap()
     })
     .unwrap()
@@ -105,67 +109,70 @@ pub fn choose_choice<G: GameState, S: SeedView<G>>(
     .clone()
 }
 
-impl<G: GameState> ChoiceLineageIdentity<G> for () {
-  fn get(_state: &G, _fork_type: &G::RandomForkType, _choice: &G::RandomChoice) -> Self {
-    ()
+#[derive(Clone, Debug, Default)]
+pub struct TrivialChoiceLineages<T>(T);
+impl<G: GameState, T> ChoiceLineages<G> for TrivialChoiceLineages<T> {
+  type Lineage = T;
+  fn get_mut(
+    &mut self,
+    _state: &G,
+    _fork_type: &G::RandomForkType,
+    _choice: &G::RandomChoice,
+  ) -> &mut T {
+    &mut self.0
   }
+}
+pub struct TrivialChoiceLineagesKind;
+impl ContainerKind for TrivialChoiceLineagesKind {
+  type Container<T: Clone + Debug + Default> = TrivialChoiceLineages<T>;
 }
 
 #[derive(Clone, Debug, Default, Derivative)]
 pub struct Unseeded;
 
 impl<G: GameState> SeedView<G> for Unseeded {
-  type ChoiceLineageIdentity = ();
-
-  fn gen(&mut self, _identity: ()) -> f64 {
+  fn gen(&mut self, _state: &G, _fork_type: &G::RandomForkType, _choice: &G::RandomChoice) -> f64 {
     rand::random()
   }
 }
 
-#[derive(Clone, Debug)]
-pub struct SingleSeedView<C> {
-  lineages: Rc<SingleSeedLineages<C>>,
-  prior_requests: HashMap<C, usize>,
+#[derive(Derivative)]
+#[derivative(Clone(bound = ""), Debug(bound = ""))]
+pub struct SingleSeedView<L: ContainerKind> {
+  lineages: Rc<RefCell<L::Container<SingleSeedLineage>>>,
+  prior_requests: L::Container<u32>,
 }
 
-impl<C> Default for SingleSeedView<C> {
+impl<L: ContainerKind> Default for SingleSeedView<L> {
   fn default() -> Self {
     SingleSeedView {
-      lineages: Rc::new(RefCell::new(HashMap::new())),
-      prior_requests: HashMap::new(),
+      lineages: Rc::new(RefCell::new(Default::default())),
+      prior_requests: Default::default(),
     }
   }
 }
 
-#[derive(Debug)]
-struct SingleSeedLineage {
+#[derive(Clone, Debug, Default)]
+pub struct SingleSeedLineage {
   generated_values: Vec<f64>,
-  generator: Pcg64Mcg,
 }
 
-type SingleSeedLineages<C> = RefCell<HashMap<C, SingleSeedLineage>>;
-
-impl<G: GameState, C: Clone + Eq + Hash + ChoiceLineageIdentity<G>> SeedView<G>
-  for SingleSeedView<C>
+impl<G: GameState, L: ContainerKind> SeedView<G> for SingleSeedView<L>
+where
+  L::Container<u32>: ChoiceLineages<G, Lineage = u32>,
+  L::Container<SingleSeedLineage>: ChoiceLineages<G, Lineage = SingleSeedLineage>,
 {
-  type ChoiceLineageIdentity = C;
-
-  fn gen(&mut self, identity: C) -> f64 {
+  fn gen(&mut self, state: &G, fork_type: &G::RandomForkType, choice: &G::RandomChoice) -> f64 {
     let mut lineages = self.lineages.borrow_mut();
-    let prior_requests = self.prior_requests.entry(identity.clone()).or_insert(0);
-    let lineage = lineages
-      .entry(identity)
-      .or_insert_with(|| SingleSeedLineage {
-        generated_values: Vec::new(),
-        generator: Pcg64Mcg::from_entropy(),
-      });
+    let prior_requests = self.prior_requests.get_mut(state, fork_type, choice);
+    let lineage = lineages.get_mut(state, fork_type, choice);
     let result = lineage
       .generated_values
-      .get(*prior_requests)
+      .get((*prior_requests) as usize)
       .copied()
       .unwrap_or_else(|| {
-        assert_eq!(*prior_requests, lineage.generated_values.len());
-        let result = lineage.generator.gen();
+        assert_eq!((*prior_requests) as usize, lineage.generated_values.len());
+        let result = rand::random();
         lineage.generated_values.push(result);
         result
       });
@@ -196,9 +203,7 @@ pub struct NoRandomness;
 pub enum NeverSeed {}
 
 impl<G: GameState> SeedView<G> for NeverSeed {
-  type ChoiceLineageIdentity = ();
-
-  fn gen(&mut self, _identity: Self::ChoiceLineageIdentity) -> f64 {
+  fn gen(&mut self, _state: &G, _fork_type: &G::RandomForkType, _choice: &G::RandomChoice) -> f64 {
     unreachable!()
   }
 }

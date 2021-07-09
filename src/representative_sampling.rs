@@ -1,7 +1,7 @@
 use crate::ai_utils::Strategy;
 use crate::competing_optimizers::{playout_result, ExplorationOptimizerKind, StrategyOptimizer};
 use crate::seed_system::{SeedView, SingleSeedView};
-use crate::seeds_concrete::CombatChoiceLineageIdentity;
+use crate::seeds_concrete::CombatChoiceLineagesKind;
 use crate::simulation_state::CombatState;
 use ordered_float::OrderedFloat;
 use rand::seq::{IteratorRandom, SliceRandom};
@@ -504,7 +504,7 @@ impl<S: Strategy + 'static, T: SeedView<CombatState> + Default + 'static> Strate
 pub struct FractalRepresentativeSeedSearchExplorationOptimizerKind;
 impl ExplorationOptimizerKind for FractalRepresentativeSeedSearchExplorationOptimizerKind {
   type ExplorationOptimizer<T: Strategy + 'static> =
-    FractalRepresentativeSeedSearch<T, SingleSeedView<CombatChoiceLineageIdentity>>;
+    FractalRepresentativeSeedSearch<T, SingleSeedView<CombatChoiceLineagesKind>>;
 
   fn new<T: Strategy + 'static>(
     self,
