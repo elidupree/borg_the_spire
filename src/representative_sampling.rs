@@ -258,19 +258,12 @@ impl<S: Strategy, T: SeedView<CombatState>> RepresentativeSeedSearchLayer<S, T> 
     }
   }
 
-  pub fn best_average(&self) -> f64 {
-    self.best_strategy.average
-  }
   /**
-  Try a strategy which is hypothesized to be better than the current best.
+  Submit a strategy for consideration as either the new best or a useful exploiter.
 
   Typically, `strategy` will be a strategy that has been optimized on a subset of the current seeds, and performs better than the current best on the subset. This function evaluates it on the entire corpus, and checks whether it indeed performs better.
-
-  The new strategy is always considered for inclusion in this layer's current corpus of exploiters.
-
-  If it performs better than the current best, we replace the current best with the new strategy; if it doesn't, we return a new subset that tries to resist the exploitation used by *all* of the current exploiters, probably including the strategy that was just attempted.
   */
-  pub fn try_strategy(&mut self, starting_state: &CombatState, strategy: Rc<S>) -> Result<(), ()> {
+  pub fn consider_strategy(&mut self, starting_state: &CombatState, strategy: Rc<S>) {
     let strategy = Rc::new(RepresentativeSeedSearchLayerStrategy::new(
       &self.seeds,
       strategy,
@@ -280,9 +273,6 @@ impl<S: Strategy, T: SeedView<CombatState>> RepresentativeSeedSearchLayer<S, T> 
     self.drop_excess_exploiters();
     if strategy.average > self.best_strategy.average {
       self.best_strategy = strategy;
-      Ok(())
-    } else {
-      Err(())
     }
   }
   pub fn make_sublayer(&self, subgroup_size: usize, rng: &mut impl Rng) -> Self {
@@ -362,6 +352,7 @@ impl<S: Strategy, T: SeedView<CombatState>> RepresentativeSeedSearchLayer<S, T> 
 pub struct FractalRepresentativeSeedSearch<S, T> {
   layers: Vec<RepresentativeSeedSearchLayer<S, T>>,
   lowest_seeds: Vec<T>,
+  best_average_on_lowest_seeds: f64,
   new_strategy: Box<dyn Fn(&[&S]) -> S>,
   steps: usize,
   successes_at_lowest: usize,
@@ -382,14 +373,16 @@ impl<S: Strategy + 'static, T: SeedView<CombatState> + Default + 'static>
   pub fn new(starting_state: &CombatState, new_strategy: Box<dyn Fn(&[&S]) -> S>) -> Self {
     let seeds = (0..Self::layer_size(0)).map(|_| T::default()).collect();
     let strategy: S = new_strategy(&[]);
-    let new_layer =
+    let first_layer =
       RepresentativeSeedSearchLayer::new(seeds, starting_state, Rc::new(strategy), 16);
-    let lowest_seeds = new_layer
-      .make_sublayer(Self::sublayer_size(0), &mut rand::thread_rng())
-      .seeds;
+    let below_first_layer =
+      first_layer.make_sublayer(Self::sublayer_size(0), &mut rand::thread_rng());
+    let lowest_seeds = below_first_layer.seeds;
+    let best_average_on_lowest_seeds = below_first_layer.best_strategy.average;
     FractalRepresentativeSeedSearch {
-      layers: vec![new_layer],
+      layers: vec![first_layer],
       lowest_seeds,
+      best_average_on_lowest_seeds,
       new_strategy,
       steps: 0,
       successes_at_lowest: 0,
@@ -420,50 +413,57 @@ impl<S: Strategy + 'static, T: SeedView<CombatState> + Default + 'static> Strate
       let result = playout_result(state, seed.clone(), &strategy);
       total_score += result.score;
       average = total_score / (index + 1) as f64;
-      if average < self.layers.first().unwrap().best_average() {
+      if average < self.best_average_on_lowest_seeds {
         break;
       }
     }
-    if average >= self.layers.first().unwrap().best_average() {
+    if average >= self.best_average_on_lowest_seeds {
       self.successes_at_lowest += 1;
-    } else if self.steps % 16 != 0 {
+      self.layers[0].consider_strategy(state, Rc::new(strategy))
+    }
+    // if there's no new strategy to consider, generally don't reroll the layers,
+    // but occasionally we could have a nonrepresentative smallest layer with a pathologically good score,
+    // so occasionally reroll them anyway
+    else if self.steps % 64 != 0 {
       return;
     }
     self.layer_updates += 1;
 
-    let mut previous_best_strategy = Rc::new(strategy);
-    let mut previous_best_average = average;
     // Each layer is twice as big as the last, so it is twice as much work to try strategies on it. Thus, visit each layer only one-third as often as the last, keeping the total amortized cost only as great as that of the lowest layer.
     let mut steps_thingy = self.layer_updates;
-    let mut max_index: usize = 0;
+    let mut layer_to_resample_index: usize = 0;
     while steps_thingy % 3 == 0 {
-      max_index += 1;
+      layer_to_resample_index += 1;
       steps_thingy /= 3;
     }
-    for index in 0..self.layers.len().min(max_index + 1) {
-      if previous_best_average > self.layers[index].best_strategy.average {
-        let result = self.layers[index].try_strategy(state, previous_best_strategy);
-        if let Err(_) = result {
-          for index in (0..index).rev() {
-            let new_sublayer = self.layers[index + 1]
-              .make_sublayer(Self::layer_size(index), &mut rand::thread_rng());
-            self.layers[index] = new_sublayer;
-          }
-          let new_sublayer =
-            self.layers[0].make_sublayer(Self::sublayer_size(0), &mut rand::thread_rng());
-          self.lowest_seeds = new_sublayer.seeds;
-        }
+    for index in 0..(self.layers.len() - 1).min(layer_to_resample_index) {
+      for strategy in self.layers[index].strategies().cloned().collect::<Vec<_>>() {
+        self.layers[index + 1].consider_strategy(state, strategy.strategy.clone());
       }
-      previous_best_strategy = self.layers[index].best_strategy.strategy.clone();
-      previous_best_average = self.layers[index].best_strategy.average;
     }
-    if max_index >= self.layers.len() {
-      assert_eq!(max_index, self.layers.len());
+    if layer_to_resample_index >= self.layers.len() {
+      assert_eq!(layer_to_resample_index, self.layers.len());
       let last = self.layers.last().unwrap();
-      assert_eq!(last.seeds.len(), Self::sublayer_size(max_index));
-      let new_layer = last.make_superlayer(Self::layer_size(max_index), || T::default(), state);
+      assert_eq!(
+        last.seeds.len(),
+        Self::sublayer_size(layer_to_resample_index)
+      );
+      let new_layer = last.make_superlayer(
+        Self::layer_size(layer_to_resample_index),
+        || T::default(),
+        state,
+      );
       self.layers.push(new_layer);
     }
+    for index in (0..layer_to_resample_index).rev() {
+      let new_sublayer =
+        self.layers[index + 1].make_sublayer(Self::layer_size(index), &mut rand::thread_rng());
+      self.layers[index] = new_sublayer;
+    }
+    let new_sublayer =
+      self.layers[0].make_sublayer(Self::sublayer_size(0), &mut rand::thread_rng());
+    self.lowest_seeds = new_sublayer.seeds;
+    self.best_average_on_lowest_seeds = new_sublayer.best_strategy.average;
   }
 
   fn report(&self) -> &Self::Strategy {
