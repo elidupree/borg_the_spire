@@ -161,6 +161,14 @@ impl<S: Strategy> RepresentativeSeedSearchLayerStrategy<S> {
       average,
     }
   }
+  fn new_with_scores(strategy: Rc<S>, scores: Vec<f64>) -> Self {
+    let average = scores.iter().sum::<f64>() / scores.len() as f64;
+    RepresentativeSeedSearchLayerStrategy {
+      strategy,
+      scores,
+      average,
+    }
+  }
 }
 
 pub struct RepresentativeSeedSearchLayer<S, T> {
@@ -190,26 +198,24 @@ impl<S: Strategy, T: SeedView<CombatState>> RepresentativeSeedSearchLayer<S, T> 
       exploiters,
     }
   }
-  pub fn reseed(&mut self, seeds: Vec<T>, starting_state: &CombatState, best_from_above: Rc<S>) {
-    let current_strategies = self.strategies().map(|s| s.strategy.clone());
-    let new_strategies: Vec<_> = current_strategies
-      .chain(std::iter::once(best_from_above))
-      .map(|strategy| {
-        Rc::new(RepresentativeSeedSearchLayerStrategy::new(
-          &seeds,
-          strategy,
-          starting_state,
-        ))
-      })
-      .collect();
-    self.best_strategy = new_strategies
+  pub fn new_with_precalculated_strategies(
+    seeds: Vec<T>,
+    strategies: Vec<Rc<RepresentativeSeedSearchLayerStrategy<S>>>,
+    max_exploiters: usize,
+  ) -> Self {
+    let best_strategy = strategies
       .iter()
       .max_by_key(|s| OrderedFloat(s.average))
       .unwrap()
       .clone();
-    self.exploiters = new_strategies;
-    self.seeds = seeds;
-    self.drop_excess_exploiters();
+    let mut result = RepresentativeSeedSearchLayer {
+      seeds,
+      max_exploiters,
+      best_strategy,
+      exploiters: strategies,
+    };
+    result.drop_excess_exploiters();
+    result
   }
   pub fn strategies(&self) -> impl Iterator<Item = &Rc<RepresentativeSeedSearchLayerStrategy<S>>> {
     std::iter::once(&self.best_strategy).chain(
@@ -279,13 +285,8 @@ impl<S: Strategy, T: SeedView<CombatState>> RepresentativeSeedSearchLayer<S, T> 
       Err(())
     }
   }
-  pub fn make_subgroup(
-    &self,
-    starting_state: &CombatState,
-    subgroup_size: usize,
-    rng: &mut impl Rng,
-  ) -> Vec<T> {
-    let result_indices = representative_seed_subgroup(
+  pub fn make_sublayer(&self, subgroup_size: usize, rng: &mut impl Rng) -> Self {
+    let sublayer_indices = representative_seed_subgroup(
       &self
         .strategies()
         .map(|e| e.scores.as_slice())
@@ -293,21 +294,28 @@ impl<S: Strategy, T: SeedView<CombatState>> RepresentativeSeedSearchLayer<S, T> 
       subgroup_size,
       rng,
     );
-    let result: Vec<T> = result_indices
-      .into_iter()
-      .map(|index| self.seeds[index].clone())
+    let sublayer_seeds: Vec<T> = sublayer_indices
+      .iter()
+      .map(|&index| self.seeds[index].clone())
       .collect();
-    for strategy in self.strategies() {
+    let sublayer_strategies: Vec<_> = self
+      .strategies()
+      .map(|strategy| {
+        Rc::new(RepresentativeSeedSearchLayerStrategy::new_with_scores(
+          strategy.strategy.clone(),
+          sublayer_indices
+            .iter()
+            .map(|&index| strategy.scores[index])
+            .collect(),
+        ))
+      })
+      .collect();
+    for (strategy, sublayer_strategy) in self.strategies().zip(&sublayer_strategies) {
       let a = strategy.average;
-      let b = RepresentativeSeedSearchLayerStrategy::new(
-        &result,
-        strategy.strategy.clone(),
-        starting_state,
-      )
-      .average;
+      let b = sublayer_strategy.average;
       let unavoidable_difference =
-        (((a * result.len() as f64).round() / result.len() as f64) - a).abs();
-      if (a - b).abs() > unavoidable_difference + (0.2 / result.len() as f64) {
+        (((a * subgroup_size as f64).round() / subgroup_size as f64) - a).abs();
+      if (a - b).abs() > unavoidable_difference + (0.2 / subgroup_size as f64) {
         println!(
           "A strategy's average score had an unfortunately large difference in the subgroup: {}: {} -> {} ({})",
           self.seeds.len(),
@@ -317,7 +325,37 @@ impl<S: Strategy, T: SeedView<CombatState>> RepresentativeSeedSearchLayer<S, T> 
         )
       }
     }
-    result
+    Self::new_with_precalculated_strategies(
+      sublayer_seeds,
+      sublayer_strategies,
+      self.max_exploiters,
+    )
+  }
+  pub fn make_superlayer(
+    &self,
+    supergroup_size: usize,
+    mut make_seed: impl FnMut() -> T,
+    starting_state: &CombatState,
+  ) -> Self {
+    let mut superlayer_seeds = self.seeds.clone();
+    let extras = supergroup_size - superlayer_seeds.len();
+    superlayer_seeds.extend((0..extras).map(|_| make_seed()));
+    assert_eq!(superlayer_seeds.len(), supergroup_size);
+    let superlayer_strategies: Vec<_> = self
+      .strategies()
+      .map(|strategy| {
+        Rc::new(RepresentativeSeedSearchLayerStrategy::new(
+          &superlayer_seeds,
+          strategy.strategy.clone(),
+          starting_state,
+        ))
+      })
+      .collect();
+    Self::new_with_precalculated_strategies(
+      superlayer_seeds,
+      superlayer_strategies,
+      self.max_exploiters,
+    )
   }
 }
 
@@ -346,11 +384,9 @@ impl<S: Strategy + 'static, T: SeedView<CombatState> + Default + 'static>
     let strategy: S = new_strategy(&[]);
     let new_layer =
       RepresentativeSeedSearchLayer::new(seeds, starting_state, Rc::new(strategy), 16);
-    let lowest_seeds = new_layer.make_subgroup(
-      starting_state,
-      Self::sublayer_size(0),
-      &mut rand::thread_rng(),
-    );
+    let lowest_seeds = new_layer
+      .make_sublayer(Self::sublayer_size(0), &mut rand::thread_rng())
+      .seeds;
     FractalRepresentativeSeedSearch {
       layers: vec![new_layer],
       lowest_seeds,
@@ -409,16 +445,13 @@ impl<S: Strategy + 'static, T: SeedView<CombatState> + Default + 'static> Strate
         let result = self.layers[index].try_strategy(state, previous_best_strategy);
         if let Err(_) = result {
           for index in (0..index).rev() {
-            let new_subgroup = self.layers[index + 1].make_subgroup(
-              state,
-              Self::layer_size(index),
-              &mut rand::thread_rng(),
-            );
-            let best_from_above = self.layers[index + 1].best_strategy.strategy.clone();
-            self.layers[index].reseed(new_subgroup, state, best_from_above);
+            let new_sublayer = self.layers[index + 1]
+              .make_sublayer(Self::layer_size(index), &mut rand::thread_rng());
+            self.layers[index] = new_sublayer;
           }
-          self.lowest_seeds =
-            self.layers[0].make_subgroup(state, Self::sublayer_size(0), &mut rand::thread_rng());
+          let new_sublayer =
+            self.layers[0].make_sublayer(Self::sublayer_size(0), &mut rand::thread_rng());
+          self.lowest_seeds = new_sublayer.seeds;
         }
       }
       previous_best_strategy = self.layers[index].best_strategy.strategy.clone();
@@ -427,13 +460,8 @@ impl<S: Strategy + 'static, T: SeedView<CombatState> + Default + 'static> Strate
     if max_index >= self.layers.len() {
       assert_eq!(max_index, self.layers.len());
       let last = self.layers.last().unwrap();
-      let mut seeds = last.seeds.clone();
-      assert_eq!(seeds.len(), Self::sublayer_size(max_index));
-      let extras = Self::layer_size(max_index) - Self::sublayer_size(max_index);
-      seeds.extend((0..extras).map(|_| T::default()));
-      assert_eq!(seeds.len(), Self::layer_size(max_index));
-      let best = last.best_strategy.strategy.clone();
-      let new_layer = RepresentativeSeedSearchLayer::new(seeds, state, best, 16);
+      assert_eq!(last.seeds.len(), Self::sublayer_size(max_index));
+      let new_layer = last.make_superlayer(Self::layer_size(max_index), || T::default(), state);
       self.layers.push(new_layer);
     }
   }
