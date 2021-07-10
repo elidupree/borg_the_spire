@@ -85,7 +85,7 @@ pub trait ContainerKind {
   type Container<T: Clone + Debug + Default>: Clone + Debug + Default;
 }
 
-pub trait SeedView<G: GameState>: Clone {
+pub trait SeedView<G: GameState>: Clone + Debug {
   fn gen(&mut self, state: &G, fork_type: &G::RandomForkType, choice: &G::RandomChoice) -> f64;
 }
 

@@ -17,11 +17,11 @@ use std::collections::BTreeMap;
 pub trait StrategyOptimizer: 'static {
   type Strategy: Strategy;
   fn step(&mut self, state: &CombatState);
-  fn report(&self) -> &Self::Strategy;
+  fn report(&self) -> Self::Strategy;
 }
 
 pub trait ExplorationOptimizerKind {
-  type ExplorationOptimizer<T: Strategy + 'static>: StrategyOptimizer<Strategy = T>;
+  type ExplorationOptimizer<T: Strategy + 'static>: StrategyOptimizer;
   fn new<T: Strategy + 'static>(
     self,
     starting_state: &CombatState,
@@ -47,6 +47,7 @@ pub fn playout_result(
 
 // Note: This meta strategy often performed WORSE than the naive strategy it's based on,
 // probably because it chose lucky moves rather than good moves
+#[derive(Clone, Debug)]
 struct MetaStrategy<'a, T>(&'a T);
 
 impl<'a, T: Strategy> Strategy for MetaStrategy<'a, T> {
@@ -158,7 +159,7 @@ impl<T: Strategy + 'static> StrategyOptimizer for OriginalExplorationOptimizer<T
     }
   }
 
-  fn report(&self) -> &Self::Strategy {
+  fn report(&self) -> Self::Strategy {
     let best = self.best_strategy();
 
     println!(
@@ -167,7 +168,7 @@ impl<T: Strategy + 'static> StrategyOptimizer for OriginalExplorationOptimizer<T
       (best.total_score / best.playouts as f64)
     );
 
-    &best.strategy
+    best.strategy.clone()
   }
 }
 
@@ -240,7 +241,7 @@ impl<T: Strategy + 'static> StrategyOptimizer for IndependentSeedsExplorationOpt
     }
   }
 
-  fn report(&self) -> &Self::Strategy {
+  fn report(&self) -> Self::Strategy {
     let (average, best) = self.candidate_strategies.last_key_value().unwrap();
 
     println!(
@@ -248,7 +249,7 @@ impl<T: Strategy + 'static> StrategyOptimizer for IndependentSeedsExplorationOpt
       average, self.candidate_strategies.first_key_value().unwrap().0, self.candidate_strategies.len(), self.total_accepted, self.steps
     );
 
-    best
+    best.clone()
   }
 }
 
@@ -258,12 +259,17 @@ impl StrategyOptimizer for NeuralStrategy {
     self.do_training_playout(state);
   }
 
-  fn report(&self) -> &Self::Strategy {
-    self
+  fn report(&self) -> Self::Strategy {
+    self.clone()
   }
 }
 
-pub fn optimizer_step(name: &str, state: &CombatState, optimizer: &mut impl StrategyOptimizer) {
+pub fn optimizer_step(
+  name: &str,
+  state: &CombatState,
+  optimizer: &mut impl StrategyOptimizer,
+  last: bool,
+) {
   println!("Optimizing {}…", name);
   let start = Instant::now();
   let mut steps = 0;
@@ -285,12 +291,13 @@ pub fn optimizer_step(name: &str, state: &CombatState, optimizer: &mut impl Stra
   let start = Instant::now();
   let mut steps = 0;
   let mut total_test_score = 0.0;
+  let test_duration = Duration::from_millis(if last { 10000 } else { 500 });
   let elapsed = loop {
-    total_test_score += playout_result(state, Unseeded, strategy).score;
+    total_test_score += playout_result(state, Unseeded, &strategy).score;
     steps += 1;
 
     let elapsed = start.elapsed();
-    if elapsed > Duration::from_millis(500) {
+    if elapsed > test_duration {
       break elapsed;
     }
   };
@@ -358,15 +365,15 @@ pub fn run_benchmark (name: & str, state: & CombatState, optimization_playouts: 
 }*/
 
 pub trait Competitor {
-  fn step(&mut self, state: &CombatState);
+  fn step(&mut self, state: &CombatState, last: bool);
 }
 struct OptimizerCompetitor<T> {
   name: String,
   optimizer: T,
 }
 impl<T: StrategyOptimizer> Competitor for OptimizerCompetitor<T> {
-  fn step(&mut self, state: &CombatState) {
-    optimizer_step(&self.name, state, &mut self.optimizer);
+  fn step(&mut self, state: &CombatState, last: bool) {
+    optimizer_step(&self.name, state, &mut self.optimizer, last);
   }
 }
 
@@ -495,7 +502,7 @@ pub fn run(competitors: impl IntoIterator<Item = CompetitorSpecification>) {
   for iteration in 0..20 {
     println!("\nIteration {}:", iteration);
     for competitor in &mut competitors {
-      competitor.step(&ghost_state);
+      competitor.step(&ghost_state, iteration == 19);
     }
     println!();
   }

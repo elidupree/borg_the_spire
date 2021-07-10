@@ -2,6 +2,7 @@ use crate::ai_utils::Strategy;
 use crate::competing_optimizers::{playout_result, ExplorationOptimizerKind, StrategyOptimizer};
 use crate::seed_system::{SeedView, SingleSeedView};
 use crate::seeds_concrete::CombatChoiceLineagesKind;
+use crate::simulation::Choice;
 use crate::simulation_state::CombatState;
 use ordered_float::OrderedFloat;
 use rand::seq::{IteratorRandom, SliceRandom};
@@ -394,7 +395,7 @@ impl<S: Strategy + 'static, T: SeedView<CombatState> + Default + 'static>
 impl<S: Strategy + 'static, T: SeedView<CombatState> + Default + 'static> StrategyOptimizer
   for FractalRepresentativeSeedSearch<S, T>
 {
-  type Strategy = S;
+  type Strategy = RepresentativeSeedsMetaStrategy<S, T>;
   fn step(&mut self, state: &CombatState) {
     self.steps += 1;
     let strategy: S = (self.new_strategy)(
@@ -466,7 +467,7 @@ impl<S: Strategy + 'static, T: SeedView<CombatState> + Default + 'static> Strate
     self.best_average_on_lowest_seeds = new_sublayer.best_strategy.average;
   }
 
-  fn report(&self) -> &Self::Strategy {
+  fn report(&self) -> Self::Strategy {
     let best = &self.layers.last().unwrap().best_strategy;
 
     println!(
@@ -497,7 +498,23 @@ impl<S: Strategy + 'static, T: SeedView<CombatState> + Default + 'static> Strate
       );
     }
 
-    &best.strategy
+    //&best.strategy
+
+    RepresentativeSeedsMetaStrategy {
+      seeds: self
+        .layers
+        .get(1)
+        .unwrap_or_else(|| self.layers.last().unwrap())
+        .seeds
+        .clone(),
+      strategies: self
+        .layers
+        .last()
+        .unwrap()
+        .strategies()
+        .map(|s| s.strategy.clone())
+        .collect(),
+    }
   }
 }
 
@@ -512,5 +529,31 @@ impl ExplorationOptimizerKind for FractalRepresentativeSeedSearchExplorationOpti
     new_strategy: Box<dyn Fn(&[&T]) -> T>,
   ) -> Self::ExplorationOptimizer<T> {
     FractalRepresentativeSeedSearch::new(starting_state, new_strategy)
+  }
+}
+
+#[derive(Clone, Debug)]
+pub struct RepresentativeSeedsMetaStrategy<S, T> {
+  seeds: Vec<T>,
+  strategies: Vec<Rc<S>>,
+}
+
+impl<S: Strategy + 'static, T: SeedView<CombatState> + 'static> Strategy
+  for RepresentativeSeedsMetaStrategy<S, T>
+{
+  fn choose_choice(&self, state: &CombatState) -> Vec<Choice> {
+    let best_strategy = self
+      .strategies
+      .iter()
+      .max_by_key(|&strategy| {
+        let score = self
+          .seeds
+          .iter()
+          .map(|seed| playout_result(&state, seed.clone(), &**strategy).score)
+          .sum::<f64>();
+        OrderedFloat(score)
+      })
+      .unwrap();
+    best_strategy.choose_choice(state)
   }
 }
