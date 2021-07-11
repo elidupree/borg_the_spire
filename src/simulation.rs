@@ -4,7 +4,7 @@ use std::fmt::Write;
 //use rand::{Rng, SeedableRng};
 
 use crate::actions::*;
-use crate::seed_system::{choose_choice, Distribution, NeverSeed, SeedView};
+use crate::seed_system::{choose_choice, Distribution, MaybeSeedView};
 pub use crate::simulation_state::cards::CardBehavior;
 pub use crate::simulation_state::monsters::MonsterBehavior;
 use crate::simulation_state::*;
@@ -117,15 +117,15 @@ pub trait Runner {
   fn action_bottom(&mut self, action: impl Action);
 }
 
-pub struct StandardRunner<'a, Seed = NeverSeed> {
+pub struct StandardRunner<'a, Seed> {
   state: &'a mut CombatState,
-  seed: Option<&'a mut Seed>,
+  seed: Seed,
   debug: bool,
   log: String,
 }
 
-impl<'a, Seed: SeedView<CombatState>> StandardRunner<'a, Seed> {
-  pub fn new(state: &'a mut CombatState, seed: Option<&'a mut Seed>, debug: bool) -> Self {
+impl<'a, Seed: MaybeSeedView<CombatState>> StandardRunner<'a, Seed> {
+  pub fn new(state: &'a mut CombatState, seed: Seed, debug: bool) -> Self {
     StandardRunner {
       state,
       seed,
@@ -137,7 +137,7 @@ impl<'a, Seed: SeedView<CombatState>> StandardRunner<'a, Seed> {
   pub fn can_apply_impl(&self, action: &impl Action) -> bool {
     match action.determinism(self.state()) {
       Determinism::Deterministic => true,
-      Determinism::Random(distribution) => self.seed.is_some() || distribution.0.len() == 1,
+      Determinism::Random(distribution) => self.seed.is_seed() || distribution.0.len() == 1,
       Determinism::Choice => false,
     }
   }
@@ -154,8 +154,8 @@ impl<'a, Seed: SeedView<CombatState>> StandardRunner<'a, Seed> {
     match action.determinism(self.state()) {
       Determinism::Deterministic => action.execute(self),
       Determinism::Random(distribution) => {
-        let random_value = match &mut self.seed {
-          Some(seed) => choose_choice(&*self.state, &action.clone().into(), &distribution, *seed),
+        let random_value = match self.seed.as_seed() {
+          Some(seed) => choose_choice(&*self.state, &action.clone().into(), &distribution, seed),
           None => {
             assert_eq!(distribution.0.len(), 1);
             distribution.0.first().unwrap().1
@@ -179,7 +179,7 @@ impl<'a, Seed: SeedView<CombatState>> StandardRunner<'a, Seed> {
     &self.log
   }
 }
-impl<'a, Seed: SeedView<CombatState>> Runner for StandardRunner<'a, Seed> {
+impl<'a, Seed: MaybeSeedView<CombatState>> Runner for StandardRunner<'a, Seed> {
   fn state(&self) -> &CombatState {
     self.state
   }

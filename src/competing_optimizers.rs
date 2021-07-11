@@ -38,14 +38,11 @@ pub struct CandidateStrategy<T> {
 
 pub fn playout_result(
   state: &CombatState,
-  mut seed: impl SeedView<CombatState>,
+  seed: impl SeedView<CombatState>,
   strategy: &impl Strategy,
 ) -> CombatResult {
   let mut state = state.clone();
-  play_out(
-    &mut StandardRunner::new(&mut state, Some(&mut seed), false),
-    strategy,
-  );
+  play_out(&mut StandardRunner::new(&mut state, seed, false), strategy);
   CombatResult::new(&state)
 }
 
@@ -58,11 +55,7 @@ impl<'a, T: Strategy> Strategy for MetaStrategy<'a, T> {
   fn choose_choice(&self, state: &CombatState) -> Vec<Choice> {
     let combos = collect_starting_points(state.clone(), 200);
     let choices = combos.into_iter().map(|(mut state, choices)| {
-      run_until_unable(&mut StandardRunner::new(
-        &mut state,
-        Some(&mut Unseeded),
-        false,
-      ));
+      run_until_unable(&mut StandardRunner::new(&mut state, Unseeded, false));
       let num_attempts = 200;
       let score = (0..num_attempts)
         .map(|_| playout_result(&state, Unseeded, self.0).score)

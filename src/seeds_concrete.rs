@@ -2,7 +2,9 @@ use crate::actions::{
   AttackDamageRandomEnemyAction, ChooseMonsterIntent, DynAction, GainBlockRandomMonsterAction,
   InitializeMonsterInnateDamageAmount,
 };
-use crate::seed_system::{ChoiceLineages, ContainerKind, GameState};
+use crate::seed_system::{
+  ChoiceLineages, ContainerKind, GameState, MaybeSeedView, NeverSeed, NoRandomness,
+};
 use crate::simulation::MonsterIndex;
 use crate::simulation_state::{CardId, CombatState, MAX_MONSTERS};
 use enum_map::EnumMap;
@@ -78,4 +80,15 @@ impl<T: Default> ChoiceLineages<CombatState> for CombatChoiceLineages<T> {
 
 impl ContainerKind for CombatChoiceLineagesKind {
   type Container<T: Clone + Debug + Default> = CombatChoiceLineages<T>;
+}
+
+// This would prefer to live in the seed_system module, but it can't be implemented generically due to details of the orphan rule
+impl MaybeSeedView<CombatState> for NoRandomness {
+  type SelfAsSeed = NeverSeed;
+  fn is_seed(&self) -> bool {
+    false
+  }
+  fn as_seed(&mut self) -> Option<&mut Self::SelfAsSeed> {
+    None
+  }
 }

@@ -320,8 +320,7 @@ impl NeuralStrategy {
 
   pub fn do_training_playout(&mut self, state: &CombatState) {
     let mut playout_state = state.clone();
-    let mut seed = Unseeded;
-    let mut runner = StandardRunner::new(&mut playout_state, Some(&mut seed), false);
+    let mut runner = StandardRunner::new(&mut playout_state, Unseeded, false);
     let mut analyses: Vec<(CombatStateAnalysis, ChoiceAnalysis)> = Vec::new();
 
     run_until_unable(&mut runner);

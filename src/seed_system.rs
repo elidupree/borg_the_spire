@@ -181,6 +181,24 @@ where
   }
 }
 
+pub trait MaybeSeedView<G: GameState> {
+  type SelfAsSeed: SeedView<G>;
+  fn is_seed(&self) -> bool;
+  fn as_seed(&mut self) -> Option<&mut Self::SelfAsSeed>;
+}
+
+impl<G: GameState, S: SeedView<G>> MaybeSeedView<G> for S {
+  type SelfAsSeed = Self;
+  fn is_seed(&self) -> bool {
+    true
+  }
+  fn as_seed(&mut self) -> Option<&mut Self::SelfAsSeed> {
+    Some(self)
+  }
+}
+
+#[derive(Clone, Debug)]
+pub struct NoRandomness;
 #[derive(Clone, Debug)]
 pub enum NeverSeed {}
 
