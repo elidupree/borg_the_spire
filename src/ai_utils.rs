@@ -1,3 +1,4 @@
+use crate::seed_system::NeverSeed;
 use crate::simulation::{run_until_unable, Choice, Runner, StandardRunner};
 use crate::simulation_state::CombatState;
 use std::collections::{HashSet, VecDeque};
@@ -24,7 +25,7 @@ pub fn collect_starting_points(
       let choices = state.legal_choices();
       for choice in choices {
         let mut new_state = state.clone();
-        let mut runner = StandardRunner::new(&mut new_state, None, false);
+        let mut runner = StandardRunner::new(&mut new_state, None::<&mut NeverSeed>, false);
         runner.action_now(&choice);
         run_until_unable(&mut runner);
         let mut new_history = history.clone();

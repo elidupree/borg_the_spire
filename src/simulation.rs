@@ -4,7 +4,7 @@ use std::fmt::Write;
 //use rand::{Rng, SeedableRng};
 
 use crate::actions::*;
-use crate::seed_system::{choose_choice, Distribution, SeedView};
+use crate::seed_system::{choose_choice, Distribution, NeverSeed, SeedView};
 pub use crate::simulation_state::cards::CardBehavior;
 pub use crate::simulation_state::monsters::MonsterBehavior;
 use crate::simulation_state::*;
@@ -117,19 +117,15 @@ pub trait Runner {
   fn action_bottom(&mut self, action: impl Action);
 }
 
-pub struct StandardRunner<'a> {
+pub struct StandardRunner<'a, Seed = NeverSeed> {
   state: &'a mut CombatState,
-  seed: Option<&'a mut dyn SeedView<CombatState>>,
+  seed: Option<&'a mut Seed>,
   debug: bool,
   log: String,
 }
 
-impl<'a> StandardRunner<'a> {
-  pub fn new(
-    state: &'a mut CombatState,
-    seed: Option<&'a mut dyn SeedView<CombatState>>,
-    debug: bool,
-  ) -> Self {
+impl<'a, Seed: SeedView<CombatState>> StandardRunner<'a, Seed> {
+  pub fn new(state: &'a mut CombatState, seed: Option<&'a mut Seed>, debug: bool) -> Self {
     StandardRunner {
       state,
       seed,
@@ -183,7 +179,7 @@ impl<'a> StandardRunner<'a> {
     &self.log
   }
 }
-impl<'a> Runner for StandardRunner<'a> {
+impl<'a, Seed: SeedView<CombatState>> Runner for StandardRunner<'a, Seed> {
   fn state(&self) -> &CombatState {
     self.state
   }

@@ -180,3 +180,12 @@ where
     result
   }
 }
+
+#[derive(Clone, Debug)]
+pub enum NeverSeed {}
+
+impl<G: GameState> SeedView<G> for NeverSeed {
+  fn gen(&mut self, _state: &G, _fork_type: &G::RandomForkType, _choice: &G::RandomChoice) -> f64 {
+    unreachable!()
+  }
+}
