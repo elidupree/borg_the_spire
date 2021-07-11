@@ -25,7 +25,7 @@ pub fn collect_starting_points(
       let choices = state.legal_choices();
       for choice in choices {
         let mut new_state = state.clone();
-        let mut runner = StandardRunner::new(&mut new_state, NoRandomness, false);
+        let mut runner = StandardRunner::new(&mut new_state, NoRandomness);
         runner.apply_choice(&choice);
         let mut new_history = history.clone();
         new_history.push(choice.clone());

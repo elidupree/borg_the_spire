@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
 
 //use crate::actions::*;
+use crate::actions::PlayCard;
 use crate::ai_utils::{collect_starting_points, play_out, CombatResult, Strategy};
 use crate::neural_net_ai::NeuralStrategy;
 use crate::representative_sampling::FractalRepresentativeSeedSearchExplorationOptimizerKind;
@@ -46,7 +47,7 @@ pub fn playout_result(
   strategy: &impl Strategy,
 ) -> CombatResult {
   let mut state = state.clone();
-  play_out(&mut StandardRunner::new(&mut state, seed, false), strategy);
+  play_out(&mut StandardRunner::new(&mut state, seed), strategy);
   CombatResult::new(&state)
 }
 
@@ -59,12 +60,8 @@ impl<'a, T: Strategy> Strategy for MetaStrategy<'a, T> {
   fn choose_choice(&self, state: &CombatState) -> Vec<Choice> {
     let combos = collect_starting_points(state.clone(), 200);
     let choices = combos.into_iter().map(|(mut state, choices)| {
-      StandardRunner::new(
-        &mut state,
-        TrivialSeed::new(Pcg64Mcg::from_entropy()),
-        false,
-      )
-      .run_until_unable();
+      StandardRunner::new(&mut state, TrivialSeed::new(Pcg64Mcg::from_entropy()))
+        .run_until_unable();
       let num_attempts = 200;
       let score = (0..num_attempts)
         .map(|_| playout_result(&state, TrivialSeed::new(Pcg64Mcg::from_entropy()), self.0).score)
@@ -334,6 +331,57 @@ pub fn optimizer_step(
       break elapsed;
     }
   };
+
+  println!("Example playout:");
+
+  {
+    //let mut state = state.clone();
+    let mut last_hand = state.hand.clone();
+    let mut last_hitpoints = state.player.creature.hitpoints;
+    print!("Example playout:\nStarting hand: ");
+    for card in &last_hand {
+      print!("{}, ", card);
+    }
+    println!();
+    play_out(
+      &mut StandardRunner::new(
+        &mut state.clone(),
+        TrivialSeed::new(Pcg64Mcg::from_entropy()),
+      )
+      .on_choice(|state, choice| {
+        if state.player.creature.hitpoints != last_hitpoints {
+          println!(
+            "Took {} damage",
+            last_hitpoints - state.player.creature.hitpoints
+          );
+          last_hitpoints = state.player.creature.hitpoints;
+        }
+
+        if state.hand != last_hand {
+          last_hand = state.hand.clone();
+          print!("Hand is now: ");
+          for card in &last_hand {
+            print!("{}, ", card);
+          }
+          println!();
+        }
+        match choice {
+          Choice::PlayCard(PlayCard { card, target }) => {
+            if card.card_info.has_target {
+              println!("{} {}", card, target);
+            } else {
+              println!("{}", card);
+            }
+          }
+          Choice::EndTurn(_) => {
+            println!("=== EndTurn ===");
+          }
+          _ => {}
+        }
+      }),
+      &*strategy,
+    );
+  }
 
   println!(
     "Evaluated {} for {:.2?} ({} playouts). Average score: {}",

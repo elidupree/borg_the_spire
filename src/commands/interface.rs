@@ -12,7 +12,6 @@ use typed_html::dom::DOMTree;
 use typed_html::elements::FlowContent;
 use typed_html::{html, text};
 
-use crate::ai_utils::play_out;
 use crate::seed_system::TrivialSeed;
 use crate::simulation::*;
 use crate::simulation_state::*;
@@ -76,7 +75,6 @@ impl SearchState {
       let mut runner = StandardRunner::new(
         &mut hypothetical_evaluated_state,
         TrivialSeed::new(Pcg64Mcg::from_entropy()),
-        true,
       );
       runner.run_until_unable();
       //let log = runner.debug_log().to_string();
@@ -121,15 +119,15 @@ impl ApplicationState {
   pub fn set_state(&mut self, state: CombatState) {
     if self.combat_state.as_ref() != Some(&state) {
       self.combat_state = Some(state.clone());
-      let mut playout_state = state.clone();
+      // let mut playout_state = state.clone();
       self.search_state = Some(SearchState::new(state));
-      let mut runner = StandardRunner::new(
-        &mut playout_state,
-        TrivialSeed::new(Pcg64Mcg::from_entropy()),
-        true,
-      );
-      play_out(&mut runner, &SomethingStrategy {});
-      self.debug_log = runner.debug_log().to_string();
+      // let mut runner = StandardRunner::new(
+      //   &mut playout_state,
+      //   TrivialSeed::new(Pcg64Mcg::from_entropy()),
+      //   true,
+      // );
+      // play_out(&mut runner, &SomethingStrategy {});
+      // self.debug_log = runner.debug_log().to_string();
     }
   }
 }

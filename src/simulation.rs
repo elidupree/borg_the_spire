@@ -1,6 +1,5 @@
 use derivative::Derivative;
 use serde::{Deserialize, Serialize};
-use std::fmt::Write;
 //use rand::{Rng, SeedableRng};
 
 use crate::actions::*;
@@ -119,21 +118,23 @@ pub trait Runner {
   fn apply_choice(&mut self, choice: &Choice);
 }
 
-pub struct StandardRunner<'a, Seed> {
+pub struct StandardRunner<'a, 'b, Seed> {
   state: &'a mut CombatState,
   seed: Seed,
-  debug: bool,
-  log: String,
+  on_choice: Option<Box<dyn FnMut(&CombatState, &Choice) + 'b>>,
 }
 
-impl<'a, Seed: MaybeSeedView<CombatState>> StandardRunner<'a, Seed> {
-  pub fn new(state: &'a mut CombatState, seed: Seed, debug: bool) -> Self {
+impl<'a, 'b, Seed: MaybeSeedView<CombatState>> StandardRunner<'a, 'b, Seed> {
+  pub fn new(state: &'a mut CombatState, seed: Seed) -> Self {
     StandardRunner {
       state,
       seed,
-      debug,
-      log: String::new(),
+      on_choice: None,
     }
+  }
+  pub fn on_choice(mut self, on_choice: impl FnMut(&CombatState, &Choice) + 'b) -> Self {
+    self.on_choice = Some(Box::new(on_choice));
+    self
   }
 
   fn can_apply(&self, action: &impl Action) -> bool {
@@ -147,15 +148,15 @@ impl<'a, Seed: MaybeSeedView<CombatState>> StandardRunner<'a, Seed> {
     }
   }
   fn apply_impl(&mut self, action: &impl Action) {
-    if self.debug {
-      writeln!(
-        self.log,
-        "Applying {:?} to state {:?}",
-        action.clone().into(),
-        self.state
-      )
-      .unwrap();
-    }
+    // if self.debug {
+    //   writeln!(
+    //     self.log,
+    //     "Applying {:?} to state {:?}",
+    //     action.clone().into(),
+    //     self.state
+    //   )
+    //   .unwrap();
+    // }
     match action.determinism(self.state()) {
       Determinism::Deterministic => action.execute(self),
       Determinism::Random(distribution) => {
@@ -170,21 +171,21 @@ impl<'a, Seed: MaybeSeedView<CombatState>> StandardRunner<'a, Seed> {
       }
       Determinism::Choice => unreachable!(),
     }
-    if self.debug {
-      writeln!(
-        self.log,
-        "Done applying {:?}; state is now {:?}",
-        action.clone().into(),
-        self.state
-      )
-      .unwrap();
-    }
+    // if self.debug {
+    //   writeln!(
+    //     self.log,
+    //     "Done applying {:?}; state is now {:?}",
+    //     action.clone().into(),
+    //     self.state
+    //   )
+    //   .unwrap();
+    // }
   }
-  pub fn debug_log(&self) -> &str {
-    &self.log
-  }
+  // pub fn debug_log(&self) -> &str {
+  //   &self.log
+  // }
 }
-impl<'a, Seed: MaybeSeedView<CombatState>> Runner for StandardRunner<'a, Seed> {
+impl<'a, 'b, Seed: MaybeSeedView<CombatState>> Runner for StandardRunner<'a, 'b, Seed> {
   fn state(&self) -> &CombatState {
     self.state
   }
@@ -239,6 +240,9 @@ impl<'a, Seed: MaybeSeedView<CombatState>> Runner for StandardRunner<'a, Seed> {
     assert!(self.state().fresh_subaction_queue.is_empty());
     assert!(self.state().stale_subaction_stack.is_empty());
     assert!(self.state().actions.is_empty());
+    if let Some(on_choice) = &mut self.on_choice {
+      on_choice(&self.state, choice);
+    }
     self.action_now(choice);
     self.run_until_unable();
   }

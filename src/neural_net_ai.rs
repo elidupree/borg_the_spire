@@ -324,7 +324,6 @@ impl NeuralStrategy {
     let mut runner = StandardRunner::new(
       &mut playout_state,
       TrivialSeed::new(Pcg64Mcg::from_entropy()),
-      false,
     );
     let mut analyses: Vec<(CombatStateAnalysis, ChoiceAnalysis)> = Vec::new();
 
