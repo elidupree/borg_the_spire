@@ -1,90 +1,7 @@
-#![feature(proc_macro_hygiene, decl_macro, array_map, generic_associated_types)]
-#![feature(map_first_last)]
-
-#[macro_use]
-extern crate rocket;
-
-use crate::competing_optimizers::CompetitorSpecification;
+use borg_the_spire::competing_optimizers::CompetitorSpecification;
+use borg_the_spire::{competing_optimizers, interface, sandbox, watch};
 use clap::{App, AppSettings, Arg, SubCommand};
 use std::path::PathBuf;
-//use std::io::BufRead;
-
-//use std::time::{Duration, Instant};
-
-macro_rules! power_hook {
-  ($runner: expr, AllMonsters, $hook: ident ( $($arguments:tt)*)) => {
-    {
-      let runner = &mut* $runner;
-      for monster_index in 0..runner.state().monsters.len() {
-        if !runner.state().monsters [monster_index].gone {
-          power_hook! (runner, CreatureIndex::Monster (monster_index), $hook ($($arguments)*));
-        }
-      }
-    }
-  };
-  ($runner: expr, AllCreatures, $hook: ident ( $($arguments:tt)*)) => {
-    {
-      let runner = &mut* $runner;
-      power_hook! (runner, CreatureIndex::Player, $hook ($($arguments)*));
-      power_hook! (runner, AllMonsters, $hook ($($arguments)*));
-    }
-  };
-  ($runner: expr, $owner: expr, PowerId::$Variant: ident, $hook: ident ( $($arguments:tt)*)) => {
-    {
-      let runner = &mut* $runner;
-            let owner = $owner;
-            if let Some(index) = runner.state().get_creature (owner).powers.iter().position (| power | power.power_id == PowerId::$Variant) {
-        power_hook! (runner, owner, index, $hook ($($arguments)*)) ;
-      }
-    }
-  };
-  ($runner: expr, $owner: expr, $power_index: expr, $hook: ident ( $($arguments:tt)*)) => {
-    {
-      let runner = &mut* $runner;
-      let owner = $owner;
-      let index = $power_index;
-      let power_id = runner.state().get_creature (owner).powers [index].power_id;
-      $crate::simulation_state::powers::PowerBehavior::$hook (&power_id, &mut $crate::simulation_state::powers::PowerHookContext {runner, owner, power_index: index}, $($arguments)*);
-    }
-  };
-  ($runner: expr, $owner: expr, $hook: ident ( $($arguments:tt)*)) => {
-    {
-      let runner = &mut* $runner;
-      let owner = $owner;
-      let creature = runner.state().get_creature(owner);
-      for index in 0..creature.powers.len() {
-        power_hook! (runner, owner, index, $hook ($($arguments)*)) ;
-      }
-    }
-  };
-  ($state: expr, $owner: expr, $lval: ident = $hook: ident ( $($arguments:tt)*)) => {
-    {
-      let state = $state;
-      let owner = $owner;
-      let creature = state.get_creature(owner);
-      for (index, power) in creature.powers.iter().enumerate() {
-        $lval = $crate::simulation_state::powers::PowerBehavior::$hook (&power.power_id, &$crate::simulation_state::powers::PowerNumericHookContext {state, owner, power_index: index}, $($arguments)*);
-      }
-    }
-  };
-}
-
-mod actions;
-mod communication_mod_state;
-mod competing_optimizers;
-//mod cow;
-mod ai_utils;
-mod interface;
-mod neural_net_ai;
-//mod omniscient_search;
-mod representative_sampling;
-mod sandbox;
-mod seed_system;
-mod seeds_concrete;
-mod simulation;
-pub mod simulation_state;
-mod start_and_strategy_ai;
-mod watch;
 
 fn main() {
   let matches = App::new("Borg the Spire")
@@ -96,12 +13,13 @@ fn main() {
     .subcommand(
       SubCommand::with_name("watch")
         .setting(AppSettings::TrailingVarArg)
-        .arg(Arg::with_name("executable_original"))
-        .arg(Arg::with_name("executable_copy"))
+        .arg(Arg::with_name("executable_original").required(true))
+        .arg(Arg::with_name("executable_copy").required(true))
         .arg(Arg::with_name("args").multiple(true)),
     )
     .subcommand(
-      SubCommand::with_name("run_competing_optimizers").arg(Arg::with_name("competitor_spec_file")),
+      SubCommand::with_name("run_competing_optimizers")
+        .arg(Arg::with_name("competitor_spec_file").required(true)),
     )
     .subcommand(SubCommand::with_name("sandbox").arg(Arg::with_name("root_path").required(true)))
     .get_matches();
