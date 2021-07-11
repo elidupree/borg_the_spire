@@ -1,25 +1,25 @@
 use parking_lot::Mutex;
 use rand_pcg::Pcg64Mcg;
-use rocket::config::{Config, Environment, LoggingLevel};
+use rocket::config::{Config, Environment};
 use rocket::response::NamedFile;
 use rocket::State;
 use rocket_contrib::json::Json;
 use serde::{Deserialize, Serialize};
-use std::io::BufRead;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use typed_html::dom::DOMTree;
 use typed_html::elements::FlowContent;
 use typed_html::{html, text};
 
 use crate::ai_utils::play_out;
-use crate::communication_mod_state;
 use crate::seed_system::TrivialSeed;
 use crate::simulation::*;
 use crate::simulation_state::*;
 use crate::start_and_strategy_ai::*;
 use rand::SeedableRng;
+use rocket_contrib::serve::StaticFiles;
+use std::fs;
 
 pub type Element = Box<dyn FlowContent<String>>;
 
@@ -136,7 +136,7 @@ impl ApplicationState {
 
 pub struct RocketState {
   application_state: Arc<Mutex<ApplicationState>>,
-  root_path: PathBuf,
+  static_files: PathBuf,
 }
 
 #[allow(unused)]
@@ -168,67 +168,29 @@ fn default_interface_state() -> Json<InterfaceState> {
 
 #[get("/")]
 fn index(rocket_state: State<RocketState>) -> Option<NamedFile> {
-  NamedFile::open(rocket_state.root_path.join("static/index.html")).ok()
+  NamedFile::open(rocket_state.static_files.join("index.html")).ok()
 }
 
-#[get("/media/<file..>")]
-fn media(file: PathBuf, rocket_state: State<RocketState>) -> Option<NamedFile> {
-  NamedFile::open(rocket_state.root_path.join("static/media/").join(file)).ok()
-}
-
-pub fn communication_thread(root_path: PathBuf, application_state: Arc<Mutex<ApplicationState>>) {
-  let input = std::io::stdin();
-  let input = input.lock();
-  let mut failed = false;
-
-  for line in input.lines() {
-    let line = line.unwrap();
-    if line.len() > 3 {
-      let interpreted: Result<communication_mod_state::CommunicationState, _> =
-        serde_json::from_str(&line);
-      match interpreted {
-        Ok(state) => {
-          eprintln!("received state from communication mod");
-          let state = state.game_state.as_ref().and_then(|game_state| {
-            eprintln!(
-              "player energy: {:?}",
-              game_state.combat_state.as_ref().map(|cs| cs.player.energy)
-            );
-            CombatState::from_communication_mod(game_state, None)
-          });
-          if let Some(state) = state {
-            eprintln!("combat happening:\n{:#?}", state);
-            if let Ok(file) = std::fs::File::create(root_path.join("last_state.json")) {
-              let _ = serde_json::to_writer_pretty(std::io::BufWriter::new(file), &state);
+pub fn processing_thread(state_file: PathBuf, application_state: Arc<Mutex<ApplicationState>>) {
+  // TODO : this isn't the most efficient file watcher system, figure out what is?
+  let mut last_modified = None;
+  let mut last_check = Instant::now();
+  loop {
+    let mut guard = application_state.lock();
+    // If the state file has been modified, update it.
+    if last_check.elapsed() > Duration::from_millis(200) {
+      last_check = Instant::now();
+      if let Ok(modified) = fs::metadata(&state_file).and_then(|m| m.modified()) {
+        if Some(modified) != last_modified {
+          last_modified = Some(modified);
+          if let Ok(file) = std::fs::File::open(&state_file) {
+            if let Ok(state) = serde_json::from_reader(std::io::BufReader::new(file)) {
+              guard.set_state(state);
             }
-            let mut lock = application_state.lock();
-            lock.set_state(state);
-            /*let mut tree = mcts::Tree::new(state);
-
-            let start = Instant::now();
-            while Instant::now() - start < Duration::from_millis(1000) {
-              for _ in 0..100 {
-                tree.search_step();
-              }
-            }
-            tree.print_stuff();*/
           }
-        }
-        Err(err) => {
-          eprintln!("received non-state from communication mod {:?}", err);
-          if !failed {
-            eprintln!("data: {:?}", line);
-          }
-          failed = true;
         }
       }
     }
-  }
-}
-
-pub fn processing_thread(application_state: Arc<Mutex<ApplicationState>>) {
-  loop {
-    let mut guard = application_state.lock();
     if let Some(search_state) = &mut guard.search_state {
       if search_state.visits < 2_000_000_000 {
         search_state.search_step();
@@ -242,14 +204,14 @@ pub fn processing_thread(application_state: Arc<Mutex<ApplicationState>>) {
   }
 }
 
-pub fn run(root_path: PathBuf) {
+pub fn run(static_files: PathBuf, state_file: PathBuf, address: &str, port: u16) {
   let mut application_state = ApplicationState {
     combat_state: None,
     search_state: None,
     debug_log: String::new(),
   };
 
-  if let Ok(file) = std::fs::File::open(root_path.join("last_state.json")) {
+  if let Ok(file) = std::fs::File::open(&state_file) {
     if let Ok(state) = serde_json::from_reader(std::io::BufReader::new(file)) {
       application_state.set_state(state);
     }
@@ -258,31 +220,24 @@ pub fn run(root_path: PathBuf) {
   let application_state = Arc::new(Mutex::new(application_state));
 
   std::thread::spawn({
-    let root_path = root_path.clone();
     let application_state = application_state.clone();
     move || {
-      communication_thread(root_path, application_state);
-    }
-  });
-
-  std::thread::spawn({
-    let application_state = application_state.clone();
-    move || {
-      processing_thread(application_state);
+      processing_thread(state_file, application_state);
     }
   });
 
   rocket::custom(
     Config::build(Environment::Development)
-      .address("localhost")
-      .port(3509)
-      .log_level(LoggingLevel::Off)
+      .address(address)
+      .port(port)
+      //.log_level(LoggingLevel::Off)
       .unwrap(),
   )
-  .mount("/", routes![index, media, content, default_interface_state])
+  .mount("/media/", StaticFiles::from(static_files.join("media")))
+  .mount("/", routes![index, content, default_interface_state])
   .manage(RocketState {
     application_state,
-    root_path,
+    static_files,
   })
   .launch();
 }

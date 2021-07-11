@@ -1,6 +1,6 @@
 use borg_the_spire::competing_optimizers::CompetitorSpecification;
 use borg_the_spire::{
-  commands::{interface, sandbox, watch},
+  commands::{communicate, interface, sandbox, watch},
   competing_optimizers,
 };
 use clap::{App, AppSettings, Arg, SubCommand};
@@ -11,42 +11,59 @@ fn main() {
     .version("0.1")
     .author("Eli Dupree <vcs@elidupree.com>")
     .subcommand(
-      SubCommand::with_name("communicate").arg(Arg::with_name("root_path").required(true)),
+      SubCommand::with_name("communicate")
+        .long_about("The command to run as the child process for CommunicationMod. Listens for game states and saves them into the given state-file.")
+        .arg(Arg::with_name("state-file").required(true)),
     )
-    .subcommand(
-      SubCommand::with_name("watch")
-        .setting(AppSettings::TrailingVarArg)
-        .arg(Arg::with_name("executable_original").required(true))
-        .arg(Arg::with_name("executable_copy").required(true))
-        .arg(Arg::with_name("args").multiple(true)),
-    )
+      .subcommand(
+        SubCommand::with_name("analyze")
+            .long_about("Watch and analyze a given state-file, displaying a report you can view in a browers.")
+            .arg(Arg::with_name("state-file").long("state-file").required(true).takes_value(true))
+            .arg(Arg::with_name("ip").long("ip").required(true).takes_value(true))
+            .arg(Arg::with_name("port").long("port").required(true).takes_value(true))
+      .arg(Arg::with_name("static-files").long("static-files").required(true).takes_value(true).help("The path to the static html/etc files for BtS, typically `./static`")),
+      )
+      .subcommand(
+        SubCommand::with_name("watch")
+            .setting(AppSettings::TrailingVarArg)
+            .arg(Arg::with_name("executable-original").required(true))
+            .arg(Arg::with_name("executable-copy").required(true))
+            .arg(Arg::with_name("args").multiple(true)),
+      )
     .subcommand(
       SubCommand::with_name("run_competing_optimizers")
-        .arg(Arg::with_name("competitor_spec_file").required(true)),
+        .arg(Arg::with_name("competitor-spec-file").required(true)),
     )
-    .subcommand(SubCommand::with_name("sandbox").arg(Arg::with_name("root_path").required(true)))
+    .subcommand(SubCommand::with_name("sandbox").arg(Arg::with_name("root-path").required(true)))
     .get_matches();
 
   match matches.subcommand() {
     ("communicate", Some(matches)) => {
-      interface::run(PathBuf::from(matches.value_of("root_path").unwrap()));
+      communicate::communicate(PathBuf::from(matches.value_of("state-file").unwrap()))
+    }
+    ("analyze", Some(matches)) => {
+      interface::run(
+        PathBuf::from(matches.value_of("static-files").unwrap()),
+        PathBuf::from(matches.value_of("state-file").unwrap()),
+        matches.value_of("ip").unwrap(),
+        matches.value_of("port").unwrap().parse::<u16>().unwrap(),
+      );
     }
     ("watch", Some(matches)) => {
-      println!("ready");
       watch::watch(
-        matches.value_of("executable_original").unwrap(),
-        matches.value_of("executable_copy").unwrap(),
+        matches.value_of("executable-original").unwrap(),
+        matches.value_of("executable-copy").unwrap(),
         &matches.values_of("args").unwrap().collect::<Vec<&str>>(),
       );
     }
     ("run_competing_optimizers", Some(matches)) => {
-      let file = std::fs::File::open(matches.value_of("competitor_spec_file").unwrap()).unwrap();
+      let file = std::fs::File::open(matches.value_of("competitor-spec-file").unwrap()).unwrap();
       let competitors: Vec<CompetitorSpecification> =
         serde_json::from_reader(std::io::BufReader::new(file)).unwrap();
       competing_optimizers::run(competitors);
     }
     ("sandbox", Some(matches)) => {
-      sandbox::run(PathBuf::from(matches.value_of("root_path").unwrap()));
+      sandbox::run(PathBuf::from(matches.value_of("root-path").unwrap()));
     }
     _ => {}
   }

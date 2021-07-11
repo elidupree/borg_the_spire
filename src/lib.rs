@@ -68,8 +68,8 @@ pub mod competing_optimizers;
 //mod cow;
 pub mod ai_utils;
 pub mod commands {
+  pub mod communicate;
   pub mod interface;
-  //pub mod listen;
   pub mod sandbox;
   pub mod watch;
 }

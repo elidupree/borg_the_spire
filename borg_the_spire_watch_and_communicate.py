@@ -4,6 +4,8 @@
 # but at least on Windows, you're not allowed to modify the executable while it's being run!
 # So we have this little script to patch it together.
 
+# note - this is out of date now that I've converted to communicate through the filesystem instead of child process pipes
+
 import os
 import subprocess
 import shutil
