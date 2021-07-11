@@ -1,11 +1,10 @@
 use arrayvec::ArrayVec;
 use derivative::Derivative;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::VecDeque;
 use std::convert::From;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
-use std::sync::Arc;
 
 use crate::actions::*;
 use crate::communication_mod_state as communication;
@@ -18,6 +17,7 @@ pub mod powers;
 pub use cards::CardId;
 pub use monsters::MonsterId;
 pub use powers::PowerId;
+use std::cmp::Ordering;
 
 pub const MAX_MONSTERS: usize = 7;
 pub const X_COST: i32 = -1;
@@ -81,7 +81,7 @@ pub struct SingleCard {
   pub misc: i32,
   pub cost: i32,
   pub upgrades: i32,
-  pub card_info: Arc<CardInfo>,
+  pub card_info: &'static CardInfo,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Debug)]
@@ -102,7 +102,7 @@ pub enum Rarity {
   Special,
 }
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Debug)]
+#[derive(Clone, Eq)]
 pub struct CardInfo {
   pub id: CardId,
   pub card_type: CardType,
@@ -114,8 +114,51 @@ pub struct CardInfo {
   pub exhausts: bool,
 }
 
-impl Default for CardInfo {
-  fn default() -> CardInfo {
+impl PartialEq for CardInfo {
+  fn eq(&self, other: &Self) -> bool {
+    self.id.eq(&other.id)
+  }
+}
+impl PartialOrd for CardInfo {
+  fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+    self.id.partial_cmp(&other.id)
+  }
+}
+impl Ord for CardInfo {
+  fn cmp(&self, other: &Self) -> Ordering {
+    self.id.cmp(&other.id)
+  }
+}
+impl Hash for CardInfo {
+  fn hash<H: Hasher>(&self, state: &mut H) {
+    self.id.hash(state)
+  }
+}
+impl Debug for CardInfo {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    self.id.fmt(f)
+  }
+}
+
+impl Serialize for CardInfo {
+  fn serialize<S>(&self, serializer: S) -> Result<<S as Serializer>::Ok, <S as Serializer>::Error>
+  where
+    S: Serializer,
+  {
+    self.id.serialize(serializer)
+  }
+}
+impl<'de> Deserialize<'de> for &'static CardInfo {
+  fn deserialize<D>(deserializer: D) -> Result<Self, <D as Deserializer<'de>>::Error>
+  where
+    D: Deserializer<'de>,
+  {
+    CardId::deserialize(deserializer).map(Self::from)
+  }
+}
+
+impl CardInfo {
+  const fn default() -> CardInfo {
     CardInfo {
       id: CardId::Injury,
       card_type: CardType::Curse,
@@ -126,6 +169,11 @@ impl Default for CardInfo {
       has_target: false,
       exhausts: false,
     }
+  }
+}
+impl Default for CardInfo {
+  fn default() -> CardInfo {
+    Self::default()
   }
 }
 
@@ -266,7 +314,7 @@ impl From<&communication::Card> for SingleCard {
       misc: card.misc,
       cost: card.cost,
       upgrades: card.upgrades,
-      card_info: Arc::new(CardInfo::from(CardId::from(&*card.id))),
+      card_info: <&CardInfo>::from(CardId::from(&*card.id)),
     }
   }
 }
@@ -329,12 +377,12 @@ impl SingleCard {
   }
 
   pub fn create(id: CardId) -> SingleCard {
-    let info = CardInfo::from(id);
+    let card_info = <&CardInfo>::from(id);
     SingleCard {
       misc: 0,
-      cost: info.normal_cost,
+      cost: card_info.normal_cost,
       upgrades: 0,
-      card_info: Arc::new(info),
+      card_info,
     }
   }
 

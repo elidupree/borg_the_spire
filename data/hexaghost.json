@@ -4,181 +4,73 @@
       "misc": 0,
       "cost": 1,
       "upgrades": 0,
-      "card_info": {
-        "id": "StrikeR",
-        "card_type": "Attack",
-        "rarity": "Basic",
-        "normal_cost": 1,
-        "upgraded_cost": 1,
-        "ethereal": false,
-        "has_target": true,
-        "exhausts": false
-      }
+      "card_info": "StrikeR"
     },
     {
       "misc": 0,
       "cost": 1,
       "upgrades": 0,
-      "card_info": {
-        "id": "DefendR",
-        "card_type": "Skill",
-        "rarity": "Basic",
-        "normal_cost": 1,
-        "upgraded_cost": 1,
-        "ethereal": false,
-        "has_target": false,
-        "exhausts": false
-      }
+      "card_info": "DefendR"
     },
     {
       "misc": 0,
       "cost": 1,
       "upgrades": 0,
-      "card_info": {
-        "id": "DefendR",
-        "card_type": "Skill",
-        "rarity": "Basic",
-        "normal_cost": 1,
-        "upgraded_cost": 1,
-        "ethereal": false,
-        "has_target": false,
-        "exhausts": false
-      }
+      "card_info": "DefendR"
     },
     {
       "misc": 0,
       "cost": 1,
       "upgrades": 0,
-      "card_info": {
-        "id": "DefendR",
-        "card_type": "Skill",
-        "rarity": "Basic",
-        "normal_cost": 1,
-        "upgraded_cost": 1,
-        "ethereal": false,
-        "has_target": false,
-        "exhausts": false
-      }
+      "card_info": "DefendR"
     },
     {
       "misc": 0,
       "cost": 1,
       "upgrades": 0,
-      "card_info": {
-        "id": "DefendR",
-        "card_type": "Skill",
-        "rarity": "Basic",
-        "normal_cost": 1,
-        "upgraded_cost": 1,
-        "ethereal": false,
-        "has_target": false,
-        "exhausts": false
-      }
+      "card_info": "DefendR"
     },
     {
       "misc": 0,
       "cost": 1,
       "upgrades": 0,
-      "card_info": {
-        "id": "Cleave",
-        "card_type": "Attack",
-        "rarity": "Common",
-        "normal_cost": 1,
-        "upgraded_cost": 1,
-        "ethereal": false,
-        "has_target": false,
-        "exhausts": false
-      }
+      "card_info": "Cleave"
     },
     {
       "misc": 0,
       "cost": 1,
       "upgrades": 0,
-      "card_info": {
-        "id": "PommelStrike",
-        "card_type": "Attack",
-        "rarity": "Common",
-        "normal_cost": 1,
-        "upgraded_cost": 1,
-        "ethereal": false,
-        "has_target": true,
-        "exhausts": false
-      }
+      "card_info": "PommelStrike"
     },
     {
       "misc": 0,
       "cost": 1,
       "upgrades": 0,
-      "card_info": {
-        "id": "Thunderclap",
-        "card_type": "Attack",
-        "rarity": "Common",
-        "normal_cost": 1,
-        "upgraded_cost": 1,
-        "ethereal": false,
-        "has_target": false,
-        "exhausts": false
-      }
+      "card_info": "Thunderclap"
     },
     {
       "misc": 0,
       "cost": 1,
       "upgrades": 0,
-      "card_info": {
-        "id": "GhostlyArmor",
-        "card_type": "Skill",
-        "rarity": "Uncommon",
-        "normal_cost": 1,
-        "upgraded_cost": 1,
-        "ethereal": true,
-        "has_target": false,
-        "exhausts": false
-      }
+      "card_info": "GhostlyArmor"
     },
     {
       "misc": 0,
       "cost": 2,
       "upgrades": 1,
-      "card_info": {
-        "id": "Bash",
-        "card_type": "Attack",
-        "rarity": "Basic",
-        "normal_cost": 2,
-        "upgraded_cost": 2,
-        "ethereal": false,
-        "has_target": true,
-        "exhausts": false
-      }
+      "card_info": "Bash"
     },
     {
       "misc": 0,
       "cost": 2,
       "upgrades": 1,
-      "card_info": {
-        "id": "Carnage",
-        "card_type": "Attack",
-        "rarity": "Uncommon",
-        "normal_cost": 2,
-        "upgraded_cost": 2,
-        "ethereal": true,
-        "has_target": true,
-        "exhausts": false
-      }
+      "card_info": "Carnage"
     },
     {
       "misc": 0,
       "cost": 2,
       "upgrades": 1,
-      "card_info": {
-        "id": "Uppercut",
-        "card_type": "Attack",
-        "rarity": "Uncommon",
-        "normal_cost": 2,
-        "upgraded_cost": 2,
-        "ethereal": false,
-        "has_target": true,
-        "exhausts": false
-      }
+      "card_info": "Uppercut"
     }
   ],
   "discard_pile": [],
@@ -188,76 +80,31 @@
       "misc": 0,
       "cost": 1,
       "upgrades": 0,
-      "card_info": {
-        "id": "StrikeR",
-        "card_type": "Attack",
-        "rarity": "Basic",
-        "normal_cost": 1,
-        "upgraded_cost": 1,
-        "ethereal": false,
-        "has_target": true,
-        "exhausts": false
-      }
+      "card_info": "StrikeR"
     },
     {
       "misc": 0,
       "cost": 0,
       "upgrades": 0,
-      "card_info": {
-        "id": "Clash",
-        "card_type": "Attack",
-        "rarity": "Common",
-        "normal_cost": 0,
-        "upgraded_cost": 0,
-        "ethereal": false,
-        "has_target": true,
-        "exhausts": false
-      }
+      "card_info": "Clash"
     },
     {
       "misc": 0,
       "cost": 1,
       "upgrades": 0,
-      "card_info": {
-        "id": "StrikeR",
-        "card_type": "Attack",
-        "rarity": "Basic",
-        "normal_cost": 1,
-        "upgraded_cost": 1,
-        "ethereal": false,
-        "has_target": true,
-        "exhausts": false
-      }
+      "card_info": "StrikeR"
     },
     {
       "misc": 0,
       "cost": -2,
       "upgrades": 0,
-      "card_info": {
-        "id": "AscendersBane",
-        "card_type": "Curse",
-        "rarity": "Special",
-        "normal_cost": -2,
-        "upgraded_cost": -2,
-        "ethereal": true,
-        "has_target": false,
-        "exhausts": false
-      }
+      "card_info": "AscendersBane"
     },
     {
       "misc": 0,
       "cost": 0,
       "upgrades": 0,
-      "card_info": {
-        "id": "Clash",
-        "card_type": "Attack",
-        "rarity": "Common",
-        "normal_cost": 0,
-        "upgraded_cost": 0,
-        "ethereal": false,
-        "has_target": true,
-        "exhausts": false
-      }
+      "card_info": "Clash"
     }
   ],
   "limbo": [],

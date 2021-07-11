@@ -12,7 +12,10 @@ use crate::simulation_state::*;
 use self::CardType::{Attack, Curse, Power, Skill, Status};
 use self::Rarity::{Basic, Common, Rare, Special, Uncommon};
 
-pub trait CardBehavior: Sized + Copy + Into<CardId> {
+pub trait CardSpecies: Sized + Copy + Into<CardId> + CardBehavior {
+  const INFO: CardInfo;
+}
+pub trait CardBehavior: Sized {
   #[allow(unused)]
   fn behavior(self, context: &mut impl CardBehaviorContext) {}
   #[allow(unused)]
@@ -174,6 +177,22 @@ macro_rules! cards {
     $(#[derive(Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
     pub struct $Variant;
 
+    impl CardSpecies for $Variant {
+      const INFO: CardInfo = {
+        let mut result = CardInfo {
+          id: CardId::$Variant,
+          card_type: $card_type,
+          rarity: $rarity,
+          normal_cost: $cost,
+          has_target: $has_target,
+          $($type_info)*
+          .. CardInfo::default()
+        };
+        if result.upgraded_cost == -3 {result.upgraded_cost = result.normal_cost;}
+        result
+      };
+    }
+
     impl From<$Variant> for CardId {
       fn from (source: $Variant)->CardId {
         CardId::$Variant
@@ -190,22 +209,10 @@ macro_rules! cards {
       }
     }
 
-    impl From <CardId> for CardInfo {
-      fn from (source: CardId)->CardInfo {
+    impl From <CardId> for &'static CardInfo {
+      fn from (source: CardId)->&'static CardInfo {
         match source {
-          $(CardId::$Variant => {
-            let mut result = CardInfo {
-              id: CardId::$Variant,
-              card_type: $card_type,
-              rarity: $rarity,
-              normal_cost: $cost,
-              has_target: $has_target,
-              $($type_info)*
-              .. CardInfo::default()
-            };
-            if result.upgraded_cost == -3 {result.upgraded_cost = result.normal_cost;}
-            result
-          },)*
+          $(CardId::$Variant => &$Variant::INFO,)*
         }
       }
     }
