@@ -1,10 +1,9 @@
-use crate::seed_system::NoRandomness;
 use crate::simulation::{run_until_unable, Choice, Runner, StandardRunner};
 use crate::simulation_state::CombatState;
 use std::collections::{HashSet, VecDeque};
 use std::fmt::Debug;
 
-pub trait Strategy: Clone + Debug {
+pub trait Strategy: Debug {
   fn choose_choice(&self, state: &CombatState) -> Vec<Choice>;
 }
 
@@ -25,7 +24,7 @@ pub fn collect_starting_points(
       let choices = state.legal_choices();
       for choice in choices {
         let mut new_state = state.clone();
-        let mut runner = StandardRunner::new(&mut new_state, NoRandomness, false);
+        let mut runner = StandardRunner::new(&mut new_state, None, false);
         runner.action_now(&choice);
         run_until_unable(&mut runner);
         let mut new_history = history.clone();

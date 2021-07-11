@@ -147,7 +147,7 @@ pub struct RepresentativeSeedSearchLayerStrategy<S> {
 
 impl<S: Strategy> RepresentativeSeedSearchLayerStrategy<S> {
   fn new(
-    seeds: &[impl SeedView<CombatState>],
+    seeds: &[impl SeedView<CombatState> + Clone],
     strategy: Rc<S>,
     starting_state: &CombatState,
   ) -> Self {
@@ -179,7 +179,7 @@ pub struct RepresentativeSeedSearchLayer<S, T> {
   exploiters: Vec<Rc<RepresentativeSeedSearchLayerStrategy<S>>>,
 }
 
-impl<S: Strategy, T: SeedView<CombatState>> RepresentativeSeedSearchLayer<S, T> {
+impl<S: Strategy, T: SeedView<CombatState> + Clone> RepresentativeSeedSearchLayer<S, T> {
   pub fn new(
     seeds: Vec<T>,
     starting_state: &CombatState,
@@ -368,7 +368,7 @@ impl<S, T> FractalRepresentativeSeedSearch<S, T> {
   }
 }
 
-impl<S: Strategy + 'static, T: SeedView<CombatState> + Default + 'static>
+impl<S: Strategy + 'static, T: SeedView<CombatState> + Clone + Default + 'static>
   FractalRepresentativeSeedSearch<S, T>
 {
   pub fn new(starting_state: &CombatState, new_strategy: Box<dyn Fn(&[&S]) -> S>) -> Self {
@@ -392,7 +392,7 @@ impl<S: Strategy + 'static, T: SeedView<CombatState> + Default + 'static>
   }
 }
 
-impl<S: Strategy + 'static, T: SeedView<CombatState> + Default + 'static> StrategyOptimizer
+impl<S: Strategy + 'static, T: SeedView<CombatState> + Clone + Default + 'static> StrategyOptimizer
   for FractalRepresentativeSeedSearch<S, T>
 {
   type Strategy = RepresentativeSeedsMetaStrategy<S, T>;
@@ -467,7 +467,7 @@ impl<S: Strategy + 'static, T: SeedView<CombatState> + Default + 'static> Strate
     self.best_average_on_lowest_seeds = new_sublayer.best_strategy.average;
   }
 
-  fn report(&self) -> Self::Strategy {
+  fn report(&self) -> Rc<Self::Strategy> {
     let best = &self.layers.last().unwrap().best_strategy;
 
     println!(
@@ -500,7 +500,7 @@ impl<S: Strategy + 'static, T: SeedView<CombatState> + Default + 'static> Strate
 
     //&best.strategy
 
-    RepresentativeSeedsMetaStrategy {
+    Rc::new(RepresentativeSeedsMetaStrategy {
       seeds: self
         .layers
         .get(1)
@@ -514,7 +514,7 @@ impl<S: Strategy + 'static, T: SeedView<CombatState> + Default + 'static> Strate
         .strategies()
         .map(|s| s.strategy.clone())
         .collect(),
-    }
+    })
   }
 }
 
@@ -538,7 +538,7 @@ pub struct RepresentativeSeedsMetaStrategy<S, T> {
   strategies: Vec<Rc<S>>,
 }
 
-impl<S: Strategy + 'static, T: SeedView<CombatState> + 'static> Strategy
+impl<S: Strategy + 'static, T: SeedView<CombatState> + Clone + 'static> Strategy
   for RepresentativeSeedsMetaStrategy<S, T>
 {
   fn choose_choice(&self, state: &CombatState) -> Vec<Choice> {

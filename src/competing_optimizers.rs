@@ -13,11 +13,12 @@ use crate::simulation::*;
 use crate::simulation_state::*;
 use crate::start_and_strategy_ai::FastStrategy;
 use std::collections::BTreeMap;
+use std::rc::Rc;
 
 pub trait StrategyOptimizer: 'static {
   type Strategy: Strategy;
   fn step(&mut self, state: &CombatState);
-  fn report(&self) -> Self::Strategy;
+  fn report(&self) -> Rc<Self::Strategy>;
 }
 
 pub trait ExplorationOptimizerKind {
@@ -30,18 +31,21 @@ pub trait ExplorationOptimizerKind {
 }
 
 pub struct CandidateStrategy<T> {
-  strategy: T,
+  strategy: Rc<T>,
   playouts: usize,
   total_score: f64,
 }
 
 pub fn playout_result(
   state: &CombatState,
-  seed: impl SeedView<CombatState>,
+  mut seed: impl SeedView<CombatState>,
   strategy: &impl Strategy,
 ) -> CombatResult {
   let mut state = state.clone();
-  play_out(&mut StandardRunner::new(&mut state, seed, false), strategy);
+  play_out(
+    &mut StandardRunner::new(&mut state, Some(&mut seed), false),
+    strategy,
+  );
   CombatResult::new(&state)
 }
 
@@ -54,7 +58,11 @@ impl<'a, T: Strategy> Strategy for MetaStrategy<'a, T> {
   fn choose_choice(&self, state: &CombatState) -> Vec<Choice> {
     let combos = collect_starting_points(state.clone(), 200);
     let choices = combos.into_iter().map(|(mut state, choices)| {
-      run_until_unable(&mut StandardRunner::new(&mut state, Unseeded, false));
+      run_until_unable(&mut StandardRunner::new(
+        &mut state,
+        Some(&mut Unseeded),
+        false,
+      ));
       let num_attempts = 200;
       let score = (0..num_attempts)
         .map(|_| playout_result(&state, Unseeded, self.0).score)
@@ -133,13 +141,13 @@ impl<T: Strategy + 'static> StrategyOptimizer for OriginalExplorationOptimizer<T
 
         self.passes += 1;
         self.candidate_strategies.push(CandidateStrategy {
-          strategy: (self.new_strategy)(
+          strategy: Rc::new((self.new_strategy)(
             &self
               .candidate_strategies
               .iter()
-              .map(|c| &c.strategy)
+              .map(|c| &*c.strategy)
               .collect::<Vec<_>>(),
-          ),
+          )),
           playouts: 0,
           total_score: 0.0,
         });
@@ -151,7 +159,7 @@ impl<T: Strategy + 'static> StrategyOptimizer for OriginalExplorationOptimizer<T
       self.current_pass_index += 1;
 
       if strategy.playouts < max_strategy_playouts {
-        let result = playout_result(state, Unseeded, &strategy.strategy);
+        let result = playout_result(state, Unseeded, &*strategy.strategy);
         strategy.total_score += result.score;
         strategy.playouts += 1;
         return;
@@ -159,7 +167,7 @@ impl<T: Strategy + 'static> StrategyOptimizer for OriginalExplorationOptimizer<T
     }
   }
 
-  fn report(&self) -> Self::Strategy {
+  fn report(&self) -> Rc<Self::Strategy> {
     let best = self.best_strategy();
 
     println!(
@@ -176,7 +184,7 @@ pub struct IndependentSeedsExplorationOptimizerKind {
   num_seeds: usize,
 }
 pub struct IndependentSeedsExplorationOptimizer<T> {
-  candidate_strategies: BTreeMap<NotNan<f64>, T>,
+  candidate_strategies: BTreeMap<NotNan<f64>, Rc<T>>,
   new_strategy: Box<dyn Fn(&[&T]) -> T>,
   seeds: Vec<SingleSeedView<CombatChoiceLineagesKind>>,
   steps: usize,
@@ -213,7 +221,13 @@ impl<T: Strategy + 'static> StrategyOptimizer for IndependentSeedsExplorationOpt
     self.steps += 1;
     let target_count = 1 + self.steps.next_power_of_two().trailing_zeros() as usize;
     self.seeds.shuffle(&mut rand::thread_rng());
-    let strategy = (self.new_strategy)(&self.candidate_strategies.values().collect::<Vec<_>>());
+    let strategy = (self.new_strategy)(
+      &self
+        .candidate_strategies
+        .values()
+        .map(|s| &**s)
+        .collect::<Vec<_>>(),
+    );
     let mut total_score = 0.0;
     for (index, seed) in self.seeds.iter().enumerate() {
       let result = playout_result(state, seed.clone(), &strategy);
@@ -234,14 +248,14 @@ impl<T: Strategy + 'static> StrategyOptimizer for IndependentSeedsExplorationOpt
     let average = total_score / self.seeds.len() as f64;
     self
       .candidate_strategies
-      .insert(NotNan::new(average).unwrap(), strategy);
+      .insert(NotNan::new(average).unwrap(), Rc::new(strategy));
     self.total_accepted += 1;
     if self.candidate_strategies.len() > target_count {
       self.candidate_strategies.pop_first();
     }
   }
 
-  fn report(&self) -> Self::Strategy {
+  fn report(&self) -> Rc<Self::Strategy> {
     let (average, best) = self.candidate_strategies.last_key_value().unwrap();
 
     println!(
@@ -259,8 +273,8 @@ impl StrategyOptimizer for NeuralStrategy {
     self.do_training_playout(state);
   }
 
-  fn report(&self) -> Self::Strategy {
-    self.clone()
+  fn report(&self) -> Rc<Self::Strategy> {
+    Rc::new(self.clone())
   }
 }
 
@@ -293,7 +307,7 @@ pub fn optimizer_step(
   let mut total_test_score = 0.0;
   let test_duration = Duration::from_millis(if last { 10000 } else { 500 });
   let elapsed = loop {
-    total_test_score += playout_result(state, Unseeded, &strategy).score;
+    total_test_score += playout_result(state, Unseeded, &*strategy).score;
     steps += 1;
 
     let elapsed = start.elapsed();

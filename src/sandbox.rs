@@ -37,7 +37,7 @@ pub fn combat_sandbox(state: CombatState) {
     for _ in 0..3 {
       let mut state = state.clone();
       play_some(
-        &mut StandardRunner::new(&mut state, seed.clone(), false),
+        &mut StandardRunner::new(&mut state, Some(&mut seed.clone()), false),
         &PurelyRandomStrategy,
       );
       println!("{}", state);

@@ -71,7 +71,9 @@ impl SearchState {
       });
       let mut hypothetical_evaluated_state = start.state.clone();
       //let next_turn = start.state.turn_number + 1;
-      let mut runner = StandardRunner::new(&mut hypothetical_evaluated_state, Unseeded, true);
+      let mut seed = Unseeded;
+      let mut runner =
+        StandardRunner::new(&mut hypothetical_evaluated_state, Some(&mut seed), true);
       run_until_unable(&mut runner);
       //let log = runner.debug_log().to_string();
       html! {
@@ -117,7 +119,8 @@ impl ApplicationState {
       self.combat_state = Some(state.clone());
       let mut playout_state = state.clone();
       self.search_state = Some(SearchState::new(state));
-      let mut runner = StandardRunner::new(&mut playout_state, Unseeded, true);
+      let mut seed = Unseeded;
+      let mut runner = StandardRunner::new(&mut playout_state, Some(&mut seed), true);
       play_out(&mut runner, &SomethingStrategy {});
       self.debug_log = runner.debug_log().to_string();
     }

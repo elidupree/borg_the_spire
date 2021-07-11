@@ -85,13 +85,13 @@ pub trait ContainerKind {
   type Container<T: Clone + Debug + Default>: Clone + Debug + Default;
 }
 
-pub trait SeedView<G: GameState>: Clone + Debug {
+pub trait SeedView<G: GameState>: Debug {
   fn gen(&mut self, state: &G, fork_type: &G::RandomForkType, choice: &G::RandomChoice) -> f64;
 }
 
 /// The presence or absence of a non-chosen choice has no effect on which choice is chosen,
 /// and the presence or absence of ANY choice has no effect on how many times `seed.gen()` is called for any other choice.
-pub fn choose_choice<G: GameState, S: SeedView<G>>(
+pub fn choose_choice<G: GameState, S: SeedView<G> + ?Sized>(
   state: &G,
   fork_type: &G::RandomForkType,
   distribution: &Distribution<G::RandomChoice>,
@@ -178,32 +178,5 @@ where
       });
     *prior_requests += 1;
     result
-  }
-}
-
-pub trait MaybeSeedView<G: GameState> {
-  type SelfAsSeed: SeedView<G>;
-  fn is_seed(&self) -> bool;
-  fn as_seed(&mut self) -> Option<&mut Self::SelfAsSeed>;
-}
-
-impl<G: GameState, S: SeedView<G>> MaybeSeedView<G> for S {
-  type SelfAsSeed = Self;
-  fn is_seed(&self) -> bool {
-    true
-  }
-  fn as_seed(&mut self) -> Option<&mut Self::SelfAsSeed> {
-    Some(self)
-  }
-}
-
-#[derive(Clone, Debug)]
-pub struct NoRandomness;
-#[derive(Clone, Debug)]
-pub enum NeverSeed {}
-
-impl<G: GameState> SeedView<G> for NeverSeed {
-  fn gen(&mut self, _state: &G, _fork_type: &G::RandomForkType, _choice: &G::RandomChoice) -> f64 {
-    unreachable!()
   }
 }

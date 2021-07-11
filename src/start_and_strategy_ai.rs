@@ -199,7 +199,11 @@ impl Strategy for SomethingStrategy {
 
     let combos = collect_starting_points(state.clone(), 200);
     let choices = combos.into_iter().map(|(mut state, choices)| {
-      run_until_unable(&mut StandardRunner::new(&mut state, Unseeded, false));
+      run_until_unable(&mut StandardRunner::new(
+        &mut state,
+        Some(&mut Unseeded),
+        false,
+      ));
       let score = self.evaluate(&state);
       (choices, score)
     });
@@ -272,7 +276,7 @@ impl StartingPoint {
       if strategy.visits < max_strategy_visits {
         let mut state = self.state.clone();
         play_out(
-          &mut StandardRunner::new(&mut state, Unseeded, false),
+          &mut StandardRunner::new(&mut state, Some(&mut Unseeded), false),
           &strategy.strategy,
         );
         let result = CombatResult::new(&state);
