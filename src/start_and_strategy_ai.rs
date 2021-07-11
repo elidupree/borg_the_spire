@@ -6,9 +6,11 @@ use rand::seq::SliceRandom;
 
 use crate::actions::*;
 use crate::ai_utils::{collect_starting_points, play_out, CombatResult, Strategy};
-use crate::seed_system::Unseeded;
+use crate::seed_system::TrivialSeed;
 use crate::simulation::*;
 use crate::simulation_state::*;
+use rand::SeedableRng;
+use rand_pcg::Pcg64Mcg;
 
 #[derive(Clone, Debug)]
 pub struct SearchState {
@@ -199,7 +201,11 @@ impl Strategy for SomethingStrategy {
 
     let combos = collect_starting_points(state.clone(), 200);
     let choices = combos.into_iter().map(|(mut state, choices)| {
-      run_until_unable(&mut StandardRunner::new(&mut state, Unseeded, false));
+      run_until_unable(&mut StandardRunner::new(
+        &mut state,
+        TrivialSeed::new(Pcg64Mcg::from_entropy()),
+        false,
+      ));
       let score = self.evaluate(&state);
       (choices, score)
     });
@@ -272,7 +278,11 @@ impl StartingPoint {
       if strategy.visits < max_strategy_visits {
         let mut state = self.state.clone();
         play_out(
-          &mut StandardRunner::new(&mut state, Unseeded, false),
+          &mut StandardRunner::new(
+            &mut state,
+            TrivialSeed::new(Pcg64Mcg::from_entropy()),
+            false,
+          ),
           &strategy.strategy,
         );
         let result = CombatResult::new(&state);

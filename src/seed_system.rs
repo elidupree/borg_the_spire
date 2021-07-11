@@ -1,5 +1,8 @@
 use derivative::Derivative;
 use ordered_float::NotNan;
+use rand::{Rng, SeedableRng};
+use rand_chacha::ChaCha8Rng;
+use rand_pcg::Pcg64Mcg;
 use serde::{Deserialize, Serialize};
 use smallvec::{smallvec, SmallVec};
 use std::cell::RefCell;
@@ -88,6 +91,13 @@ pub trait ContainerKind {
 pub trait SeedView<G: GameState>: Debug {
   fn gen(&mut self, state: &G, fork_type: &G::RandomForkType, choice: &G::RandomChoice) -> f64;
 }
+pub trait Seed<G: GameState>: Clone + Debug {
+  type View: SeedView<G>;
+  fn view(&self) -> Self::View;
+}
+pub trait SeedGenerator<S>: Debug {
+  fn make_seed(&mut self) -> S;
+}
 
 /// The presence or absence of a non-chosen choice has no effect on which choice is chosen,
 /// and the presence or absence of ANY choice has no effect on how many times `seed.gen()` is called for any other choice.
@@ -127,28 +137,98 @@ impl ContainerKind for TrivialChoiceLineagesKind {
   type Container<T: Clone + Debug + Default> = TrivialChoiceLineages<T>;
 }
 
-#[derive(Clone, Debug, Default, Derivative)]
-pub struct Unseeded;
+#[derive(Clone, Debug)]
+pub struct TrivialSeed {
+  rng: Pcg64Mcg,
+}
+#[derive(Debug)]
+pub struct TrivialSeedGenerator {
+  source_rng: ChaCha8Rng,
+}
 
-impl<G: GameState> SeedView<G> for Unseeded {
+impl TrivialSeed {
+  pub fn new(rng: Pcg64Mcg) -> Self {
+    TrivialSeed { rng }
+  }
+}
+impl TrivialSeedGenerator {
+  pub fn new(source_rng: ChaCha8Rng) -> Self {
+    TrivialSeedGenerator { source_rng }
+  }
+}
+
+impl<G: GameState> SeedView<G> for TrivialSeed {
   fn gen(&mut self, _state: &G, _fork_type: &G::RandomForkType, _choice: &G::RandomChoice) -> f64 {
-    rand::random()
+    self.rng.gen()
+  }
+}
+impl<G: GameState> Seed<G> for TrivialSeed {
+  type View = TrivialSeed;
+
+  fn view(&self) -> Self::View {
+    self.clone()
+  }
+}
+impl SeedGenerator<TrivialSeed> for TrivialSeedGenerator {
+  fn make_seed(&mut self) -> TrivialSeed {
+    self.make_seed()
+  }
+}
+impl TrivialSeedGenerator {
+  pub fn make_seed(&mut self) -> TrivialSeed {
+    TrivialSeed::new(Pcg64Mcg::from_rng(&mut self.source_rng).unwrap())
   }
 }
 
 #[derive(Derivative)]
-#[derivative(Clone(bound = ""), Debug(bound = ""))]
+#[derivative(Debug(bound = ""))]
 pub struct SingleSeedView<L: ContainerKind> {
-  lineages: Rc<RefCell<L::Container<SingleSeedLineage>>>,
+  inner: Rc<RefCell<SingleSeedInner<L>>>,
   prior_requests: L::Container<u32>,
 }
+#[derive(Derivative)]
+#[derivative(Debug(bound = ""))]
+pub struct SingleSeedInner<L: ContainerKind> {
+  source_rng: Pcg64Mcg,
+  lineages: L::Container<SingleSeedLineage>,
+}
+#[derive(Derivative)]
+#[derivative(Clone(bound = ""), Debug(bound = ""))]
+pub struct SingleSeed<L: ContainerKind> {
+  inner: Rc<RefCell<SingleSeedInner<L>>>,
+}
+#[derive(Debug)]
+pub struct SingleSeedGenerator {
+  source_rng: ChaCha8Rng,
+}
 
-impl<L: ContainerKind> Default for SingleSeedView<L> {
-  fn default() -> Self {
+impl<L: ContainerKind> SingleSeedView<L> {
+  pub fn new(source_rng: Pcg64Mcg) -> Self {
     SingleSeedView {
-      lineages: Rc::new(RefCell::new(Default::default())),
+      inner: Rc::new(RefCell::new(SingleSeedInner::new(source_rng))),
       prior_requests: Default::default(),
     }
+  }
+}
+
+impl<L: ContainerKind> SingleSeedInner<L> {
+  pub fn new(source_rng: Pcg64Mcg) -> Self {
+    SingleSeedInner {
+      source_rng,
+      lineages: Default::default(),
+    }
+  }
+}
+impl<L: ContainerKind> SingleSeed<L> {
+  pub fn new(source_rng: Pcg64Mcg) -> Self {
+    SingleSeed {
+      inner: Rc::new(RefCell::new(SingleSeedInner::new(source_rng))),
+    }
+  }
+}
+impl SingleSeedGenerator {
+  pub fn new(source_rng: ChaCha8Rng) -> Self {
+    SingleSeedGenerator { source_rng }
   }
 }
 
@@ -163,21 +243,46 @@ where
   L::Container<SingleSeedLineage>: ChoiceLineages<G, Lineage = SingleSeedLineage>,
 {
   fn gen(&mut self, state: &G, fork_type: &G::RandomForkType, choice: &G::RandomChoice) -> f64 {
-    let mut lineages = self.lineages.borrow_mut();
+    let mut inner_guard = self.inner.borrow_mut();
+    let inner = &mut *inner_guard;
+    let source_rng = &mut inner.source_rng;
     let prior_requests = self.prior_requests.get_mut(state, fork_type, choice);
-    let lineage = lineages.get_mut(state, fork_type, choice);
+    let lineage = inner.lineages.get_mut(state, fork_type, choice);
     let result = lineage
       .generated_values
       .get((*prior_requests) as usize)
       .copied()
       .unwrap_or_else(|| {
         assert_eq!((*prior_requests) as usize, lineage.generated_values.len());
-        let result = rand::random();
+        let result = source_rng.gen();
         lineage.generated_values.push(result);
         result
       });
     *prior_requests += 1;
     result
+  }
+}
+impl<G: GameState, L: ContainerKind> Seed<G> for SingleSeed<L>
+where
+  L::Container<u32>: ChoiceLineages<G, Lineage = u32>,
+  L::Container<SingleSeedLineage>: ChoiceLineages<G, Lineage = SingleSeedLineage>,
+{
+  type View = SingleSeedView<L>;
+  fn view(&self) -> Self::View {
+    SingleSeedView {
+      inner: self.inner.clone(),
+      prior_requests: Default::default(),
+    }
+  }
+}
+impl<L: ContainerKind> SeedGenerator<SingleSeed<L>> for SingleSeedGenerator {
+  fn make_seed(&mut self) -> SingleSeed<L> {
+    self.make_seed::<L>()
+  }
+}
+impl SingleSeedGenerator {
+  pub fn make_seed<L: ContainerKind>(&mut self) -> SingleSeed<L> {
+    SingleSeed::new(Pcg64Mcg::from_rng(&mut self.source_rng).unwrap())
   }
 }
 

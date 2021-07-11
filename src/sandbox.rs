@@ -1,9 +1,11 @@
 use crate::ai_utils::Strategy;
-use crate::seed_system::SingleSeedView;
+use crate::seed_system::{Seed, SingleSeed};
 use crate::seeds_concrete::CombatChoiceLineagesKind;
 use crate::simulation::{run_until_unable, Runner, StandardRunner};
 use crate::simulation_state::CombatState;
 use crate::start_and_strategy_ai::PurelyRandomStrategy;
+use rand::SeedableRng;
+use rand_pcg::Pcg64Mcg;
 use std::path::PathBuf;
 
 /// Basically a module for me to mess around writing experimental things without committing to them having a real interface. If I develop something in here for too long, I should make a new, different module for it.
@@ -33,11 +35,11 @@ pub fn play_some<S: Strategy>(runner: &mut impl Runner, strategy: &S) {
 pub fn combat_sandbox(state: CombatState) {
   println!("{}", state);
   for _ in 0..3 {
-    let seed = SingleSeedView::<CombatChoiceLineagesKind>::default();
+    let seed = SingleSeed::<CombatChoiceLineagesKind>::new(Pcg64Mcg::from_entropy());
     for _ in 0..3 {
       let mut state = state.clone();
       play_some(
-        &mut StandardRunner::new(&mut state, seed.clone(), false),
+        &mut StandardRunner::new(&mut state, seed.view(), false),
         &PurelyRandomStrategy,
       );
       println!("{}", state);

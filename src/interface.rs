@@ -1,4 +1,5 @@
 use parking_lot::Mutex;
+use rand_pcg::Pcg64Mcg;
 use rocket::config::{Config, Environment, LoggingLevel};
 use rocket::response::NamedFile;
 use rocket::State;
@@ -14,10 +15,11 @@ use typed_html::{html, text};
 
 use crate::ai_utils::play_out;
 use crate::communication_mod_state;
-use crate::seed_system::Unseeded;
+use crate::seed_system::TrivialSeed;
 use crate::simulation::*;
 use crate::simulation_state::*;
 use crate::start_and_strategy_ai::*;
+use rand::SeedableRng;
 
 pub type Element = Box<dyn FlowContent<String>>;
 
@@ -71,7 +73,11 @@ impl SearchState {
       });
       let mut hypothetical_evaluated_state = start.state.clone();
       //let next_turn = start.state.turn_number + 1;
-      let mut runner = StandardRunner::new(&mut hypothetical_evaluated_state, Unseeded, true);
+      let mut runner = StandardRunner::new(
+        &mut hypothetical_evaluated_state,
+        TrivialSeed::new(Pcg64Mcg::from_entropy()),
+        true,
+      );
       run_until_unable(&mut runner);
       //let log = runner.debug_log().to_string();
       html! {
@@ -117,7 +123,11 @@ impl ApplicationState {
       self.combat_state = Some(state.clone());
       let mut playout_state = state.clone();
       self.search_state = Some(SearchState::new(state));
-      let mut runner = StandardRunner::new(&mut playout_state, Unseeded, true);
+      let mut runner = StandardRunner::new(
+        &mut playout_state,
+        TrivialSeed::new(Pcg64Mcg::from_entropy()),
+        true,
+      );
       play_out(&mut runner, &SomethingStrategy {});
       self.debug_log = runner.debug_log().to_string();
     }

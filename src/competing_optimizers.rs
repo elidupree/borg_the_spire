@@ -1,5 +1,6 @@
 use ordered_float::{NotNan, OrderedFloat};
 use rand::seq::SliceRandom;
+use rand_pcg::Pcg64Mcg;
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
 
@@ -7,17 +8,19 @@ use std::time::{Duration, Instant};
 use crate::ai_utils::{collect_starting_points, play_out, CombatResult, Strategy};
 use crate::neural_net_ai::NeuralStrategy;
 use crate::representative_sampling::FractalRepresentativeSeedSearchExplorationOptimizerKind;
-use crate::seed_system::{SeedView, SingleSeedView, Unseeded};
+use crate::seed_system::{Seed, SeedView, SingleSeed, SingleSeedGenerator, TrivialSeed};
 use crate::seeds_concrete::CombatChoiceLineagesKind;
 use crate::simulation::*;
 use crate::simulation_state::*;
 use crate::start_and_strategy_ai::FastStrategy;
+use rand::SeedableRng;
+use rand_chacha::ChaCha8Rng;
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
 pub trait StrategyOptimizer: 'static {
   type Strategy: Strategy;
-  fn step(&mut self, state: &CombatState);
+  fn step(&mut self, state: &CombatState, rng: &mut ChaCha8Rng);
   fn report(&self) -> Rc<Self::Strategy>;
 }
 
@@ -26,6 +29,7 @@ pub trait ExplorationOptimizerKind {
   fn new<T: Strategy + 'static>(
     self,
     starting_state: &CombatState,
+    rng: &mut ChaCha8Rng,
     new_strategy: Box<dyn Fn(&[&T]) -> T>,
   ) -> Self::ExplorationOptimizer<T>;
 }
@@ -55,10 +59,14 @@ impl<'a, T: Strategy> Strategy for MetaStrategy<'a, T> {
   fn choose_choice(&self, state: &CombatState) -> Vec<Choice> {
     let combos = collect_starting_points(state.clone(), 200);
     let choices = combos.into_iter().map(|(mut state, choices)| {
-      run_until_unable(&mut StandardRunner::new(&mut state, Unseeded, false));
+      run_until_unable(&mut StandardRunner::new(
+        &mut state,
+        TrivialSeed::new(Pcg64Mcg::from_entropy()),
+        false,
+      ));
       let num_attempts = 200;
       let score = (0..num_attempts)
-        .map(|_| playout_result(&state, Unseeded, self.0).score)
+        .map(|_| playout_result(&state, TrivialSeed::new(Pcg64Mcg::from_entropy()), self.0).score)
         .sum::<f64>()
         / num_attempts as f64;
       (choices, score)
@@ -112,6 +120,7 @@ impl ExplorationOptimizerKind for OriginalExplorationOptimizerKind {
   fn new<T: Strategy + 'static>(
     self,
     _starting_state: &CombatState,
+    _rng: &mut ChaCha8Rng,
     new_strategy: Box<dyn Fn(&[&T]) -> T>,
   ) -> Self::ExplorationOptimizer<T> {
     OriginalExplorationOptimizer::new(new_strategy)
@@ -120,7 +129,7 @@ impl ExplorationOptimizerKind for OriginalExplorationOptimizerKind {
 
 impl<T: Strategy + 'static> StrategyOptimizer for OriginalExplorationOptimizer<T> {
   type Strategy = T;
-  fn step(&mut self, state: &CombatState) {
+  fn step(&mut self, state: &CombatState, _rng: &mut ChaCha8Rng) {
     loop {
       if self.current_pass_index >= self.candidate_strategies.len() {
         self
@@ -152,7 +161,11 @@ impl<T: Strategy + 'static> StrategyOptimizer for OriginalExplorationOptimizer<T
       self.current_pass_index += 1;
 
       if strategy.playouts < max_strategy_playouts {
-        let result = playout_result(state, Unseeded, &*strategy.strategy);
+        let result = playout_result(
+          state,
+          TrivialSeed::new(Pcg64Mcg::from_entropy()),
+          &*strategy.strategy,
+        );
         strategy.total_score += result.score;
         strategy.playouts += 1;
         return;
@@ -179,17 +192,22 @@ pub struct IndependentSeedsExplorationOptimizerKind {
 pub struct IndependentSeedsExplorationOptimizer<T> {
   candidate_strategies: BTreeMap<NotNan<f64>, Rc<T>>,
   new_strategy: Box<dyn Fn(&[&T]) -> T>,
-  seeds: Vec<SingleSeedView<CombatChoiceLineagesKind>>,
+  seeds: Vec<SingleSeed<CombatChoiceLineagesKind>>,
   steps: usize,
   total_accepted: usize,
 }
 
 impl<T> IndependentSeedsExplorationOptimizer<T> {
-  pub fn new(num_seeds: usize, new_strategy: Box<dyn Fn(&[&T]) -> T>) -> Self {
+  pub fn new(
+    rng: &mut ChaCha8Rng,
+    num_seeds: usize,
+    new_strategy: Box<dyn Fn(&[&T]) -> T>,
+  ) -> Self {
+    let mut generator = SingleSeedGenerator::new(ChaCha8Rng::from_rng(rng).unwrap());
     IndependentSeedsExplorationOptimizer {
       candidate_strategies: BTreeMap::new(),
       new_strategy,
-      seeds: (0..num_seeds).map(|_| SingleSeedView::default()).collect(),
+      seeds: (0..num_seeds).map(|_| generator.make_seed()).collect(),
       steps: 0,
       total_accepted: 0,
     }
@@ -202,15 +220,16 @@ impl ExplorationOptimizerKind for IndependentSeedsExplorationOptimizerKind {
   fn new<T: Strategy + 'static>(
     self,
     _starting_state: &CombatState,
+    rng: &mut ChaCha8Rng,
     new_strategy: Box<dyn Fn(&[&T]) -> T>,
   ) -> Self::ExplorationOptimizer<T> {
-    IndependentSeedsExplorationOptimizer::new(self.num_seeds, new_strategy)
+    IndependentSeedsExplorationOptimizer::new(rng, self.num_seeds, new_strategy)
   }
 }
 
 impl<T: Strategy + 'static> StrategyOptimizer for IndependentSeedsExplorationOptimizer<T> {
   type Strategy = T;
-  fn step(&mut self, state: &CombatState) {
+  fn step(&mut self, state: &CombatState, _rng: &mut ChaCha8Rng) {
     self.steps += 1;
     let target_count = 1 + self.steps.next_power_of_two().trailing_zeros() as usize;
     self.seeds.shuffle(&mut rand::thread_rng());
@@ -223,7 +242,7 @@ impl<T: Strategy + 'static> StrategyOptimizer for IndependentSeedsExplorationOpt
     );
     let mut total_score = 0.0;
     for (index, seed) in self.seeds.iter().enumerate() {
-      let result = playout_result(state, seed.clone(), &strategy);
+      let result = playout_result(state, seed.view(), &strategy);
       total_score += result.score;
       let average = total_score / (index + 1) as f64;
       if target_count <= self.candidate_strategies.len()
@@ -262,7 +281,7 @@ impl<T: Strategy + 'static> StrategyOptimizer for IndependentSeedsExplorationOpt
 
 impl StrategyOptimizer for NeuralStrategy {
   type Strategy = NeuralStrategy;
-  fn step(&mut self, state: &CombatState) {
+  fn step(&mut self, state: &CombatState, _rng: &mut ChaCha8Rng) {
     self.do_training_playout(state);
   }
 
@@ -274,6 +293,7 @@ impl StrategyOptimizer for NeuralStrategy {
 pub fn optimizer_step(
   name: &str,
   state: &CombatState,
+  rng: &mut ChaCha8Rng,
   optimizer: &mut impl StrategyOptimizer,
   last: bool,
 ) {
@@ -281,7 +301,7 @@ pub fn optimizer_step(
   let start = Instant::now();
   let mut steps = 0;
   let elapsed = loop {
-    optimizer.step(state);
+    optimizer.step(state, rng);
     steps += 1;
     let elapsed = start.elapsed();
     if elapsed > Duration::from_millis(2000) {
@@ -300,7 +320,12 @@ pub fn optimizer_step(
   let mut total_test_score = 0.0;
   let test_duration = Duration::from_millis(if last { 10000 } else { 500 });
   let elapsed = loop {
-    total_test_score += playout_result(state, Unseeded, &*strategy).score;
+    total_test_score += playout_result(
+      state,
+      TrivialSeed::new(Pcg64Mcg::from_entropy()),
+      &*strategy,
+    )
+    .score;
     steps += 1;
 
     let elapsed = start.elapsed();
@@ -372,15 +397,15 @@ pub fn run_benchmark (name: & str, state: & CombatState, optimization_playouts: 
 }*/
 
 pub trait Competitor {
-  fn step(&mut self, state: &CombatState, last: bool);
+  fn step(&mut self, state: &CombatState, rng: &mut ChaCha8Rng, last: bool);
 }
 struct OptimizerCompetitor<T> {
   name: String,
   optimizer: T,
 }
 impl<T: StrategyOptimizer> Competitor for OptimizerCompetitor<T> {
-  fn step(&mut self, state: &CombatState, last: bool) {
-    optimizer_step(&self.name, state, &mut self.optimizer, last);
+  fn step(&mut self, state: &CombatState, rng: &mut ChaCha8Rng, last: bool) {
+    optimizer_step(&self.name, state, rng, &mut self.optimizer, last);
   }
 }
 
@@ -406,10 +431,10 @@ pub enum ExplorationOptimizerKindSpecification {
 }
 
 impl CompetitorSpecification {
-  pub fn build(self, starting_state: &CombatState) -> Box<dyn Competitor> {
+  pub fn build(self, starting_state: &CombatState, rng: &mut ChaCha8Rng) -> Box<dyn Competitor> {
     match self {
       CompetitorSpecification::ExplorationOptimizer(optimizer, strategy) => {
-        optimizer.build(strategy, starting_state)
+        optimizer.build(strategy, starting_state, rng)
       }
     }
   }
@@ -419,20 +444,23 @@ impl ExplorationOptimizerKindSpecification {
     self,
     strategy: StrategyAndGeneratorSpecification,
     starting_state: &CombatState,
+    rng: &mut ChaCha8Rng,
   ) -> Box<dyn Competitor> {
     match self {
       ExplorationOptimizerKindSpecification::Original => {
-        strategy.build(OriginalExplorationOptimizerKind, self, starting_state)
+        strategy.build(OriginalExplorationOptimizerKind, self, starting_state, rng)
       }
       ExplorationOptimizerKindSpecification::IndependentSeeds(num_seeds) => strategy.build(
         IndependentSeedsExplorationOptimizerKind { num_seeds },
         self,
         starting_state,
+        rng,
       ),
       ExplorationOptimizerKindSpecification::FractalRepresentativeSeedSearch => strategy.build(
         FractalRepresentativeSeedSearchExplorationOptimizerKind,
         self,
         starting_state,
+        rng,
       ),
     }
   }
@@ -443,6 +471,7 @@ impl StrategyAndGeneratorSpecification {
     kind: K,
     optimizer: ExplorationOptimizerKindSpecification,
     starting_state: &CombatState,
+    rng: &mut ChaCha8Rng,
   ) -> Box<dyn Competitor> {
     let name = format!("{:?}/{:?}", optimizer, self);
     match self {
@@ -450,6 +479,7 @@ impl StrategyAndGeneratorSpecification {
         name,
         optimizer: kind.new(
           starting_state,
+          rng,
           Box::new(|_: &[&FastStrategy]| FastStrategy::random()),
         ),
       }),
@@ -457,6 +487,7 @@ impl StrategyAndGeneratorSpecification {
         name,
         optimizer: kind.new(
           starting_state,
+          rng,
           Box::new(|candidates: &[&FastStrategy]| {
             if candidates.len() < 2 {
               FastStrategy::random()
@@ -475,6 +506,7 @@ impl StrategyAndGeneratorSpecification {
         name,
         optimizer: kind.new(
           starting_state,
+          rng,
           Box::new(|_: &[&NeuralStrategy]| NeuralStrategy::new_random(16)),
         ),
       }),
@@ -482,6 +514,7 @@ impl StrategyAndGeneratorSpecification {
         name,
         optimizer: kind.new(
           starting_state,
+          rng,
           Box::new(|candidates: &[&NeuralStrategy]| {
             if candidates.len() < 1 || rand::random::<f64>() < 0.4 {
               NeuralStrategy::new_random(16)
@@ -502,14 +535,15 @@ pub fn run(competitors: impl IntoIterator<Item = CompetitorSpecification>) {
   let ghost_file = std::fs::File::open("data/hexaghost.json").unwrap();
   let ghost_state: CombatState =
     serde_json::from_reader(std::io::BufReader::new(ghost_file)).unwrap();
+  let mut rng = ChaCha8Rng::from_entropy();
   let mut competitors: Vec<_> = competitors
     .into_iter()
-    .map(|s| CompetitorSpecification::build(s, &ghost_state))
+    .map(|s| CompetitorSpecification::build(s, &ghost_state, &mut rng))
     .collect();
   for iteration in 0..20 {
     println!("\nIteration {}:", iteration);
     for competitor in &mut competitors {
-      competitor.step(&ghost_state, iteration == 19);
+      competitor.step(&ghost_state, &mut rng, iteration == 19);
     }
     println!();
   }

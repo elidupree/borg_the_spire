@@ -1,13 +1,14 @@
 use enum_map::{Enum, EnumMap};
 use ordered_float::OrderedFloat;
 use rand::seq::SliceRandom;
-use rand::{random, Rng};
+use rand::{random, Rng, SeedableRng};
+use rand_pcg::Pcg64Mcg;
 use std::cmp::min;
 use std::iter;
 
 use crate::actions::*;
 use crate::ai_utils::{CombatResult, Strategy};
-use crate::seed_system::Unseeded;
+use crate::seed_system::TrivialSeed;
 use crate::simulation::*;
 use crate::simulation_state::*;
 
@@ -320,7 +321,11 @@ impl NeuralStrategy {
 
   pub fn do_training_playout(&mut self, state: &CombatState) {
     let mut playout_state = state.clone();
-    let mut runner = StandardRunner::new(&mut playout_state, Unseeded, false);
+    let mut runner = StandardRunner::new(
+      &mut playout_state,
+      TrivialSeed::new(Pcg64Mcg::from_entropy()),
+      false,
+    );
     let mut analyses: Vec<(CombatStateAnalysis, ChoiceAnalysis)> = Vec::new();
 
     run_until_unable(&mut runner);
