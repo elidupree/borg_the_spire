@@ -59,11 +59,12 @@ impl<'a, T: Strategy> Strategy for MetaStrategy<'a, T> {
   fn choose_choice(&self, state: &CombatState) -> Vec<Choice> {
     let combos = collect_starting_points(state.clone(), 200);
     let choices = combos.into_iter().map(|(mut state, choices)| {
-      run_until_unable(&mut StandardRunner::new(
+      StandardRunner::new(
         &mut state,
         TrivialSeed::new(Pcg64Mcg::from_entropy()),
         false,
-      ));
+      )
+      .run_until_unable();
       let num_attempts = 200;
       let score = (0..num_attempts)
         .map(|_| playout_result(&state, TrivialSeed::new(Pcg64Mcg::from_entropy()), self.0).score)

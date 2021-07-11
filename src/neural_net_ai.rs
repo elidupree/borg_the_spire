@@ -328,7 +328,7 @@ impl NeuralStrategy {
     );
     let mut analyses: Vec<(CombatStateAnalysis, ChoiceAnalysis)> = Vec::new();
 
-    run_until_unable(&mut runner);
+    runner.run_until_unable();
     while !runner.state().combat_over() {
       let analysis = self.analyze(runner.state());
 

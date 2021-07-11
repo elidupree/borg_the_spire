@@ -78,7 +78,7 @@ impl SearchState {
         TrivialSeed::new(Pcg64Mcg::from_entropy()),
         true,
       );
-      run_until_unable(&mut runner);
+      runner.run_until_unable();
       //let log = runner.debug_log().to_string();
       html! {
         <div class="starting-point">

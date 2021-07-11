@@ -1,5 +1,5 @@
 use crate::seed_system::NoRandomness;
-use crate::simulation::{run_until_unable, Choice, Runner, StandardRunner};
+use crate::simulation::{Choice, Runner, StandardRunner};
 use crate::simulation_state::CombatState;
 use std::collections::{HashSet, VecDeque};
 use std::fmt::Debug;
@@ -48,7 +48,7 @@ pub fn collect_starting_points(
 // I always want my profiling to show what's in playouts:
 #[inline(never)]
 pub fn play_out<S: Strategy>(runner: &mut impl Runner, strategy: &S) {
-  run_until_unable(runner);
+  runner.run_until_unable();
   while !runner.state().combat_over() {
     let choices = strategy.choose_choice(runner.state());
     for choice in choices {

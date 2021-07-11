@@ -111,18 +111,12 @@ pub trait Runner {
   fn state(&self) -> &CombatState;
   fn state_mut(&mut self) -> &mut CombatState;
 
-  fn can_apply(&self, action: &impl Action) -> bool;
   fn action_now(&mut self, action: &impl Action);
   fn action_top(&mut self, action: impl Action);
   fn action_bottom(&mut self, action: impl Action);
 
-  fn apply_choice(&mut self, choice: &Choice) {
-    assert!(self.state().fresh_subaction_queue.is_empty());
-    assert!(self.state().stale_subaction_stack.is_empty());
-    assert!(self.state().actions.is_empty());
-    self.action_now(choice);
-    run_until_unable(self);
-  }
+  fn run_until_unable(&mut self);
+  fn apply_choice(&mut self, choice: &Choice);
 }
 
 pub struct StandardRunner<'a, Seed> {
@@ -142,14 +136,17 @@ impl<'a, Seed: MaybeSeedView<CombatState>> StandardRunner<'a, Seed> {
     }
   }
 
-  pub fn can_apply_impl(&self, action: &impl Action) -> bool {
+  fn can_apply(&self, action: &impl Action) -> bool {
+    self.can_apply_impl(action) && !self.state().combat_over()
+  }
+  fn can_apply_impl(&self, action: &impl Action) -> bool {
     match action.determinism(self.state()) {
       Determinism::Deterministic => true,
       Determinism::Random(distribution) => self.seed.is_seed() || distribution.0.len() == 1,
       Determinism::Choice => false,
     }
   }
-  pub fn apply_impl(&mut self, action: &impl Action) {
+  fn apply_impl(&mut self, action: &impl Action) {
     if self.debug {
       writeln!(
         self.log,
@@ -195,9 +192,6 @@ impl<'a, Seed: MaybeSeedView<CombatState>> Runner for StandardRunner<'a, Seed> {
     self.state
   }
 
-  fn can_apply(&self, action: &impl Action) -> bool {
-    self.can_apply_impl(action) && !self.state().combat_over()
-  }
   fn action_now(&mut self, action: &impl Action) {
     if self.state().fresh_subaction_queue.is_empty() && self.can_apply(action) {
       self.apply_impl(action);
@@ -214,32 +208,39 @@ impl<'a, Seed: MaybeSeedView<CombatState>> Runner for StandardRunner<'a, Seed> {
   fn action_bottom(&mut self, action: impl Action) {
     self.state_mut().actions.push_back(action.into());
   }
-}
 
-pub fn run_until_unable(runner: &mut (impl Runner + ?Sized)) {
-  loop {
-    if runner.state().combat_over() {
-      break;
-    }
-
-    while let Some(action) = runner.state_mut().fresh_subaction_queue.pop() {
-      runner.state_mut().stale_subaction_stack.push(action)
-    }
-
-    if let Some(action) = runner.state_mut().stale_subaction_stack.pop() {
-      if runner.can_apply(&action) {
-        runner.action_now(&action);
-      } else {
-        runner.state_mut().stale_subaction_stack.push(action);
+  fn run_until_unable(&mut self) {
+    loop {
+      if self.state().combat_over() {
         break;
       }
-    } else {
-      if let Some(action) = runner.state_mut().actions.pop_front() {
-        runner.action_now(&action);
+
+      while let Some(action) = self.state_mut().fresh_subaction_queue.pop() {
+        self.state_mut().stale_subaction_stack.push(action)
+      }
+
+      if let Some(action) = self.state_mut().stale_subaction_stack.pop() {
+        if self.can_apply(&action) {
+          self.action_now(&action);
+        } else {
+          self.state_mut().stale_subaction_stack.push(action);
+          break;
+        }
       } else {
-        break;
+        if let Some(action) = self.state_mut().actions.pop_front() {
+          self.action_now(&action);
+        } else {
+          break;
+        }
       }
     }
+  }
+  fn apply_choice(&mut self, choice: &Choice) {
+    assert!(self.state().fresh_subaction_queue.is_empty());
+    assert!(self.state().stale_subaction_stack.is_empty());
+    assert!(self.state().actions.is_empty());
+    self.action_now(choice);
+    self.run_until_unable();
   }
 }
 

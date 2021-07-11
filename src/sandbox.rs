@@ -1,7 +1,7 @@
 use crate::ai_utils::Strategy;
 use crate::seed_system::{Seed, SingleSeed};
 use crate::seeds_concrete::CombatChoiceLineagesKind;
-use crate::simulation::{run_until_unable, Runner, StandardRunner};
+use crate::simulation::{Runner, StandardRunner};
 use crate::simulation_state::CombatState;
 use crate::start_and_strategy_ai::PurelyRandomStrategy;
 use rand::SeedableRng;
@@ -19,7 +19,7 @@ pub fn run(root_path: PathBuf) {
 }
 
 pub fn play_some<S: Strategy>(runner: &mut impl Runner, strategy: &S) {
-  run_until_unable(runner);
+  runner.run_until_unable();
   while runner.state().turn_number < 3 && !runner.state().combat_over() {
     let choices = strategy.choose_choice(runner.state());
     for choice in choices {
