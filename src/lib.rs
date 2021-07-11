@@ -67,14 +67,17 @@ pub mod communication_mod_state;
 pub mod competing_optimizers;
 //mod cow;
 pub mod ai_utils;
-pub mod interface;
+pub mod commands {
+  pub mod interface;
+  //pub mod listen;
+  pub mod sandbox;
+  pub mod watch;
+}
 pub mod neural_net_ai;
 //mod omniscient_search;
 pub mod representative_sampling;
-pub mod sandbox;
 pub mod seed_system;
 pub mod seeds_concrete;
 pub mod simulation;
 pub mod simulation_state;
 pub mod start_and_strategy_ai;
-pub mod watch;

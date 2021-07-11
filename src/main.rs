@@ -1,5 +1,8 @@
 use borg_the_spire::competing_optimizers::CompetitorSpecification;
-use borg_the_spire::{competing_optimizers, interface, sandbox, watch};
+use borg_the_spire::{
+  commands::{interface, sandbox, watch},
+  competing_optimizers,
+};
 use clap::{App, AppSettings, Arg, SubCommand};
 use std::path::PathBuf;
 
