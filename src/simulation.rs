@@ -115,6 +115,14 @@ pub trait Runner {
   fn action_now(&mut self, action: &impl Action);
   fn action_top(&mut self, action: impl Action);
   fn action_bottom(&mut self, action: impl Action);
+
+  fn apply_choice(&mut self, choice: &Choice) {
+    assert!(self.state().fresh_subaction_queue.is_empty());
+    assert!(self.state().stale_subaction_stack.is_empty());
+    assert!(self.state().actions.is_empty());
+    self.action_now(choice);
+    run_until_unable(self);
+  }
 }
 
 pub struct StandardRunner<'a, Seed> {
@@ -208,7 +216,7 @@ impl<'a, Seed: MaybeSeedView<CombatState>> Runner for StandardRunner<'a, Seed> {
   }
 }
 
-pub fn run_until_unable(runner: &mut impl Runner) {
+pub fn run_until_unable(runner: &mut (impl Runner + ?Sized)) {
   loop {
     if runner.state().combat_over() {
       break;

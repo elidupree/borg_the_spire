@@ -26,8 +26,7 @@ pub fn collect_starting_points(
       for choice in choices {
         let mut new_state = state.clone();
         let mut runner = StandardRunner::new(&mut new_state, NoRandomness, false);
-        runner.action_now(&choice);
-        run_until_unable(&mut runner);
+        runner.apply_choice(&choice);
         let mut new_history = history.clone();
         new_history.push(choice.clone());
         assert!(new_state.fresh_subaction_queue.is_empty());
@@ -53,11 +52,7 @@ pub fn play_out<S: Strategy>(runner: &mut impl Runner, strategy: &S) {
   while !runner.state().combat_over() {
     let choices = strategy.choose_choice(runner.state());
     for choice in choices {
-      assert!(runner.state().fresh_subaction_queue.is_empty());
-      assert!(runner.state().stale_subaction_stack.is_empty());
-      assert!(runner.state().actions.is_empty());
-      runner.action_now(&choice);
-      run_until_unable(runner);
+      runner.apply_choice(&choice);
     }
   }
 }

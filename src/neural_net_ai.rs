@@ -340,11 +340,7 @@ impl NeuralStrategy {
         .unwrap()
         .clone();
 
-      assert!(runner.state().fresh_subaction_queue.is_empty());
-      assert!(runner.state().stale_subaction_stack.is_empty());
-      assert!(runner.state().actions.is_empty());
-      runner.action_now(&best_choice.choice);
-      run_until_unable(&mut runner);
+      runner.apply_choice(&best_choice.choice);
 
       analyses.push((analysis, best_choice));
     }

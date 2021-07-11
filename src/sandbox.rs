@@ -23,11 +23,7 @@ pub fn play_some<S: Strategy>(runner: &mut impl Runner, strategy: &S) {
   while runner.state().turn_number < 3 && !runner.state().combat_over() {
     let choices = strategy.choose_choice(runner.state());
     for choice in choices {
-      assert!(runner.state().fresh_subaction_queue.is_empty());
-      assert!(runner.state().stale_subaction_stack.is_empty());
-      assert!(runner.state().actions.is_empty());
-      runner.action_now(&choice);
-      run_until_unable(runner);
+      runner.apply_choice(&choice);
     }
   }
 }
