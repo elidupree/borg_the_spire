@@ -193,6 +193,8 @@ pub struct Player {
   pub energy: i32,
 }
 
+pub type IntentId = i32;
+
 #[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
 pub struct Monster {
   pub monster_id: MonsterId,
@@ -200,7 +202,7 @@ pub struct Monster {
   //pub misc: i32,
   pub ascension: i32,
   pub creature: Creature,
-  pub move_history: Vec<i32>,
+  pub move_history: Vec<IntentId>,
   pub gone: bool,
 }
 
@@ -346,12 +348,25 @@ impl Player {
 
 impl Monster {
   fn from_communication_mod(monster: &communication::Monster, ascension: i32) -> Monster {
-    let mut move_history = vec![monster.move_id];
+    let monster_id = MonsterId::from(&*monster.id);
+    let mut move_history = vec![monster_id
+      .intent_from_communication_mod(monster.move_id)
+      .unwrap_or(0)];
     if let Some(previous) = monster.last_move_id {
-      move_history.insert(0, previous);
+      move_history.insert(
+        0,
+        monster_id
+          .intent_from_communication_mod(previous)
+          .unwrap_or(0),
+      );
     }
     if let Some(previous) = monster.second_last_move_id {
-      move_history.insert(0, previous);
+      move_history.insert(
+        0,
+        monster_id
+          .intent_from_communication_mod(previous)
+          .unwrap_or(0),
+      );
     }
     let innate_damage_amount = if monster.move_base_damage > 0 {
       Some(monster.move_base_damage)
@@ -359,7 +374,7 @@ impl Monster {
       None
     };
     Monster {
-      monster_id: MonsterId::from(&*monster.id),
+      monster_id,
       ascension,
       move_history,
       innate_damage_amount,

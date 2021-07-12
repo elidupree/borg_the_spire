@@ -351,16 +351,16 @@ impl CombatState {
     }
   }
 
-  pub fn monster_intent(&self, monster_index: usize) -> i32 {
+  pub fn monster_intent(&self, monster_index: usize) -> IntentId {
     self.monsters[monster_index].intent()
   }
 }
 
 impl Monster {
-  pub fn intent(&self) -> i32 {
+  pub fn intent(&self) -> IntentId {
     *self.move_history.last().unwrap()
   }
-  pub fn push_intent(&mut self, intent: i32) {
+  pub fn push_intent(&mut self, intent: IntentId) {
     /*if self.move_history.len() == 3 {
       self.move_history.remove(0);
     }*/

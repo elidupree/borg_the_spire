@@ -239,7 +239,7 @@ impl Action for ChooseMonsterIntent {
     let monster = &mut runner.state_mut().monsters[self.0];
     if !monster.gone {
       let monster_id = monster.monster_id;
-      monster.push_intent(random_value);
+      monster.push_intent(random_value as IntentId);
       monster_id.after_choosing_intent(runner, self.0);
     }
   }
