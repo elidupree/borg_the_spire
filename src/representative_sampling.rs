@@ -537,14 +537,17 @@ impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> 
         .unwrap();
       if best_exploiter.scores[index] > 0.5 {
         if playout_result(state, seed.view(), &meta_strategy).score < 0.5 {
+          let meta_narration = playout_narration(state, seed.view(), &meta_strategy);
+          let exploiter_narration =
+            playout_narration(state, seed.view(), &*best_exploiter.strategy);
+          let diff = difference::Changeset::new(&meta_narration, &exploiter_narration, "\n");
           println!("\n===== Caught meta-strategy playing worse than exploiter =====");
           println!("=== Meta-strategy playout: ===");
-          println!("{}", playout_narration(state, seed.view(), &meta_strategy));
+          println!("{}", meta_narration);
           println!("=== Best exploiter playout: ===");
-          println!(
-            "{}",
-            playout_narration(state, seed.view(), &*best_exploiter.strategy)
-          );
+          println!("{}", exploiter_narration);
+          println!("=== Diff: ===");
+          println!("{}", diff);
           println!("===== End of meta-strategy playing worse than exploiter =====\n");
         }
       }

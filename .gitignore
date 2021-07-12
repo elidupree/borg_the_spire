@@ -4,3 +4,4 @@
 **/*.rs.bk
 .idea
 *_profdata
+/Cargo.lock
