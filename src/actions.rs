@@ -349,6 +349,9 @@ impl Action for DrawCards {
     }
     if state.draw_pile.is_empty() {
       state.num_reshuffles += 1;
+      // I considered sorting to prevent some rare kinds of draw order manipulation,
+      // but it turned out to cause about a 4% slowdown in playouts, which seems troublesome
+      //state.discard_pile.sort();
       std::mem::swap(&mut state.draw_pile, &mut state.discard_pile);
     }
     if !state.draw_pile.is_empty() {
