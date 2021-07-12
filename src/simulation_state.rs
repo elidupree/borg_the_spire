@@ -428,12 +428,14 @@ impl Display for Monster {
     } else {
       write!(
         f,
-        "{:?} i{} {}",
+        "{:?}({}) {}",
         self.monster_id,
         self
           .move_history
           .last()
-          .map_or("?".to_string(), ToString::to_string),
+          .map_or("?".to_string(), |&intent_id| self
+            .monster_id
+            .intent_name(intent_id)),
         self.creature
       )
     }
