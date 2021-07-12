@@ -8,6 +8,7 @@ use crate::seed_system::{
 use crate::simulation::MonsterIndex;
 use crate::simulation_state::{CardId, CombatState, MAX_MONSTERS};
 use enum_map::EnumMap;
+use smallvec::SmallVec;
 use std::collections::HashMap;
 use std::fmt::Debug;
 
@@ -32,7 +33,7 @@ impl<T: Default> TurnMap<T> {
 
 #[derive(Clone, Debug, Default)]
 pub struct CombatChoiceLineages<T> {
-  draw_card: EnumMap<CardId, TurnMap<T>>,
+  draw_card: EnumMap<CardId, TurnMap<SmallVec<[(i32, T); 2]>>>,
   choose_monster_intent: [TurnMap<HashMap<i32, T>>; MAX_MONSTERS],
   attack_random_enemy: [HashMap<i32, T>; MAX_MONSTERS],
   initialize_monster_innate_damage_amount: [T; MAX_MONSTERS],
@@ -47,7 +48,13 @@ impl<T: Default> ChoiceLineages<CombatState> for CombatChoiceLineages<T> {
     match action {
       DynAction::DrawCardRandom(_) => {
         let card = state.draw_pile[choice as usize].clone();
-        self.draw_card[card.card_info.id].get_mut(state.turn_number)
+        let turn = self.draw_card[card.card_info.id].get_mut(state.turn_number);
+        if let Some(i) = turn.iter().position(|&(r, _)| r == state.num_reshuffles) {
+          &mut turn[i].1
+        } else {
+          turn.push((state.num_reshuffles, Default::default()));
+          &mut turn.last_mut().unwrap().1
+        }
       }
       &DynAction::ChooseMonsterIntent(ChooseMonsterIntent(monster_index)) => {
         let intent = choice;

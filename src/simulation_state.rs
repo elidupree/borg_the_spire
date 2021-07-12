@@ -74,6 +74,8 @@ pub struct CombatState {
   pub fresh_subaction_queue: Vec<DynAction>,
   pub stale_subaction_stack: Vec<DynAction>,
   pub actions: VecDeque<DynAction>,
+
+  pub num_reshuffles: i32,
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Debug)]
@@ -260,34 +262,9 @@ impl CombatState {
       monsters: combat
         .monsters
         .iter()
-        .map(|monster| {
-          let mut move_history = vec![monster.move_id];
-          if let Some(previous) = monster.last_move_id {
-            move_history.insert(0, previous);
-          }
-          if let Some(previous) = monster.second_last_move_id {
-            move_history.insert(0, previous);
-          }
-          let innate_damage_amount = if monster.move_base_damage > 0 {
-            Some(monster.move_base_damage)
-          } else {
-            None
-          };
-          Monster {
-            monster_id: MonsterId::from(&*monster.id),
-            ascension: observed.ascension_level,
-            move_history,
-            innate_damage_amount,
-            creature: Creature {
-              hitpoints: monster.current_hp,
-              max_hitpoints: monster.max_hp,
-              block: monster.block,
-              powers: monster.powers.iter().map(From::from).collect(),
-            },
-            gone: monster.is_gone,
-          }
-        })
+        .map(|monster| Monster::from_communication_mod(monster, observed.ascension_level))
         .collect(),
+      num_reshuffles: 0,
     };
 
     if let Some(previous) = previous {
@@ -363,6 +340,36 @@ impl Player {
           .chain(player.powers.iter().map(From::from))
           .collect(),
       },
+    }
+  }
+}
+
+impl Monster {
+  fn from_communication_mod(monster: &communication::Monster, ascension: i32) -> Monster {
+    let mut move_history = vec![monster.move_id];
+    if let Some(previous) = monster.last_move_id {
+      move_history.insert(0, previous);
+    }
+    if let Some(previous) = monster.second_last_move_id {
+      move_history.insert(0, previous);
+    }
+    let innate_damage_amount = if monster.move_base_damage > 0 {
+      Some(monster.move_base_damage)
+    } else {
+      None
+    };
+    Monster {
+      monster_id: MonsterId::from(&*monster.id),
+      ascension,
+      move_history,
+      innate_damage_amount,
+      creature: Creature {
+        hitpoints: monster.current_hp,
+        max_hitpoints: monster.max_hp,
+        block: monster.block,
+        powers: monster.powers.iter().map(From::from).collect(),
+      },
+      gone: monster.is_gone,
     }
   }
 }

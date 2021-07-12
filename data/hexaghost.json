@@ -156,5 +156,6 @@
   "turn_has_ended": false,
   "fresh_subaction_queue": [],
   "stale_subaction_stack": [],
-  "actions": []
+  "actions": [],
+  "num_reshuffles": 0
 }

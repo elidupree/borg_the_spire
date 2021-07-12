@@ -348,6 +348,7 @@ impl Action for DrawCards {
       return;
     }
     if state.draw_pile.is_empty() {
+      state.num_reshuffles += 1;
       std::mem::swap(&mut state.draw_pile, &mut state.discard_pile);
     }
     if !state.draw_pile.is_empty() {
