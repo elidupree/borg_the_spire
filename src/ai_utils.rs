@@ -84,11 +84,11 @@ impl<'a, W: fmt::Write> NarrationHooks<'a, W> {
     writeln!(self.writer).unwrap();
   }
   fn write_hand(&mut self, state: &CombatState) {
-    write!(self.writer, "Hand: [").unwrap();
+    write!(self.writer, "[{}] [", state.draw_pile.len()).unwrap();
     for card in &state.hand {
       write!(self.writer, "{}, ", card).unwrap();
     }
-    writeln!(self.writer, "]").unwrap();
+    writeln!(self.writer, "] [{}]", state.discard_pile.len()).unwrap();
   }
 }
 impl<'a, W: fmt::Write> StandardRunnerHooks for NarrationHooks<'a, W> {
