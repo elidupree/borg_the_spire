@@ -1,5 +1,5 @@
-use crate::ai_utils::Strategy;
-use crate::competing_optimizers::{playout_result, ExplorationOptimizerKind, StrategyOptimizer};
+use crate::ai_utils::{playout_result, Strategy};
+use crate::competing_optimizers::{ExplorationOptimizerKind, StrategyOptimizer};
 use crate::seed_system::{Seed, SeedGenerator, SingleSeed, SingleSeedGenerator};
 use crate::seeds_concrete::CombatChoiceLineagesKind;
 use crate::simulation::Choice;

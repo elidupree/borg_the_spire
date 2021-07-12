@@ -1,8 +1,11 @@
-use crate::seed_system::NoRandomness;
-use crate::simulation::{Choice, Runner, StandardRunner};
-use crate::simulation_state::CombatState;
+use crate::actions::{DynAction, PlayCard};
+use crate::seed_system::{NoRandomness, SeedView};
+use crate::simulation::{Choice, Runner, StandardRunner, StandardRunnerHooks};
+use crate::simulation_state::{CombatState, SingleCard};
+use arrayvec::ArrayVec;
 use std::collections::{HashSet, VecDeque};
-use std::fmt::Debug;
+use std::fmt;
+use std::fmt::{Debug, Write};
 
 pub trait Strategy: Debug {
   fn choose_choice(&self, state: &CombatState) -> Vec<Choice>;
@@ -55,6 +58,104 @@ pub fn play_out<S: Strategy>(runner: &mut impl Runner, strategy: &S) {
       runner.apply_choice(&choice);
     }
   }
+}
+
+pub fn playout_result(
+  state: &CombatState,
+  seed: impl SeedView<CombatState>,
+  strategy: &impl Strategy,
+) -> CombatResult {
+  let mut state = state.clone();
+  play_out(&mut StandardRunner::new(&mut state, seed), strategy);
+  CombatResult::new(&state)
+}
+
+pub struct NarrationHooks<'a, W: fmt::Write> {
+  writer: &'a mut W,
+  last_hand: ArrayVec<[SingleCard; 10]>,
+  last_hitpoints: i32,
+}
+impl<'a, W: fmt::Write> NarrationHooks<'a, W> {
+  fn write_combatants(&mut self, state: &CombatState) {
+    write!(self.writer, "{} vs. ", state.player).unwrap();
+    for monster in &state.monsters {
+      write!(self.writer, "{}, ", monster).unwrap();
+    }
+    writeln!(self.writer).unwrap();
+  }
+  fn write_hand(&mut self, state: &CombatState) {
+    write!(self.writer, "Hand: [").unwrap();
+    for card in &state.hand {
+      write!(self.writer, "{}, ", card).unwrap();
+    }
+    writeln!(self.writer, "]").unwrap();
+  }
+}
+impl<'a, W: fmt::Write> StandardRunnerHooks for NarrationHooks<'a, W> {
+  fn on_choice(&mut self, state: &CombatState, choice: &Choice) {
+    if state.player.creature.hitpoints != self.last_hitpoints {
+      writeln!(
+        self.writer,
+        "Took {} damage",
+        self.last_hitpoints - state.player.creature.hitpoints
+      )
+      .unwrap();
+      self.last_hitpoints = state.player.creature.hitpoints;
+    }
+
+    if state.hand != self.last_hand {
+      self.last_hand = state.hand.clone();
+      self.write_hand(state);
+    }
+    match choice {
+      Choice::PlayCard(PlayCard { card, target }) => {
+        let card_index = self.last_hand.iter().position(|c| c == card).unwrap();
+        self.last_hand.remove(card_index);
+        if card.card_info.has_target {
+          writeln!(self.writer, "{} {}", card, target).unwrap();
+        } else {
+          writeln!(self.writer, "{}", card).unwrap();
+        }
+      }
+      Choice::EndTurn(_) => {
+        writeln!(self.writer, "=== EndTurn ===").unwrap();
+        self.write_combatants(state);
+      }
+      _ => {}
+    }
+  }
+  fn on_action(&mut self, state: &CombatState, action: &DynAction) {
+    match action {
+      DynAction::EndMonstersTurns(_) => {
+        self.write_combatants(state);
+      }
+      _ => {}
+    }
+  }
+}
+pub fn playout_narration(
+  state: &CombatState,
+  seed: impl SeedView<CombatState>,
+  strategy: &impl Strategy,
+) -> String {
+  let mut state = state.clone();
+  let mut writer = String::new();
+  let mut hooks = NarrationHooks {
+    writer: &mut writer,
+    last_hand: state.hand.clone(),
+    last_hitpoints: state.player.creature.hitpoints,
+  };
+  hooks.write_combatants(&state);
+  hooks.write_hand(&state);
+  play_out(
+    &mut StandardRunner::new(&mut state, seed).with_hooks(&mut hooks),
+    strategy,
+  );
+
+  writeln!(hooks.writer, "Combat over.").unwrap();
+  hooks.write_combatants(&state);
+
+  writer
 }
 
 #[derive(Clone, Debug)]

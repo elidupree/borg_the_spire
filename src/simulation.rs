@@ -118,22 +118,27 @@ pub trait Runner {
   fn apply_choice(&mut self, choice: &Choice);
 }
 
-pub struct StandardRunner<'a, 'b, Seed> {
+pub struct StandardRunner<'a, Seed> {
   state: &'a mut CombatState,
   seed: Seed,
-  on_choice: Option<Box<dyn FnMut(&CombatState, &Choice) + 'b>>,
+  hooks: Option<&'a mut dyn StandardRunnerHooks>,
+}
+#[allow(unused)]
+pub trait StandardRunnerHooks {
+  fn on_choice(&mut self, state: &CombatState, choice: &Choice) {}
+  fn on_action(&mut self, state: &CombatState, action: &DynAction) {}
 }
 
-impl<'a, 'b, Seed: MaybeSeedView<CombatState>> StandardRunner<'a, 'b, Seed> {
+impl<'a, Seed: MaybeSeedView<CombatState>> StandardRunner<'a, Seed> {
   pub fn new(state: &'a mut CombatState, seed: Seed) -> Self {
     StandardRunner {
       state,
       seed,
-      on_choice: None,
+      hooks: None,
     }
   }
-  pub fn on_choice(mut self, on_choice: impl FnMut(&CombatState, &Choice) + 'b) -> Self {
-    self.on_choice = Some(Box::new(on_choice));
+  pub fn with_hooks(mut self, hooks: &'a mut dyn StandardRunnerHooks) -> Self {
+    self.hooks = Some(hooks);
     self
   }
 
@@ -148,6 +153,9 @@ impl<'a, 'b, Seed: MaybeSeedView<CombatState>> StandardRunner<'a, 'b, Seed> {
     }
   }
   fn apply_impl(&mut self, action: &impl Action) {
+    if let Some(hooks) = &mut self.hooks {
+      hooks.on_action(&self.state, &action.clone().into());
+    }
     // if self.debug {
     //   writeln!(
     //     self.log,
@@ -185,7 +193,7 @@ impl<'a, 'b, Seed: MaybeSeedView<CombatState>> StandardRunner<'a, 'b, Seed> {
   //   &self.log
   // }
 }
-impl<'a, 'b, Seed: MaybeSeedView<CombatState>> Runner for StandardRunner<'a, 'b, Seed> {
+impl<'a, Seed: MaybeSeedView<CombatState>> Runner for StandardRunner<'a, Seed> {
   fn state(&self) -> &CombatState {
     self.state
   }
@@ -240,8 +248,8 @@ impl<'a, 'b, Seed: MaybeSeedView<CombatState>> Runner for StandardRunner<'a, 'b,
     assert!(self.state().fresh_subaction_queue.is_empty());
     assert!(self.state().stale_subaction_stack.is_empty());
     assert!(self.state().actions.is_empty());
-    if let Some(on_choice) = &mut self.on_choice {
-      on_choice(&self.state, choice);
+    if let Some(hooks) = &mut self.hooks {
+      hooks.on_choice(&self.state, choice);
     }
     self.action_now(choice);
     self.run_until_unable();

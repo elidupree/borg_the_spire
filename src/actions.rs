@@ -61,6 +61,7 @@ actions! {
   [DoMonsterIntent (pub usize);],
   [FinishMonsterTurn (pub usize);],
   [ChooseMonsterIntent (pub usize);],
+  [EndMonstersTurns;],
 
   // used by many effects
   [DamageAction {pub target: CreatureIndex, pub info: DamageInfo}],
@@ -205,22 +206,28 @@ impl Action for FinishMonsterTurn {
         runner.action_bottom(FinishMonsterTurn(self.0 + 1));
       }
     } else {
-      apply_end_of_turn_powers(runner);
-      let state = runner.state_mut();
-      state.turn_number += 1;
-      state.turn_has_ended = false;
-      start_creature_turn(runner, CreatureIndex::Player);
-      let state = runner.state_mut();
-      state.player.energy = 3
-        + state
-          .player
-          .creature
-          .powers
-          .iter()
-          .map(|power| power.power_id.inherent_energy())
-          .sum::<i32>();
-      runner.action_now(&DrawCards(5));
+      runner.action_now(&EndMonstersTurns);
     }
+  }
+}
+
+impl Action for EndMonstersTurns {
+  fn execute(&self, runner: &mut impl Runner) {
+    apply_end_of_turn_powers(runner);
+    let state = runner.state_mut();
+    state.turn_number += 1;
+    state.turn_has_ended = false;
+    start_creature_turn(runner, CreatureIndex::Player);
+    let state = runner.state_mut();
+    state.player.energy = 3
+      + state
+        .player
+        .creature
+        .powers
+        .iter()
+        .map(|power| power.power_id.inherent_energy())
+        .sum::<i32>();
+    runner.action_now(&DrawCards(5));
   }
 }
 

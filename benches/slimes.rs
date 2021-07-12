@@ -1,5 +1,5 @@
+use borg_the_spire::ai_utils::playout_result;
 use borg_the_spire::ai_utils::Strategy;
-use borg_the_spire::competing_optimizers::playout_result;
 use borg_the_spire::seed_system::{Seed, SingleSeedGenerator, TrivialSeedGenerator};
 use borg_the_spire::seeds_concrete::CombatChoiceLineagesKind;
 use borg_the_spire::simulation_state::CombatState;

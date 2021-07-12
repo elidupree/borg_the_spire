@@ -5,11 +5,11 @@ use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
 
 //use crate::actions::*;
-use crate::actions::PlayCard;
-use crate::ai_utils::{collect_starting_points, play_out, CombatResult, Strategy};
+use crate::ai_utils;
+use crate::ai_utils::{collect_starting_points, playout_narration, Strategy};
 use crate::neural_net_ai::NeuralStrategy;
 use crate::representative_sampling::FractalRepresentativeSeedSearchExplorationOptimizerKind;
-use crate::seed_system::{Seed, SeedView, SingleSeed, SingleSeedGenerator, TrivialSeed};
+use crate::seed_system::{Seed, SingleSeed, SingleSeedGenerator, TrivialSeed};
 use crate::seeds_concrete::CombatChoiceLineagesKind;
 use crate::simulation::*;
 use crate::simulation_state::*;
@@ -41,16 +41,6 @@ pub struct CandidateStrategy<T> {
   total_score: f64,
 }
 
-pub fn playout_result(
-  state: &CombatState,
-  seed: impl SeedView<CombatState>,
-  strategy: &impl Strategy,
-) -> CombatResult {
-  let mut state = state.clone();
-  play_out(&mut StandardRunner::new(&mut state, seed), strategy);
-  CombatResult::new(&state)
-}
-
 // Note: This meta strategy often performed WORSE than the naive strategy it's based on,
 // probably because it chose lucky moves rather than good moves
 #[derive(Clone, Debug)]
@@ -64,7 +54,9 @@ impl<'a, T: Strategy> Strategy for MetaStrategy<'a, T> {
         .run_until_unable();
       let num_attempts = 200;
       let score = (0..num_attempts)
-        .map(|_| playout_result(&state, TrivialSeed::new(Pcg64Mcg::from_entropy()), self.0).score)
+        .map(|_| {
+          ai_utils::playout_result(&state, TrivialSeed::new(Pcg64Mcg::from_entropy()), self.0).score
+        })
         .sum::<f64>()
         / num_attempts as f64;
       (choices, score)
@@ -159,7 +151,7 @@ impl<T: Strategy + 'static> StrategyOptimizer for OriginalExplorationOptimizer<T
       self.current_pass_index += 1;
 
       if strategy.playouts < max_strategy_playouts {
-        let result = playout_result(
+        let result = ai_utils::playout_result(
           state,
           TrivialSeed::new(Pcg64Mcg::from_entropy()),
           &*strategy.strategy,
@@ -240,7 +232,7 @@ impl<T: Strategy + 'static> StrategyOptimizer for IndependentSeedsExplorationOpt
     );
     let mut total_score = 0.0;
     for (index, seed) in self.seeds.iter().enumerate() {
-      let result = playout_result(state, seed.view(), &strategy);
+      let result = ai_utils::playout_result(state, seed.view(), &strategy);
       total_score += result.score;
       let average = total_score / (index + 1) as f64;
       if target_count <= self.candidate_strategies.len()
@@ -318,7 +310,7 @@ pub fn optimizer_step(
   let mut total_test_score = 0.0;
   let test_duration = Duration::from_millis(if last { 10000 } else { 500 });
   let elapsed = loop {
-    total_test_score += playout_result(
+    total_test_score += ai_utils::playout_result(
       state,
       TrivialSeed::new(Pcg64Mcg::from_entropy()),
       &*strategy,
@@ -332,56 +324,14 @@ pub fn optimizer_step(
     }
   };
 
-  println!("Example playout:");
-
-  {
-    //let mut state = state.clone();
-    let mut last_hand = state.hand.clone();
-    let mut last_hitpoints = state.player.creature.hitpoints;
-    print!("Example playout:\nStarting hand: ");
-    for card in &last_hand {
-      print!("{}, ", card);
-    }
-    println!();
-    play_out(
-      &mut StandardRunner::new(
-        &mut state.clone(),
-        TrivialSeed::new(Pcg64Mcg::from_entropy()),
-      )
-      .on_choice(|state, choice| {
-        if state.player.creature.hitpoints != last_hitpoints {
-          println!(
-            "Took {} damage",
-            last_hitpoints - state.player.creature.hitpoints
-          );
-          last_hitpoints = state.player.creature.hitpoints;
-        }
-
-        if state.hand != last_hand {
-          last_hand = state.hand.clone();
-          print!("Hand is now: ");
-          for card in &last_hand {
-            print!("{}, ", card);
-          }
-          println!();
-        }
-        match choice {
-          Choice::PlayCard(PlayCard { card, target }) => {
-            if card.card_info.has_target {
-              println!("{} {}", card, target);
-            } else {
-              println!("{}", card);
-            }
-          }
-          Choice::EndTurn(_) => {
-            println!("=== EndTurn ===");
-          }
-          _ => {}
-        }
-      }),
-      &*strategy,
-    );
-  }
+  println!(
+    "Example playout:\n{}",
+    playout_narration(
+      state,
+      TrivialSeed::new(Pcg64Mcg::from_entropy()),
+      &*strategy
+    )
+  );
 
   println!(
     "Evaluated {} for {:.2?} ({} playouts). Average score: {}",
