@@ -16,7 +16,7 @@ fn main() {
         .arg(Arg::with_name("state-file").required(true)),
     )
       .subcommand(
-        SubCommand::with_name("analyze")
+        SubCommand::with_name("live-analyze")
             .long_about("Watch and analyze a given state-file, displaying a report you can view in a browers.")
             .arg(Arg::with_name("state-file").long("state-file").required(true).takes_value(true))
             .arg(Arg::with_name("ip").long("ip").required(true).takes_value(true))
@@ -41,7 +41,7 @@ fn main() {
     ("communicate", Some(matches)) => {
       communicate::communicate(PathBuf::from(matches.value_of("state-file").unwrap()))
     }
-    ("analyze", Some(matches)) => {
+    ("live-analyze", Some(matches)) => {
       interface::run(
         PathBuf::from(matches.value_of("static-files").unwrap()),
         PathBuf::from(matches.value_of("state-file").unwrap()),

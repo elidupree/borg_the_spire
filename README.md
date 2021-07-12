@@ -6,8 +6,13 @@ Fair warning: This is a toy project for me, and I don't particularly expect to c
 
 This crate compiles to an executable usable with [CommunicationMod](https://github.com/ForgottenArbiter/CommunicationMod).
 
-To use:
+There are two separate subcommands, `borg_the_spire communicate` and `borg_the_spire live-analyze`. `communicate` talks to CommunicationMod and saves the gamestate to a file. `live-analyze` watches the file for changes and serves a webpage that displays its analysis. This division exists for two reasons:
+* First, it allows me to change and rebuild the `live-analyze` part without restarting Slay the Spire.
+* Second, it allows me to run `live-analyze`, which is the CPU-heavy part, on a separate computer.
+
+To run Borg the Spire:
 * `cargo build`
-* Set the CommunicationMod command to point to the compiled executable, with one command line argument that is a path to the Borg the Spire directory (e.g. `command=C\:\\Users\\Eli\\Documents\\borg_the_spire\\target\\debug\\borg_the_spire.exe C\:\\Users\\Eli\\Documents\\borg_the_spire\\`)
+* Set the CommunicationMod command to run `borg_the_spire communicate [state-file]`, giving a filepath where the gamestate will be saved (e.g. `command=C\:\\Path\\To\\borg_the_spire\\target\\debug\\borg_the_spire.exe communicate C\:\\Path\\To\\borg_the_spire\\last_state.json`)
 * Run Slay the Spire with mods, enabling CommunicationMod
-* While Slay the Spire is running, go to `http://localhost:3508/` in a browser for the interface
+* Run `borg_the_spire live-analyze --state-file=[state-file] --static-files=Path\\To\\borg_the_spire\\static --ip=[ip] --port=[port]`, which will watch the state file, analyze it whenever it changes, and serve the analyzed output. `ip` is an address to listen on, perhaps `localhost`.
+* While `borg_the_spire live-analyze` is running, go to `http://[ip]:[port]/` in a browser for the interface.
