@@ -19,10 +19,12 @@ use rand_chacha::ChaCha8Rng;
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
+#[allow(unused)]
 pub trait StrategyOptimizer: 'static {
   type Strategy: Strategy;
   fn step(&mut self, state: &CombatState, rng: &mut ChaCha8Rng);
   fn report(&self) -> Rc<Self::Strategy>;
+  fn print_extra_info(&self, state: &CombatState) {}
 }
 
 pub trait ExplorationOptimizerKind {
@@ -340,6 +342,10 @@ pub fn optimizer_step(
     steps,
     total_test_score / steps as f64
   );
+
+  if last {
+    optimizer.print_extra_info(state);
+  }
 
   /*let start = Instant::now();
   let mut steps = 0;

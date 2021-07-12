@@ -1,4 +1,4 @@
-use crate::ai_utils::{playout_result, Strategy};
+use crate::ai_utils::{playout_narration, playout_result, Strategy};
 use crate::competing_optimizers::{ExplorationOptimizerKind, StrategyOptimizer};
 use crate::seed_system::{Seed, SeedGenerator, SingleSeed, SingleSeedGenerator};
 use crate::seeds_concrete::CombatChoiceLineagesKind;
@@ -395,6 +395,24 @@ impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> 
       layer_updates: 0,
     }
   }
+
+  pub fn meta_strategy(&self) -> RepresentativeSeedsMetaStrategy<S, T> {
+    RepresentativeSeedsMetaStrategy {
+      seeds: self
+        .layers
+        .get(1)
+        .unwrap_or_else(|| self.layers.last().unwrap())
+        .seeds
+        .clone(),
+      strategies: self
+        .layers
+        .last()
+        .unwrap()
+        .strategies()
+        .map(|s| s.strategy.clone())
+        .collect(),
+    }
+  }
 }
 
 impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> + 'static>
@@ -506,21 +524,31 @@ impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> 
 
     //&best.strategy
 
-    Rc::new(RepresentativeSeedsMetaStrategy {
-      seeds: self
-        .layers
-        .get(1)
-        .unwrap_or_else(|| self.layers.last().unwrap())
-        .seeds
-        .clone(),
-      strategies: self
-        .layers
-        .last()
-        .unwrap()
+    Rc::new(self.meta_strategy())
+  }
+
+  fn print_extra_info(&self, state: &CombatState) {
+    let meta_strategy = self.meta_strategy();
+    let last = self.layers.last().unwrap();
+    for (index, seed) in last.seeds.iter().take(1000).enumerate() {
+      let best_exploiter = last
         .strategies()
-        .map(|s| s.strategy.clone())
-        .collect(),
-    })
+        .max_by_key(|s| OrderedFloat(s.scores[index]))
+        .unwrap();
+      if best_exploiter.scores[index] > 0.5 {
+        if playout_result(state, seed.view(), &meta_strategy).score < 0.5 {
+          println!("\n===== Caught meta-strategy playing worse than exploiter =====");
+          println!("=== Meta-strategy playout: ===");
+          println!("{}", playout_narration(state, seed.view(), &meta_strategy));
+          println!("=== Best exploiter playout: ===");
+          println!(
+            "{}",
+            playout_narration(state, seed.view(), &*best_exploiter.strategy)
+          );
+          println!("===== End of meta-strategy playing worse than exploiter =====\n");
+        }
+      }
+    }
   }
 }
 
