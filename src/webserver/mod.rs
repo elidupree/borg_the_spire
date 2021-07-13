@@ -3,13 +3,14 @@ pub mod rocket_glue;
 
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
+use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use self::rocket_glue::MessageFromFrontend;
 use crate::simulation_state::*;
 use crate::start_and_strategy_ai::*;
-use std::fs;
 
 #[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug, Default)]
 pub struct FrontendState {}
@@ -26,6 +27,7 @@ pub struct ServerPersistentState {
 pub struct ServerState {
   constants: Arc<ServerConstants>,
   persistent_state: ServerPersistentState,
+  inputs: Vec<MessageFromFrontend>,
   combat_state: Option<CombatState>,
   search_state: Option<SearchState>,
   debug_log: String,
@@ -111,6 +113,7 @@ pub fn run(
   let mut server_state = ServerState {
     constants: Arc::new(ServerConstants { data_files }),
     persistent_state: ServerPersistentState { frontend_state },
+    inputs: Vec::new(),
     combat_state: None,
     search_state: None,
     debug_log: String::new(),

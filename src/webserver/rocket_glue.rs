@@ -1,10 +1,11 @@
-use crate::webserver::{FrontendState, ServerState};
+use crate::webserver::ServerState;
 use parking_lot::Mutex;
 use rocket::config::Environment;
 use rocket::response::NamedFile;
 use rocket::{Config, State};
 use rocket_contrib::json::Json;
 use rocket_contrib::serve::StaticFiles;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -13,21 +14,22 @@ struct RocketState {
   static_files: PathBuf,
 }
 
-#[allow(unused)]
-#[post("/content", data = "<interface_state>")]
-fn content(interface_state: Json<FrontendState>, rocket_state: State<RocketState>) -> String {
-  let mut server_state = rocket_state.server_state.lock();
-  server_state.change_persistent_state(|p| p.frontend_state = interface_state.0);
+#[post("/content")]
+fn content(rocket_state: State<RocketState>) -> String {
+  let server_state = rocket_state.server_state.lock();
   server_state.view().to_string()
 }
 
-#[get("/default_interface_state")]
-fn default_interface_state() -> Json<FrontendState> {
-  Json(FrontendState {
-        //client_placeholder: 3,
-        //placeholder_i32: 5,
-        //placeholder_string: "whatever".to_string()
-    })
+#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
+pub enum MessageFromFrontend {}
+
+#[allow(clippy::unit_arg)]
+// why is this needed? no idea, probably rocket proc macro stuff
+#[post("/input", data = "<input>")]
+fn input(input: Json<MessageFromFrontend>, rocket_state: State<RocketState>) {
+  let Json(input) = input;
+
+  rocket_state.server_state.lock().inputs.push(input);
 }
 
 #[get("/")]
@@ -49,7 +51,7 @@ pub fn launch(
       .unwrap(),
   )
   .mount("/media/", StaticFiles::from(static_files.join("media")))
-  .mount("/", routes![index, content, default_interface_state])
+  .mount("/", routes![index, content, input])
   .manage(RocketState {
     server_state,
     static_files,

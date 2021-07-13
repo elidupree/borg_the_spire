@@ -26,28 +26,46 @@
       
       </div>
     </div>
-    <script src="/media/lodash.js"></script>
-    <script src="/media/jquery-3.2.1.min.js"></script>
     <script src="/media/morphdom-umd.js"></script>
     <script>
-      $.get ("/default_interface_state").done((default_interface_state) => {
-        window.interface_state = default_interface_state
-        console.log (default_interface_state);
-        
-        function frame() {
-          $.post ({
-            url: "/content",
-            data: JSON.stringify (window.interface_state),
-          })
-            .done ((response) => {
-              morphdom ($("#content") [0], response);
-            })
-            .always (() => {
-              requestAnimationFrame (frame);
-            });
+      let update_period = 200;
+      let last_update = Date.now() - update_period;
+
+      async function frame() {
+        const now = Date.now();
+        if (now < last_update + update_period) {
+          requestAnimationFrame (frame);
         }
-        
-        frame();
+        else {
+          last_update = now;
+          try {
+            const response = await fetch ("/content", {
+              method: "POST",
+            });
+            if (response.ok) {
+              const data = await response.text();
+              morphdom (document.getElementById("content"), data);
+            }
+          }
+          finally {
+            requestAnimationFrame (frame);
+          }
+        }
+      }
+
+      frame();
+
+      document.documentElement.addEventListener("click", event => {
+        let target = event.target.closest("[data-onclick]");
+        if (target !== null) {
+          fetch ("/input", {
+            method: "POST",
+            body: target.getAttribute("data-onclick"),
+          }).then(() => {
+            // Hack: update immediately:
+            last_update -= update_period;
+          });
+        }
       });
     </script>
   </body>
