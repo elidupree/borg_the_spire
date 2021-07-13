@@ -12,7 +12,7 @@ There are two separate subcommands, `borg_the_spire communicate` and `borg_the_s
 
 To run Borg the Spire:
 * `cargo build`
-* Set the CommunicationMod command to run `borg_the_spire communicate [state-file]`, giving a filepath where the gamestate will be saved (e.g. `command=C\:\\Path\\To\\borg_the_spire\\target\\debug\\borg_the_spire.exe communicate C\:\\Path\\To\\borg_the_spire\\last_state.json`)
+* Set the CommunicationMod command to run `borg_the_spire communicate [state-file]`, giving a filepath where the gamestate will be saved (e.g. `command=C\:\\Path\\To\\borg_the_spire\\target\\debug\\borg_the_spire.exe communicate C\:\\Path\\To\\borg_the_spire\\data\\last_state.json`)
 * Run Slay the Spire with mods, enabling CommunicationMod
 * Run `borg_the_spire live-analyze --state-file=[state-file] --static-files=Path\\To\\borg_the_spire\\static --ip=[ip] --port=[port]`, which will watch the state file, analyze it whenever it changes, and serve the analyzed output. `ip` is an address to listen on, perhaps `localhost`.
 * While `borg_the_spire live-analyze` is running, go to `http://[ip]:[port]/` in a browser for the interface.

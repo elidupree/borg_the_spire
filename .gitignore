@@ -1,6 +1,6 @@
 /target
 /modify_noticer
-/last_state.json
+/data/last_state.json
 **/*.rs.bk
 .idea
 *_profdata
