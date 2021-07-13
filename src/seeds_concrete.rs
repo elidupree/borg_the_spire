@@ -6,6 +6,7 @@ use crate::seed_system::{
   ChoiceLineages, ContainerKind, GameState, MaybeSeedView, NeverSeed, NoRandomness,
 };
 use crate::simulation::MonsterIndex;
+use crate::simulation_state::monsters::MAX_INTENTS;
 use crate::simulation_state::{CardId, CombatState, MAX_MONSTERS};
 use enum_map::EnumMap;
 use smallvec::SmallVec;
@@ -34,7 +35,7 @@ impl<T: Default> TurnMap<T> {
 #[derive(Clone, Debug, Default)]
 pub struct CombatChoiceLineages<T> {
   draw_card: EnumMap<CardId, TurnMap<SmallVec<[(i32, T); 2]>>>,
-  choose_monster_intent: [TurnMap<HashMap<i32, T>>; MAX_MONSTERS],
+  choose_monster_intent: [TurnMap<[T; MAX_INTENTS]>; MAX_MONSTERS],
   attack_random_enemy: [HashMap<i32, T>; MAX_MONSTERS],
   initialize_monster_innate_damage_amount: [T; MAX_MONSTERS],
   gain_block_random_monster: [TurnMap<T>; MAX_MONSTERS],
@@ -60,8 +61,8 @@ impl<T: Default> ChoiceLineages<CombatState> for CombatChoiceLineages<T> {
         let intent = choice;
         self.choose_monster_intent[monster_index]
           .get_mut(state.turn_number)
-          .entry(intent)
-          .or_insert_with(Default::default)
+          .get_mut(intent as usize)
+          .unwrap()
       }
       &DynAction::AttackDamageRandomEnemyAction(AttackDamageRandomEnemyAction { damage }) => {
         let target = choice as MonsterIndex;

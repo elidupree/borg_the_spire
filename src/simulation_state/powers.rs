@@ -475,6 +475,9 @@ powers! {
   ["Anger", Enrage, Buff],
   ["Artifact", Artifact, Buff],
 
+  // Exordium boss powers
+  ["Sharp Hide", SharpHide, Buff],
+
   // City monster powers
   ["Flight", Flight, Buff],
 
@@ -668,6 +671,17 @@ impl PowerBehavior for Metallicize {
       creature_index: context.owner_index(),
       amount: context.amount(),
     });
+  }
+}
+
+impl PowerBehavior for SharpHide {
+  fn on_use_card(&self, context: &mut PowerHookContext<impl Runner>, card: &SingleCard) {
+    if card.card_info.card_type == CardType::Attack {
+      context.action_bottom(DamageAction {
+        target: CreatureIndex::Player,
+        info: DamageInfo::new(context.owner_index(), context.amount(), DamageType::Thorns),
+      });
+    }
   }
 }
 
