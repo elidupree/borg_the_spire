@@ -69,7 +69,6 @@ pub mod competing_optimizers;
 pub mod ai_utils;
 pub mod commands {
   pub mod communicate;
-  pub mod interface;
   pub mod sandbox;
   pub mod watch;
 }
@@ -81,3 +80,4 @@ pub mod seeds_concrete;
 pub mod simulation;
 pub mod simulation_state;
 pub mod start_and_strategy_ai;
+pub mod webserver;

@@ -1,7 +1,7 @@
 use borg_the_spire::competing_optimizers::CompetitorSpecification;
 use borg_the_spire::{
-  commands::{communicate, interface, sandbox, watch},
-  competing_optimizers,
+  commands::{communicate, sandbox, watch},
+  competing_optimizers, webserver,
 };
 use clap::{App, AppSettings, Arg, SubCommand};
 use std::path::PathBuf;
@@ -21,7 +21,8 @@ fn main() {
             .arg(Arg::with_name("state-file").long("state-file").required(true).takes_value(true))
             .arg(Arg::with_name("ip").long("ip").required(true).takes_value(true))
             .arg(Arg::with_name("port").long("port").required(true).takes_value(true))
-      .arg(Arg::with_name("static-files").long("static-files").required(true).takes_value(true).help("The path to the static html/etc files for BtS, typically `./static`")),
+            .arg(Arg::with_name("static-files").long("static-files").required(true).takes_value(true).help("The path to the static html/etc files for BtS, typically `./static`"))
+            .arg(Arg::with_name("data-files").long("data-files").required(true).takes_value(true).help("The path to the data files for BtS, typically `./data`")),
       )
       .subcommand(
         SubCommand::with_name("watch")
@@ -42,8 +43,9 @@ fn main() {
       communicate::communicate(PathBuf::from(matches.value_of("state-file").unwrap()))
     }
     ("live-analyze", Some(matches)) => {
-      interface::run(
+      webserver::run(
         PathBuf::from(matches.value_of("static-files").unwrap()),
+        PathBuf::from(matches.value_of("data-files").unwrap()),
         PathBuf::from(matches.value_of("state-file").unwrap()),
         matches.value_of("ip").unwrap(),
         matches.value_of("port").unwrap().parse::<u16>().unwrap(),

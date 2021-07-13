@@ -1,6 +1,7 @@
 /target
 /modify_noticer
 /data/last_state.json
+/data/server_persistent_state.json
 **/*.rs.bk
 .idea
 *_profdata
