@@ -93,14 +93,17 @@ impl<'a> IntentChoiceContext<'a> {
     }
   }
 
-  pub fn final_distribution(self) -> Distribution<i32> {
+  pub fn final_distribution(self) -> Option<Distribution<i32>> {
+    if self.num_distribution.is_empty() {
+      return None;
+    }
     let mut start = 0;
     let mut result = Distribution::new();
     for (excluded, distribution) in self.num_distribution {
       result += distribution * ((excluded - start) as f64 / 100.0);
       start = excluded;
     }
-    result
+    Some(result)
   }
 }
 
@@ -112,7 +115,10 @@ fn split(
   Distribution::split(probability, then_value.into(), else_value.into())
 }
 
-pub fn intent_choice_distribution(state: &CombatState, monster_index: usize) -> Distribution<i32> {
+pub fn intent_choice_distribution(
+  state: &CombatState,
+  monster_index: usize,
+) -> Option<Distribution<i32>> {
   let state = state;
   let monster = &state.monsters[monster_index];
 
@@ -158,6 +164,7 @@ pub trait IntentEffectsContext {
   fn intent<T: Intent>(&self) -> T {
     T::from_id(self.monster().intent())
   }
+  fn set_intent(&mut self, intent: impl Intent);
   fn ascension(&self) -> i32 {
     self.monster().ascension
   }
@@ -231,6 +238,12 @@ impl<'a, R: Runner> IntentEffectsContext for DoIntentContext<'a, R> {
   fn monster_index(&self) -> usize {
     self.monster_index
   }
+  fn set_intent(&mut self, intent: impl Intent) {
+    let index = self.monster_index();
+    self.runner.state_mut().monsters[index]
+      .move_history
+      .push(intent.id());
+  }
 }
 
 impl<'a> IntentEffectsContext for ConsiderIntentContext<'a> {
@@ -243,6 +256,7 @@ impl<'a> IntentEffectsContext for ConsiderIntentContext<'a> {
   fn monster_index(&self) -> usize {
     self.monster_index
   }
+  fn set_intent(&mut self, _intent: impl Intent) {}
 }
 
 impl<'a, R: Runner> DoIntentContext<'a, R> {

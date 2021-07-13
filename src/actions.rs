@@ -233,7 +233,13 @@ impl Action for EndMonstersTurns {
 
 impl Action for ChooseMonsterIntent {
   fn determinism(&self, state: &CombatState) -> Determinism {
-    Determinism::Random(monsters::intent_choice_distribution(state, self.0))
+    match monsters::intent_choice_distribution(state, self.0) {
+      Some(distribution) => Determinism::Random(distribution),
+      None => Determinism::Deterministic,
+    }
+  }
+  fn execute(&self, _runner: &mut impl Runner) {
+    // intent_choice_distribution returned None, meaning "don't change intent"
   }
   fn execute_random(&self, runner: &mut impl Runner, random_value: i32) {
     let monster = &mut runner.state_mut().monsters[self.0];

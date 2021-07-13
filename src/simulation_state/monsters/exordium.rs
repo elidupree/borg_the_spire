@@ -764,32 +764,47 @@ impl MonsterBehavior for TheGuardian {
       return;
     }
     match context.intent::<Self::Intent>() {
-      ChargingUp => context.block(9),
-      FierceBash => context.attack(context.with_ascension(Ascension(4), 36, 32)),
+      ChargingUp => {
+        context.block(9);
+        context.set_intent(FierceBash);
+      }
+      FierceBash => {
+        context.attack(context.with_ascension(Ascension(4), 36, 32));
+        context.set_intent(VentSteam);
+      }
       VentSteam => {
         context.power_player(PowerId::Weak, 2);
         context.power_player(PowerId::Vulnerable, 2);
+        context.set_intent(Whirlwind);
       }
       Whirlwind => {
         for _ in 0..4 {
-          context.attack(5)
+          context.attack(5);
         }
+        context.set_intent(ChargingUp);
+      }
+      DefensiveMode => {
+        context.power_self(
+          PowerId::SharpHide,
+          context.with_ascension(Ascension(19), 4, 3),
+        );
+        context.set_intent(RollAttack);
+      }
+      RollAttack => {
+        context.attack(context.with_ascension(Ascension(4), 10, 9));
+        context.set_intent(TwinSlam);
       }
       TwinSlam => {
         // TODO change mode
         for _ in 0..2 {
-          context.attack(context.with_ascension(Ascension(4), 36, 32))
+          context.attack(context.with_ascension(Ascension(4), 36, 32));
         }
         context.action(RemoveSpecificPowerAction {
           target: context.creature_index(),
           power_id: PowerId::SharpHide,
-        })
+        });
+        context.set_intent(Whirlwind);
       }
-      DefensiveMode => context.power_self(
-        PowerId::SharpHide,
-        context.with_ascension(Ascension(19), 4, 3),
-      ),
-      RollAttack => context.attack(context.with_ascension(Ascension(4), 10, 9)),
     }
   }
 }
@@ -881,12 +896,9 @@ impl MonsterBehavior for SlimeBoss {
   type Intent = SlimeBossIntent;
   fn make_intent_distribution(context: &mut IntentChoiceContext) {
     use SlimeBossIntent::*;
-    context.always(match context.state().turn_number % 3 {
-      0 => GoopSpray,
-      1 => Preparing,
-      2 => Slam,
-      _ => unreachable!(),
-    });
+    if context.first_move() {
+      context.always(GoopSpray);
+    }
   }
   fn intent_effects(context: &mut impl IntentEffectsContext) {
     use SlimeBossIntent::*;
@@ -899,10 +911,14 @@ impl MonsterBehavior for SlimeBoss {
     }
     match context.intent::<Self::Intent>() {
       GoopSpray => {
-        context.discard_status(CardId::Slimed, context.with_ascension(Ascension(19), 5, 3))
+        context.discard_status(CardId::Slimed, context.with_ascension(Ascension(19), 5, 3));
+        context.set_intent(Preparing);
       }
-      Preparing => {}
-      Slam => context.attack(context.with_ascension(Ascension(4), 38, 35)),
+      Preparing => context.set_intent(Slam),
+      Slam => {
+        context.attack(context.with_ascension(Ascension(4), 38, 35));
+        context.set_intent(GoopSpray);
+      }
       Split => {}
     }
   }
