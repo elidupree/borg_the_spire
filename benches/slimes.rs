@@ -43,22 +43,24 @@ fn slimes_seeded_random(c: &mut Criterion) {
 }
 
 fn slimes_unseeded_faststrategy(c: &mut Criterion) {
-  let mut generator = TrivialSeedGenerator::new(ChaCha8Rng::seed_from_u64(0));
+  let mut seed_generator = TrivialSeedGenerator::new(ChaCha8Rng::seed_from_u64(0));
+  let mut strategy_rng = ChaCha8Rng::seed_from_u64(1);
   slimes_benchmark(
     "slimes_unseeded_faststrategy",
     c,
-    || generator.make_seed(),
-    || FastStrategy::random(),
+    || seed_generator.make_seed(),
+    || FastStrategy::random(&mut strategy_rng),
   )
 }
 
 fn slimes_seeded_faststrategy(c: &mut Criterion) {
-  let mut generator = SingleSeedGenerator::new(ChaCha8Rng::seed_from_u64(0));
+  let mut seed_generator = SingleSeedGenerator::new(ChaCha8Rng::seed_from_u64(0));
+  let mut strategy_rng = ChaCha8Rng::seed_from_u64(1);
   slimes_benchmark(
     "slimes_seeded_faststrategy",
     c,
-    || generator.make_seed::<CombatChoiceLineagesKind>(),
-    || FastStrategy::random(),
+    || seed_generator.make_seed::<CombatChoiceLineagesKind>(),
+    || FastStrategy::random(&mut strategy_rng),
   )
 }
 

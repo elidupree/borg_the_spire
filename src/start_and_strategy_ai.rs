@@ -9,7 +9,7 @@ use crate::ai_utils::{collect_starting_points, play_out, CombatResult, Strategy}
 use crate::seed_system::TrivialSeed;
 use crate::simulation::*;
 use crate::simulation_state::*;
-use rand::SeedableRng;
+use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg64Mcg;
 
 #[derive(Clone, Debug)]
@@ -85,12 +85,9 @@ pub struct OffspringBuilder<'a, T> {
 }
 
 impl<'a, T> OffspringBuilder<'a, T> {
-  pub fn new(parents: &[&'a T]) -> OffspringBuilder<'a, T> {
-    let mutation_rate: f64 = rand::random::<f64>() * rand::random::<f64>() * rand::random::<f64>();
-    let mut weighted_parents: Vec<_> = parents
-      .iter()
-      .map(|parent| (*parent, rand::random()))
-      .collect();
+  pub fn new(parents: &[&'a T], rng: &mut impl Rng) -> OffspringBuilder<'a, T> {
+    let mutation_rate: f64 = rng.gen::<f64>() * rng.gen::<f64>() * rng.gen::<f64>();
+    let mut weighted_parents: Vec<_> = parents.iter().map(|parent| (*parent, rng.gen())).collect();
     let total_weight: f64 = weighted_parents
       .iter()
       .map(|(_parent, weight)| weight)
@@ -105,14 +102,14 @@ impl<'a, T> OffspringBuilder<'a, T> {
     }
   }
 
-  pub fn combine_f64(&self, get: impl Fn(&T) -> f64) -> f64 {
-    if rand::random::<f64>() < self.mutation_rate {
-      rand::random()
+  pub fn combine_f64(&self, get: impl Fn(&T) -> f64, rng: &mut impl Rng) -> f64 {
+    if rng.gen::<f64>() < self.mutation_rate {
+      rng.gen()
     } else {
       get(
         &self
           .weighted_parents
-          .choose_weighted(&mut rand::thread_rng(), |(_parent, weight)| *weight)
+          .choose_weighted(rng, |(_parent, weight)| *weight)
           .unwrap()
           .0,
       )
@@ -145,27 +142,27 @@ impl FastStrategy {
     }
   }
 
-  pub fn random() -> FastStrategy {
+  pub fn random(rng: &mut impl Rng) -> FastStrategy {
     FastStrategy {
-      card_priorities: EnumMap::from(|_| rand::random()),
+      card_priorities: EnumMap::from(|_| rng.gen()),
       monsters: Array::from_fn(|_| FastStrategyMonster {
-        target_priority: rand::random(),
+        target_priority: rng.gen(),
       }),
-      block_priority: rand::random(),
+      block_priority: rng.gen(),
     }
   }
 
-  pub fn offspring(parents: &[&FastStrategy]) -> FastStrategy {
-    let builder = OffspringBuilder::new(parents);
+  pub fn offspring(parents: &[&FastStrategy], rng: &mut impl Rng) -> FastStrategy {
+    let builder = OffspringBuilder::new(parents, rng);
 
     FastStrategy {
       card_priorities: EnumMap::from(|card_id| {
-        builder.combine_f64(|parent| parent.card_priorities[card_id])
+        builder.combine_f64(|parent| parent.card_priorities[card_id], rng)
       }),
       monsters: Array::from_fn(|index| FastStrategyMonster {
-        target_priority: builder.combine_f64(|parent| parent.monsters[index].target_priority),
+        target_priority: builder.combine_f64(|parent| parent.monsters[index].target_priority, rng),
       }),
-      block_priority: builder.combine_f64(|parent| parent.block_priority),
+      block_priority: builder.combine_f64(|parent| parent.block_priority, rng),
     }
   }
 }
@@ -266,7 +263,7 @@ impl StartingPoint {
     self.visits += 1;
     let max_strategy_visits = self.max_strategy_visits();
     self.candidate_strategies.push(CandidateStrategy {
-      strategy: FastStrategy::random(),
+      strategy: FastStrategy::random(&mut rand::thread_rng()),
       visits: 0,
       total_score: 0.0,
     });

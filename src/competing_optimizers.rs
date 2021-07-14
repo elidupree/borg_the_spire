@@ -485,7 +485,7 @@ impl StrategyAndGeneratorSpecification {
         optimizer: kind.new(
           starting_state,
           rng,
-          Box::new(|_: &[&FastStrategy]| FastStrategy::random()),
+          Box::new(|_: &[&FastStrategy]| FastStrategy::random(&mut rand::thread_rng())),
         ),
       }),
       StrategyAndGeneratorSpecification::FastGenetic => Box::new(OptimizerCompetitor {
@@ -495,13 +495,14 @@ impl StrategyAndGeneratorSpecification {
           rng,
           Box::new(|candidates: &[&FastStrategy]| {
             if candidates.len() < 2 {
-              FastStrategy::random()
+              FastStrategy::random(&mut rand::thread_rng())
             } else {
               FastStrategy::offspring(
                 &candidates
                   .choose_multiple(&mut rand::thread_rng(), 2)
                   .copied()
                   .collect::<Vec<_>>(),
+                &mut rand::thread_rng(),
               )
             }
           }),
