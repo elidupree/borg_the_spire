@@ -74,7 +74,7 @@ pub mod commands {
 }
 pub mod neural_net_ai;
 //mod omniscient_search;
-//pub mod analysis_flows;
+pub mod analysis_flows;
 pub mod representative_sampling;
 pub mod seed_system;
 pub mod seeds_concrete;
