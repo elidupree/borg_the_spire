@@ -49,7 +49,7 @@ impl AnalysisFlowContext {
 
 pub trait AnalysisComponentBehavior {
   type Data: Default;
-  fn step(context: &mut AnalysisFlowContext, data: &mut Self::Data);
+  fn step(&self, context: &mut AnalysisFlowContext, data: &mut Self::Data);
 }
 
 macro_rules! analysis_components {
@@ -62,7 +62,7 @@ macro_rules! analysis_components {
     $(
     impl From<$Variant> for AnalysisComponentKindSpec {
       fn from (source: $Variant)->AnalysisComponentKindSpec {
-        AnalysisComponentKindSpec::$Variant
+        AnalysisComponentKindSpec::$Variant(source)
       }
     }
     )*
@@ -70,7 +70,7 @@ macro_rules! analysis_components {
     impl AnalysisComponent {
       pub fn new(spec: AnalysisComponentSpec) -> AnalysisComponent {
         let data = match spec.kind {
-          $(AnalysisComponentKindSpec::$Variant(_) => Box::new($Variant::Data::default()),)*
+          $(AnalysisComponentKindSpec::$Variant(_) => Box::new(<$Variant as AnalysisComponentBehavior>::Data::default()),)*
         };
         AnalysisComponent {
           spec,
@@ -86,9 +86,15 @@ macro_rules! analysis_components {
   }
 }
 
-analysis_components! {}
+analysis_components! {
+  CompareStartingPointsComponentSpec,
+}
 
-// pub struct
-// impl AnalysisComponentBehavior for  {
-//   pub fn step(context: &mut AnalysisFlowContext) {}
-// }
+#[derive(Clone, PartialEq, Serialize, Deserialize, Debug)]
+pub struct CompareStartingPointsComponentSpec {}
+#[derive(Debug, Default)]
+pub struct CompareStartingPointsComponentData {}
+impl AnalysisComponentBehavior for CompareStartingPointsComponentSpec {
+  type Data = CompareStartingPointsComponentData;
+  fn step(&self, context: &mut AnalysisFlowContext, data: &mut Self::Data) {}
+}
