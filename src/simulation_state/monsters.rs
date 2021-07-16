@@ -1,7 +1,6 @@
 #![allow(unused_variables)]
 
 use serde::{Deserialize, Serialize};
-use smallvec::SmallVec;
 use std::convert::From;
 
 use crate::seed_system::Distribution;
@@ -139,10 +138,13 @@ pub struct DoIntentContext<'a, R: Runner> {
   pub monster_index: usize,
 }
 
-pub struct ConsiderIntentContext<'a> {
+pub trait ConsiderAction {
+  fn consider(&mut self, action: impl Action);
+}
+pub struct ConsiderIntentContext<'a, F> {
   pub state: &'a CombatState,
-  pub actions: SmallVec<[DynAction; 4]>,
   pub monster_index: usize,
+  pub consider_action: &'a mut F,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Debug)]
@@ -246,9 +248,9 @@ impl<'a, R: Runner> IntentEffectsContext for DoIntentContext<'a, R> {
   }
 }
 
-impl<'a> IntentEffectsContext for ConsiderIntentContext<'a> {
+impl<'a, F: ConsiderAction> IntentEffectsContext for ConsiderIntentContext<'a, F> {
   fn action(&mut self, action: impl Action) {
-    self.actions.push(action.into())
+    self.consider_action.consider(action)
   }
   fn state(&self) -> &CombatState {
     self.state
@@ -268,15 +270,41 @@ impl<'a, R: Runner> DoIntentContext<'a, R> {
   }
 }
 
-pub fn intent_actions(state: &CombatState, monster_index: usize) -> SmallVec<[DynAction; 4]> {
+pub fn consider_intent_actions(
+  state: &CombatState,
+  monster_index: usize,
+  consider_action: &mut impl ConsiderAction,
+) {
   let mut context = ConsiderIntentContext {
     state,
     monster_index,
-    actions: SmallVec::new(),
+    consider_action,
   };
   let monster_id = state.monsters[monster_index].monster_id;
   monster_id.intent_effects(&mut context);
-  context.actions
+}
+
+impl CombatState {
+  pub fn total_monster_attack_intent_damage(&self) -> i32 {
+    struct CountAttackIntentDamage {
+      total: i32,
+    }
+    impl ConsiderAction for CountAttackIntentDamage {
+      fn consider(&mut self, action: impl Action) {
+        // It theoretically makes more sense to do this on the type level, but that would make the code more complicated, and I'm almost certain this will be optimized out.
+        if let DynAction::DamageAction(action) = action.clone().into() {
+          self.total += action.info.output;
+        }
+      }
+    }
+    let mut counter = CountAttackIntentDamage { total: 0 };
+    for (index, monster) in self.monsters.iter().enumerate() {
+      if !monster.gone {
+        consider_intent_actions(self, index, &mut counter);
+      }
+    }
+    counter.total
+  }
 }
 
 pub const MAX_INTENTS: usize = 7;

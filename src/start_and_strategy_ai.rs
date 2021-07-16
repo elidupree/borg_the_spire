@@ -49,28 +49,7 @@ impl Strategy for FastStrategy {
   fn choose_choice(&self, state: &CombatState) -> Vec<Choice> {
     let legal_choices = state.legal_choices();
 
-    let incoming_damage = state
-      .monsters
-      .iter()
-      .enumerate()
-      .map(|(index, monster)| {
-        if monster.gone {
-          0
-        } else {
-          crate::simulation_state::monsters::intent_actions(state, index)
-            .into_iter()
-            .map(|action| {
-              if let DynAction::DamageAction(action) = action {
-                action.info.output
-              } else {
-                0
-              }
-            })
-            .sum::<i32>()
-        }
-      })
-      .sum::<i32>()
-      - state.player.creature.block;
+    let incoming_damage = state.total_monster_attack_intent_damage() - state.player.creature.block;
 
     vec![legal_choices
       .into_iter()
