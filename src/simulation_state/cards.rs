@@ -2,7 +2,6 @@
 
 use enum_map::Enum;
 use serde::{Deserialize, Serialize};
-use smallvec::SmallVec;
 use std::convert::From;
 
 //use crate::actions::*;
@@ -130,16 +129,16 @@ impl<'a, R: Runner> CardBehaviorContext for PlayCardContext<'a, R> {
   }
 }
 
-pub struct ConsiderCardContext<'a> {
+pub struct ConsiderCardContext<'a, F> {
   pub state: &'a CombatState,
   pub target: usize,
-  pub card: SingleCard,
-  pub actions: SmallVec<[DynAction; 4]>,
+  pub card: &'a SingleCard,
+  pub consider_action: &'a mut F,
 }
 
-impl<'a> CardBehaviorContext for ConsiderCardContext<'a> {
+impl<'a, F: ConsiderAction> CardBehaviorContext for ConsiderCardContext<'a, F> {
   fn action(&mut self, action: impl Action) {
-    self.actions.push(action.into());
+    self.consider_action.consider(action);
   }
   fn target(&self) -> usize {
     self.target
@@ -148,23 +147,39 @@ impl<'a> CardBehaviorContext for ConsiderCardContext<'a> {
     self.state
   }
   fn card(&self) -> &SingleCard {
-    &self.card
+    self.card
   }
 }
 
-pub fn card_actions(
+pub fn consider_card_actions(
   state: &CombatState,
-  card: SingleCard,
+  card: &SingleCard,
   target: usize,
-) -> SmallVec<[DynAction; 4]> {
+  consider_action: &mut impl ConsiderAction,
+) {
   let mut context = ConsiderCardContext {
     state,
     target,
-    card: card.clone(),
-    actions: SmallVec::new(),
+    card,
+    consider_action,
   };
   card.card_info.id.behavior(&mut context);
-  context.actions
+}
+pub fn card_block_amount(state: &CombatState, card: &SingleCard, target: usize) -> i32 {
+  struct CountBlock {
+    total: i32,
+  }
+  impl ConsiderAction for CountBlock {
+    fn consider(&mut self, action: impl Action) {
+      // It theoretically makes more sense to do this on the type level, but that would make the code more complicated, and I'm almost certain this will be optimized out.
+      if let DynAction::GainBlockAction(action) = action.clone().into() {
+        self.total += action.amount;
+      }
+    }
+  }
+  let mut counter = CountBlock { total: 0 };
+  consider_card_actions(state, card, target, &mut counter);
+  counter.total
 }
 
 macro_rules! cards {

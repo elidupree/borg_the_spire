@@ -138,9 +138,6 @@ pub struct DoIntentContext<'a, R: Runner> {
   pub monster_index: usize,
 }
 
-pub trait ConsiderAction {
-  fn consider(&mut self, action: impl Action);
-}
 pub struct ConsiderIntentContext<'a, F> {
   pub state: &'a CombatState,
   pub monster_index: usize,

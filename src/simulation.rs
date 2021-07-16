@@ -367,3 +367,7 @@ impl Monster {
     self.move_history.push(intent);
   }
 }
+
+pub trait ConsiderAction {
+  fn consider(&mut self, action: impl Action);
+}

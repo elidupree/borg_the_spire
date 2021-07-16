@@ -103,16 +103,8 @@ impl FastStrategy {
       Choice::EndTurn(_) => 0.0,
       Choice::PlayCard(PlayCard { card, target }) => {
         let mut result = self.card_priorities[card.card_info.id];
-        for action in crate::simulation_state::cards::card_actions(state, card.clone(), *target) {
-          match action {
-            DynAction::DamageAction(_action) => {}
-            DynAction::GainBlockAction(action) => {
-              result +=
-                std::cmp::min(action.amount, incoming_damage) as f64 * self.block_priority * 0.1;
-            }
-            _ => {}
-          }
-        }
+        let block_amount = crate::simulation_state::cards::card_block_amount(state, card, *target);
+        result += std::cmp::min(block_amount, incoming_damage) as f64 * self.block_priority * 0.1;
         if card.card_info.has_target {
           result += self.monsters[*target].target_priority * 0.000001;
         }
