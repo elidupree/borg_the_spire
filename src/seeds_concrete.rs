@@ -6,12 +6,10 @@ use crate::seed_system::{
   ChoiceLineageIdentity, ChoiceLineages, ChoiceLineagesKind, GameState, MaybeSeedView, NeverSeed,
   NoRandomness,
 };
-use crate::simulation::MonsterIndex;
 use crate::simulation_state::monsters::MAX_INTENTS;
 use crate::simulation_state::{CardId, CombatState, MAX_MONSTERS};
 use enum_map::EnumMap;
 use smallvec::SmallVec;
-use std::collections::HashMap;
 use std::fmt::Debug;
 
 impl GameState for CombatState {
@@ -69,6 +67,7 @@ pub struct CombatChoiceLineages<T> {
 pub struct CombatChoiceLineagesKind;
 
 impl ChoiceLineageIdentity<CombatState> for CombatChoiceLineageIdentity {
+  #[inline(always)]
   fn lineage_identity(state: &CombatState, action: &DynAction, &choice: &i32) -> Self {
     match action {
       DynAction::DrawCardRandom(_) => CombatChoiceLineageIdentity::DrawCard {
@@ -108,6 +107,7 @@ impl ChoiceLineageIdentity<CombatState> for CombatChoiceLineageIdentity {
 impl<T: Clone + Debug + Default> ChoiceLineages for CombatChoiceLineages<T> {
   type LineageIdentity = CombatChoiceLineageIdentity;
   type Lineage = T;
+  #[inline(always)]
   fn get_mut(&mut self, identity: CombatChoiceLineageIdentity) -> &mut T {
     match identity {
       CombatChoiceLineageIdentity::DrawCard {
