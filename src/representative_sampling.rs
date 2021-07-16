@@ -8,7 +8,7 @@ use ordered_float::OrderedFloat;
 use rand::seq::{IteratorRandom, SliceRandom};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
-use std::rc::Rc;
+use std::sync::Arc;
 
 struct CandidateSubgroup<'a, T> {
   members: Vec<&'a T>,
@@ -141,13 +141,13 @@ pub fn representative_seed_subgroup(
 
 #[derive(Clone)]
 pub struct RepresentativeSeedSearchLayerStrategy<S> {
-  strategy: Rc<S>,
+  strategy: Arc<S>,
   scores: Vec<f64>,
   average: f64,
 }
 
 impl<S: Strategy> RepresentativeSeedSearchLayerStrategy<S> {
-  fn new(seeds: &[impl Seed<CombatState>], strategy: Rc<S>, starting_state: &CombatState) -> Self {
+  fn new(seeds: &[impl Seed<CombatState>], strategy: Arc<S>, starting_state: &CombatState) -> Self {
     let scores: Vec<f64> = seeds
       .iter()
       .map(|seed| playout_result(starting_state, seed.view(), &*strategy).score)
@@ -159,7 +159,7 @@ impl<S: Strategy> RepresentativeSeedSearchLayerStrategy<S> {
       average,
     }
   }
-  fn new_with_scores(strategy: Rc<S>, scores: Vec<f64>) -> Self {
+  fn new_with_scores(strategy: Arc<S>, scores: Vec<f64>) -> Self {
     let average = scores.iter().sum::<f64>() / scores.len() as f64;
     RepresentativeSeedSearchLayerStrategy {
       strategy,
@@ -172,18 +172,18 @@ impl<S: Strategy> RepresentativeSeedSearchLayerStrategy<S> {
 pub struct RepresentativeSeedSearchLayer<S, T> {
   seeds: Vec<T>,
   max_exploiters: usize,
-  best_strategy: Rc<RepresentativeSeedSearchLayerStrategy<S>>,
-  exploiters: Vec<Rc<RepresentativeSeedSearchLayerStrategy<S>>>,
+  best_strategy: Arc<RepresentativeSeedSearchLayerStrategy<S>>,
+  exploiters: Vec<Arc<RepresentativeSeedSearchLayerStrategy<S>>>,
 }
 
 impl<S: Strategy, T: Seed<CombatState>> RepresentativeSeedSearchLayer<S, T> {
   pub fn new(
     seeds: Vec<T>,
     starting_state: &CombatState,
-    strategy: Rc<S>,
+    strategy: Arc<S>,
     max_exploiters: usize,
   ) -> Self {
-    let best_strategy = Rc::new(RepresentativeSeedSearchLayerStrategy::new(
+    let best_strategy = Arc::new(RepresentativeSeedSearchLayerStrategy::new(
       &seeds,
       strategy,
       starting_state,
@@ -198,7 +198,7 @@ impl<S: Strategy, T: Seed<CombatState>> RepresentativeSeedSearchLayer<S, T> {
   }
   pub fn new_with_precalculated_strategies(
     seeds: Vec<T>,
-    strategies: Vec<Rc<RepresentativeSeedSearchLayerStrategy<S>>>,
+    strategies: Vec<Arc<RepresentativeSeedSearchLayerStrategy<S>>>,
     max_exploiters: usize,
   ) -> Self {
     let best_strategy = strategies
@@ -215,12 +215,12 @@ impl<S: Strategy, T: Seed<CombatState>> RepresentativeSeedSearchLayer<S, T> {
     result.drop_excess_exploiters();
     result
   }
-  pub fn strategies(&self) -> impl Iterator<Item = &Rc<RepresentativeSeedSearchLayerStrategy<S>>> {
+  pub fn strategies(&self) -> impl Iterator<Item = &Arc<RepresentativeSeedSearchLayerStrategy<S>>> {
     std::iter::once(&self.best_strategy).chain(
       self
         .exploiters
         .iter()
-        .filter(move |e| !Rc::ptr_eq(e, &self.best_strategy)),
+        .filter(move |e| !Arc::ptr_eq(e, &self.best_strategy)),
     )
   }
   fn drop_excess_exploiters(&mut self) {
@@ -261,8 +261,8 @@ impl<S: Strategy, T: Seed<CombatState>> RepresentativeSeedSearchLayer<S, T> {
 
   Typically, `strategy` will be a strategy that has been optimized on a subset of the current seeds, and performs better than the current best on the subset. This function evaluates it on the entire corpus, and checks whether it indeed performs better.
   */
-  pub fn consider_strategy(&mut self, starting_state: &CombatState, strategy: Rc<S>) {
-    let strategy = Rc::new(RepresentativeSeedSearchLayerStrategy::new(
+  pub fn consider_strategy(&mut self, starting_state: &CombatState, strategy: Arc<S>) {
+    let strategy = Arc::new(RepresentativeSeedSearchLayerStrategy::new(
       &self.seeds,
       strategy,
       starting_state,
@@ -289,7 +289,7 @@ impl<S: Strategy, T: Seed<CombatState>> RepresentativeSeedSearchLayer<S, T> {
     let sublayer_strategies: Vec<_> = self
       .strategies()
       .map(|strategy| {
-        Rc::new(RepresentativeSeedSearchLayerStrategy::new_with_scores(
+        Arc::new(RepresentativeSeedSearchLayerStrategy::new_with_scores(
           strategy.strategy.clone(),
           sublayer_indices
             .iter()
@@ -332,7 +332,7 @@ impl<S: Strategy, T: Seed<CombatState>> RepresentativeSeedSearchLayer<S, T> {
     let superlayer_strategies: Vec<_> = self
       .strategies()
       .map(|strategy| {
-        Rc::new(RepresentativeSeedSearchLayerStrategy::new(
+        Arc::new(RepresentativeSeedSearchLayerStrategy::new(
           &superlayer_seeds,
           strategy.strategy.clone(),
           starting_state,
@@ -379,7 +379,7 @@ impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> 
       .collect();
     let strategy: S = new_strategy(&[]);
     let first_layer =
-      RepresentativeSeedSearchLayer::new(seeds, starting_state, Rc::new(strategy), 16);
+      RepresentativeSeedSearchLayer::new(seeds, starting_state, Arc::new(strategy), 16);
     let below_first_layer =
       first_layer.make_sublayer(Self::sublayer_size(0), &mut rand::thread_rng());
     let lowest_seeds = below_first_layer.seeds;
@@ -443,7 +443,7 @@ impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> 
     }
     if average >= self.best_average_on_lowest_seeds {
       self.successes_at_lowest += 1;
-      self.layers[0].consider_strategy(state, Rc::new(strategy))
+      self.layers[0].consider_strategy(state, Arc::new(strategy))
     }
     // if there's no new strategy to consider, generally don't reroll the layers,
     // but occasionally we could have a nonrepresentative smallest layer with a pathologically good score,
@@ -491,7 +491,7 @@ impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> 
     self.best_average_on_lowest_seeds = new_sublayer.best_strategy.average;
   }
 
-  fn report(&self) -> Rc<Self::Strategy> {
+  fn report(&self) -> Arc<Self::Strategy> {
     let best = &self.layers.last().unwrap().best_strategy;
 
     println!(
@@ -524,7 +524,7 @@ impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> 
 
     //&best.strategy
 
-    Rc::new(self.meta_strategy())
+    Arc::new(self.meta_strategy())
   }
 
   fn print_extra_info(&self, state: &CombatState) {
@@ -577,7 +577,7 @@ impl ExplorationOptimizerKind for FractalRepresentativeSeedSearchExplorationOpti
 #[derive(Clone, Debug)]
 pub struct RepresentativeSeedsMetaStrategy<S, T> {
   seeds: Vec<T>,
-  strategies: Vec<Rc<S>>,
+  strategies: Vec<Arc<S>>,
 }
 
 impl<S: Strategy + 'static, T: Seed<CombatState> + Clone + 'static> Strategy

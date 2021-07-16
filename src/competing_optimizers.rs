@@ -17,13 +17,13 @@ use crate::start_and_strategy_ai::FastStrategy;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use std::collections::BTreeMap;
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[allow(unused)]
 pub trait StrategyOptimizer: 'static {
   type Strategy: Strategy;
   fn step(&mut self, state: &CombatState, rng: &mut ChaCha8Rng);
-  fn report(&self) -> Rc<Self::Strategy>;
+  fn report(&self) -> Arc<Self::Strategy>;
   fn print_extra_info(&self, state: &CombatState) {}
 }
 
@@ -38,7 +38,7 @@ pub trait ExplorationOptimizerKind {
 }
 
 pub struct CandidateStrategy<T> {
-  strategy: Rc<T>,
+  strategy: Arc<T>,
   playouts: usize,
   total_score: f64,
 }
@@ -135,7 +135,7 @@ impl<T: Strategy + 'static> StrategyOptimizer for OriginalExplorationOptimizer<T
 
         self.passes += 1;
         self.candidate_strategies.push(CandidateStrategy {
-          strategy: Rc::new((self.new_strategy)(
+          strategy: Arc::new((self.new_strategy)(
             &self
               .candidate_strategies
               .iter()
@@ -165,7 +165,7 @@ impl<T: Strategy + 'static> StrategyOptimizer for OriginalExplorationOptimizer<T
     }
   }
 
-  fn report(&self) -> Rc<Self::Strategy> {
+  fn report(&self) -> Arc<Self::Strategy> {
     let best = self.best_strategy();
 
     println!(
@@ -182,7 +182,7 @@ pub struct IndependentSeedsExplorationOptimizerKind {
   num_seeds: usize,
 }
 pub struct IndependentSeedsExplorationOptimizer<T> {
-  candidate_strategies: BTreeMap<NotNan<f64>, Rc<T>>,
+  candidate_strategies: BTreeMap<NotNan<f64>, Arc<T>>,
   new_strategy: Box<dyn Fn(&[&T]) -> T>,
   seeds: Vec<SingleSeed<CombatChoiceLineagesKind>>,
   steps: usize,
@@ -252,14 +252,14 @@ impl<T: Strategy + 'static> StrategyOptimizer for IndependentSeedsExplorationOpt
     let average = total_score / self.seeds.len() as f64;
     self
       .candidate_strategies
-      .insert(NotNan::new(average).unwrap(), Rc::new(strategy));
+      .insert(NotNan::new(average).unwrap(), Arc::new(strategy));
     self.total_accepted += 1;
     if self.candidate_strategies.len() > target_count {
       self.candidate_strategies.pop_first();
     }
   }
 
-  fn report(&self) -> Rc<Self::Strategy> {
+  fn report(&self) -> Arc<Self::Strategy> {
     let (average, best) = self.candidate_strategies.last_key_value().unwrap();
 
     println!(
@@ -277,8 +277,8 @@ impl StrategyOptimizer for NeuralStrategy {
     self.do_training_playout(state);
   }
 
-  fn report(&self) -> Rc<Self::Strategy> {
-    Rc::new(self.clone())
+  fn report(&self) -> Arc<Self::Strategy> {
+    Arc::new(self.clone())
   }
 }
 
