@@ -8,20 +8,20 @@ use crate::seed_system::TrivialSeed;
 use crate::simulation::{Runner, StandardRunner};
 use crate::simulation_state::CombatState;
 use crate::start_and_strategy_ai::SearchState;
-use crate::webserver::ServerState;
+use crate::webserver::ServerSharedState;
 
 pub type Element = Box<dyn FlowContent<String>>;
 
-impl ServerState {
+impl ServerSharedState {
   pub fn view(&self) -> DOMTree<String> {
-    let state_representation = self
-      .search_state
-      .as_ref()
-      .map(|search_state| search_state.view());
+    // let state_representation = self
+    //   .analysis_flows
+    //   .as_ref()
+    //   .map(|search_state| search_state.view());
     html! {
       <div id="content">
-        {state_representation}
-        <pre>{text! (&self.debug_log)}</pre>
+        //{state_representation}
+       // <pre>{text! (&self.debug_log)}</pre>
       </div>
     }
   }

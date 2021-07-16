@@ -1,4 +1,4 @@
-use crate::webserver::ServerState;
+use crate::webserver::ServerSharedState;
 use parking_lot::Mutex;
 use rocket::config::Environment;
 use rocket::response::NamedFile;
@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 struct RocketState {
-  server_state: Arc<Mutex<ServerState>>,
+  server_state: Arc<Mutex<ServerSharedState>>,
   static_files: PathBuf,
 }
 
@@ -38,7 +38,7 @@ fn index(rocket_state: State<RocketState>) -> Option<NamedFile> {
 }
 
 pub fn launch(
-  server_state: Arc<Mutex<ServerState>>,
+  server_state: Arc<Mutex<ServerSharedState>>,
   static_files: PathBuf,
   address: &str,
   port: u16,

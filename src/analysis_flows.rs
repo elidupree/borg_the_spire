@@ -17,6 +17,11 @@ use std::collections::HashMap;
 use std::time::Instant;
 use typed_html::{html, text};
 
+#[derive(Clone, PartialEq, Serialize, Deserialize, Debug, Default)]
+pub struct AnalysisFlowsSpec {
+  components: HashMap<String, AnalysisComponentSpec>,
+}
+
 #[derive(Default)]
 pub struct AnalysisFlows {
   starting_state: CombatState,
@@ -25,8 +30,29 @@ pub struct AnalysisFlows {
 }
 
 impl AnalysisFlows {
-  pub fn update_from_spec(&mut self, specs: &HashMap<String, AnalysisComponentSpec>) {
-    for (name, spec) in specs {
+  pub fn new(spec: &AnalysisFlowsSpec, starting_state: CombatState) -> AnalysisFlows {
+    let components = spec
+      .components
+      .iter()
+      .map(|(name, spec)| {
+        (
+          name.clone(),
+          AnalysisComponent::new(
+            &AnalysisFlowContext {
+              starting_state: &starting_state,
+            },
+            spec.clone(),
+          ),
+        )
+      })
+      .collect();
+    AnalysisFlows {
+      starting_state,
+      components,
+    }
+  }
+  pub fn update_from_spec(&mut self, spec: &AnalysisFlowsSpec) {
+    for (name, spec) in &spec.components {
       match self.components.entry(name.clone()) {
         Entry::Vacant(entry) => {
           entry.insert(AnalysisComponent::new(
@@ -174,7 +200,11 @@ impl AnalysisComponentBehavior for CompareStartingPointsComponentSpec {
       search: start_and_strategy_ai::SearchState::new(context.starting_state().clone()),
     }
   }
-  fn step(&self, _context: &mut AnalysisFlowContext, _data: &mut Self::Data) {}
+  fn step(&self, _context: &mut AnalysisFlowContext, data: &mut Self::Data) {
+    if data.search.visits < 2_000_000_000 {
+      data.search.search_step();
+    }
+  }
 
   fn html_report(&self, _context: &AnalysisFlowContext, data: &Self::Data) -> Option<Element> {
     Some(data.search.view())

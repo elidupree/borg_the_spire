@@ -6,48 +6,48 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use self::rocket_glue::MessageFromFrontend;
+use crate::analysis_flows::{AnalysisFlows, AnalysisFlowsSpec};
 use crate::simulation_state::*;
-use crate::start_and_strategy_ai::*;
-
-#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug, Default)]
-pub struct FrontendState {}
 
 pub struct ServerConstants {
   data_files: PathBuf,
+  state_file: PathBuf,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug, Default)]
+#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
 pub struct ServerPersistentState {
-  frontend_state: FrontendState,
+  analysis_flows_spec_file: PathBuf,
 }
 
-pub struct ServerState {
+impl Default for ServerPersistentState {
+  fn default() -> Self {
+    ServerPersistentState {
+      analysis_flows_spec_file: PathBuf::from("default_components.json"),
+    }
+  }
+}
+
+pub struct ServerSharedState {
   constants: Arc<ServerConstants>,
   persistent_state: ServerPersistentState,
   inputs: Vec<MessageFromFrontend>,
-  combat_state: Option<CombatState>,
-  search_state: Option<SearchState>,
-  debug_log: String,
+  html_string: String,
 }
 
-impl ServerState {
-  pub fn set_state(&mut self, state: CombatState) {
-    if self.combat_state.as_ref() != Some(&state) {
-      self.combat_state = Some(state.clone());
-      // let mut playout_state = state.clone();
-      self.search_state = Some(SearchState::new(state));
-      // let mut runner = StandardRunner::new(
-      //   &mut playout_state,
-      //   TrivialSeed::new(Pcg64Mcg::from_entropy()),
-      //   true,
-      // );
-      // play_out(&mut runner, &SomethingStrategy {});
-      // self.debug_log = runner.debug_log().to_string();
-    }
-  }
+pub struct ProcessingThreadState {
+  constants: Arc<ServerConstants>,
+  server_shared: Arc<Mutex<ServerSharedState>>,
+  combat_state: Option<CombatState>,
+  analysis_flows_spec: Option<AnalysisFlowsSpec>,
+  analysis_flows: Option<AnalysisFlows>,
+  last_file_check: Instant,
+  last_state_last_modified: Option<SystemTime>,
+  analysis_flows_spec_last_modified: Option<(PathBuf, SystemTime)>,
+}
+impl ServerSharedState {
   pub fn change_persistent_state(&mut self, change: impl FnOnce(&mut ServerPersistentState)) {
     // Two small flaws here: it's nonatomic and it does file i/o even though
     // it's called while the client is waiting for a response from the server.
@@ -64,35 +64,93 @@ impl ServerState {
   }
 }
 
-pub fn processing_thread(state_file: PathBuf, application_state: Arc<Mutex<ServerState>>) {
-  // TODO : this isn't the most efficient file watcher system, figure out what is?
-  let mut last_modified = None;
-  let mut last_check = Instant::now();
-  loop {
-    let mut guard = application_state.lock();
+impl ProcessingThreadState {
+  pub fn new(server_shared: Arc<Mutex<ServerSharedState>>) -> Self {
+    let constants = server_shared.lock().constants.clone();
+    ProcessingThreadState {
+      constants,
+      server_shared,
+      combat_state: None,
+      analysis_flows_spec: None,
+      analysis_flows: None,
+      last_file_check: Instant::now(),
+      last_state_last_modified: None,
+      analysis_flows_spec_last_modified: None,
+    }
+  }
+
+  pub fn set_combat_state(&mut self, state: CombatState) {
+    if self.combat_state.as_ref() != Some(&state) {
+      // let mut playout_state = state.clone();
+      if let Some(spec) = &self.analysis_flows_spec {
+        self.analysis_flows = Some(AnalysisFlows::new(spec, state.clone()));
+      }
+      self.combat_state = Some(state);
+
+      // let mut runner = StandardRunner::new(
+      //   &mut playout_state,
+      //   TrivialSeed::new(Pcg64Mcg::from_entropy()),
+      //   true,
+      // );
+      // play_out(&mut runner, &SomethingStrategy {});
+      // self.debug_log = runner.debug_log().to_string();
+    }
+  }
+  pub fn set_analysis_flows_spec(&mut self, spec: AnalysisFlowsSpec) {
+    if self.analysis_flows_spec.as_ref() != Some(&spec) {
+      if let Some(flows) = &mut self.analysis_flows {
+        flows.update_from_spec(&spec);
+      } else if let Some(state) = &self.combat_state {
+        self.analysis_flows = Some(AnalysisFlows::new(&spec, state.clone()));
+      }
+      self.analysis_flows_spec = Some(spec);
+    }
+  }
+
+  pub fn step(&mut self) {
     // If the state file has been modified, update it.
-    if last_check.elapsed() > Duration::from_millis(200) {
-      last_check = Instant::now();
-      if let Ok(modified) = fs::metadata(&state_file).and_then(|m| m.modified()) {
-        if Some(modified) != last_modified {
-          last_modified = Some(modified);
-          if let Ok(file) = std::fs::File::open(&state_file) {
+    if self.last_file_check.elapsed() > Duration::from_millis(200) {
+      self.last_file_check = Instant::now();
+
+      if let Ok(modified) = fs::metadata(&self.constants.state_file).and_then(|m| m.modified()) {
+        if Some(modified) != self.last_state_last_modified {
+          self.last_state_last_modified = Some(modified);
+          if let Ok(file) = std::fs::File::open(&self.constants.state_file) {
             if let Ok(state) = serde_json::from_reader(std::io::BufReader::new(file)) {
-              guard.set_state(state);
+              self.set_combat_state(state);
+            }
+          }
+        }
+      }
+
+      let analysis_flows_file = self
+        .server_shared
+        .lock()
+        .persistent_state
+        .analysis_flows_spec_file
+        .clone();
+      if let Ok(modified) = fs::metadata(&analysis_flows_file).and_then(|m| m.modified()) {
+        let new_value = Some((analysis_flows_file.clone(), modified));
+        if new_value != self.analysis_flows_spec_last_modified {
+          self.analysis_flows_spec_last_modified = new_value;
+          if let Ok(file) = std::fs::File::open(&analysis_flows_file) {
+            if let Ok(spec) = serde_json::from_reader(std::io::BufReader::new(file)) {
+              self.set_analysis_flows_spec(spec);
             }
           }
         }
       }
     }
-    if let Some(search_state) = &mut guard.search_state {
-      if search_state.visits < 2_000_000_000 {
-        search_state.search_step();
-      }
-    }
-    //application_state.lock().placeholder += 1;
-    else {
-      std::mem::drop(guard);
+    if let Some(flows) = &mut self.analysis_flows {
+      flows.step();
+    } else {
       std::thread::sleep(Duration::from_millis(100));
+    }
+  }
+
+  pub fn run(&mut self) {
+    loop {
+      self.step();
     }
   }
 }
@@ -104,33 +162,28 @@ pub fn run(
   address: &str,
   port: u16,
 ) {
-  let mut frontend_state = Default::default();
+  let mut persistent_state = Default::default();
   if let Ok(file) = std::fs::File::open(&data_files.join("server_persistent_state.json")) {
     if let Ok(state) = serde_json::from_reader(std::io::BufReader::new(file)) {
-      frontend_state = state;
+      persistent_state = state;
     }
   }
-  let mut server_state = ServerState {
-    constants: Arc::new(ServerConstants { data_files }),
-    persistent_state: ServerPersistentState { frontend_state },
+  let server_state = ServerSharedState {
+    constants: Arc::new(ServerConstants {
+      data_files,
+      state_file,
+    }),
+    persistent_state,
     inputs: Vec::new(),
-    combat_state: None,
-    search_state: None,
-    debug_log: String::new(),
+    html_string: String::new(),
   };
-
-  if let Ok(file) = std::fs::File::open(&state_file) {
-    if let Ok(state) = serde_json::from_reader(std::io::BufReader::new(file)) {
-      server_state.set_state(state);
-    }
-  }
 
   let server_state = Arc::new(Mutex::new(server_state));
 
   std::thread::spawn({
     let server_state = server_state.clone();
     move || {
-      processing_thread(state_file, server_state);
+      ProcessingThreadState::new(server_state).run();
     }
   });
 
