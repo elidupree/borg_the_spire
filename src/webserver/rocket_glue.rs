@@ -17,7 +17,7 @@ struct RocketState {
 #[post("/content")]
 fn content(rocket_state: State<RocketState>) -> String {
   let server_state = rocket_state.server_state.lock();
-  server_state.view().to_string()
+  server_state.html_string.clone()
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]

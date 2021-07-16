@@ -11,6 +11,8 @@ use std::time::{Duration, Instant, SystemTime};
 use self::rocket_glue::MessageFromFrontend;
 use crate::analysis_flows::{AnalysisFlows, AnalysisFlowsSpec};
 use crate::simulation_state::*;
+use typed_html::dom::DOMTree;
+use typed_html::html;
 
 pub struct ServerConstants {
   data_files: PathBuf,
@@ -44,6 +46,7 @@ pub struct ProcessingThreadState {
   analysis_flows_spec: Option<AnalysisFlowsSpec>,
   analysis_flows: Option<AnalysisFlows>,
   last_file_check: Instant,
+  last_report: Instant,
   last_state_last_modified: Option<SystemTime>,
   analysis_flows_spec_last_modified: Option<(PathBuf, SystemTime)>,
 }
@@ -74,6 +77,7 @@ impl ProcessingThreadState {
       analysis_flows_spec: None,
       analysis_flows: None,
       last_file_check: Instant::now(),
+      last_report: Instant::now(),
       last_state_last_modified: None,
       analysis_flows_spec_last_modified: None,
     }
@@ -123,19 +127,25 @@ impl ProcessingThreadState {
         }
       }
 
-      let analysis_flows_file = self
-        .server_shared
-        .lock()
-        .persistent_state
-        .analysis_flows_spec_file
-        .clone();
+      let analysis_flows_file = self.constants.data_files.join(
+        &self
+          .server_shared
+          .lock()
+          .persistent_state
+          .analysis_flows_spec_file,
+      );
       if let Ok(modified) = fs::metadata(&analysis_flows_file).and_then(|m| m.modified()) {
         let new_value = Some((analysis_flows_file.clone(), modified));
         if new_value != self.analysis_flows_spec_last_modified {
           self.analysis_flows_spec_last_modified = new_value;
           if let Ok(file) = std::fs::File::open(&analysis_flows_file) {
-            if let Ok(spec) = serde_json::from_reader(std::io::BufReader::new(file)) {
-              self.set_analysis_flows_spec(spec);
+            match serde_json::from_reader(std::io::BufReader::new(file)) {
+              Ok(spec) => {
+                self.set_analysis_flows_spec(spec);
+              }
+              Err(e) => {
+                dbg!(e);
+              }
             }
           }
         }
@@ -143,6 +153,16 @@ impl ProcessingThreadState {
     }
     if let Some(flows) = &mut self.analysis_flows {
       flows.step();
+
+      if self.last_report.elapsed() > Duration::from_millis(100) {
+        let report: DOMTree<String> = html! {
+          <div id="content">
+            {flows.html_report()}
+          </div>
+        };
+        let html_string = report.to_string();
+        self.server_shared.lock().html_string = html_string;
+      }
     } else {
       std::thread::sleep(Duration::from_millis(100));
     }
@@ -175,7 +195,7 @@ pub fn run(
     }),
     persistent_state,
     inputs: Vec::new(),
-    html_string: String::new(),
+    html_string: r#"<div id="content">Starting...</div>"#.to_string(),
   };
 
   let server_state = Arc::new(Mutex::new(server_state));

@@ -1,3 +1,8 @@
 {
-  "Starting points": {"CompareStartingPoints": {}}
+  "components": {
+    "Starting points": {
+      "time_share": 1.0,
+      "kind": {"CompareStartingPoints": {}}
+    }
+  }
 }

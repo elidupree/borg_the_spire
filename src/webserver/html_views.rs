@@ -1,6 +1,5 @@
 use rand::SeedableRng;
 use rand_pcg::Pcg64Mcg;
-use typed_html::dom::DOMTree;
 use typed_html::elements::FlowContent;
 use typed_html::{html, text};
 
@@ -8,24 +7,8 @@ use crate::seed_system::TrivialSeed;
 use crate::simulation::{Runner, StandardRunner};
 use crate::simulation_state::CombatState;
 use crate::start_and_strategy_ai::SearchState;
-use crate::webserver::ServerSharedState;
 
 pub type Element = Box<dyn FlowContent<String>>;
-
-impl ServerSharedState {
-  pub fn view(&self) -> DOMTree<String> {
-    // let state_representation = self
-    //   .analysis_flows
-    //   .as_ref()
-    //   .map(|search_state| search_state.view());
-    html! {
-      <div id="content">
-        //{state_representation}
-       // <pre>{text! (&self.debug_log)}</pre>
-      </div>
-    }
-  }
-}
 
 impl CombatState {
   pub fn view(&self) -> Element {
