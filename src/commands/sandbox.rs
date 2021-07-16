@@ -31,7 +31,7 @@ pub fn play_some<S: Strategy>(runner: &mut impl Runner, strategy: &S) {
 pub fn combat_sandbox(state: CombatState) {
   println!("{}", state);
   for _ in 0..3 {
-    let seed = SingleSeed::<CombatChoiceLineagesKind>::new(Pcg64Mcg::from_entropy());
+    let seed = SingleSeed::<CombatChoiceLineagesKind>::new(&mut Pcg64Mcg::from_entropy());
     for _ in 0..3 {
       let mut state = state.clone();
       play_some(

@@ -3,10 +3,12 @@ use ordered_float::NotNan;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use rand_pcg::Pcg64Mcg;
+use seahash::SeaHasher;
 use serde::{Deserialize, Serialize};
 use smallvec::{smallvec, SmallVec};
 use std::cell::RefCell;
 use std::fmt::Debug;
+use std::hash::{Hash, Hasher};
 use std::ops::{Add, AddAssign, Mul};
 
 #[derive(Clone, PartialEq, Serialize, Deserialize, Debug, Derivative)]
@@ -70,21 +72,24 @@ impl<Choice: PartialEq + AddAssign<Choice>> Distribution<Choice> {
 }
 
 pub trait GameState {
-  type RandomForkType;
-  type RandomChoice: Clone;
+  type RandomForkType: Hash;
+  type RandomChoice: Clone + Hash;
 }
 
-pub trait ChoiceLineages<G: GameState> {
-  type Lineage;
-  fn get_mut(
-    &mut self,
-    state: &G,
-    fork_type: &G::RandomForkType,
-    choice: &G::RandomChoice,
-  ) -> &mut Self::Lineage;
+pub trait ChoiceLineageIdentity<G: GameState>: Copy + Clone + Hash {
+  fn lineage_identity(state: &G, fork_type: &G::RandomForkType, choice: &G::RandomChoice) -> Self;
 }
-pub trait ContainerKind {
-  type Container<T: Clone + Debug + Default>: Clone + Debug + Default;
+pub trait ChoiceLineages: Clone + Debug + Default {
+  type LineageIdentity;
+  type Lineage;
+  fn get_mut(&mut self, identity: Self::LineageIdentity) -> &mut Self::Lineage;
+}
+pub trait ChoiceLineagesKind {
+  type LineageIdentity;
+  type Lineages<T: Clone + Debug + Default>: ChoiceLineages<
+    LineageIdentity = Self::LineageIdentity,
+    Lineage = T,
+  >;
 }
 
 pub trait SeedView<G: GameState>: Debug {
@@ -120,20 +125,26 @@ pub fn choose_choice<G: GameState, S: SeedView<G> + ?Sized>(
 
 #[derive(Clone, Debug, Default)]
 pub struct TrivialChoiceLineages<T>(T);
-impl<G: GameState, T> ChoiceLineages<G> for TrivialChoiceLineages<T> {
-  type Lineage = T;
-  fn get_mut(
-    &mut self,
+pub struct TrivialChoiceLineagesKind;
+impl<G: GameState> ChoiceLineageIdentity<G> for () {
+  fn lineage_identity(
     _state: &G,
     _fork_type: &G::RandomForkType,
     _choice: &G::RandomChoice,
-  ) -> &mut T {
+  ) -> Self {
+    ()
+  }
+}
+impl<T: Clone + Debug + Default> ChoiceLineages for TrivialChoiceLineages<T> {
+  type LineageIdentity = ();
+  type Lineage = T;
+  fn get_mut(&mut self, _identity: ()) -> &mut T {
     &mut self.0
   }
 }
-pub struct TrivialChoiceLineagesKind;
-impl ContainerKind for TrivialChoiceLineagesKind {
-  type Container<T: Clone + Debug + Default> = TrivialChoiceLineages<T>;
+impl ChoiceLineagesKind for TrivialChoiceLineagesKind {
+  type LineageIdentity = ();
+  type Lineages<T: Clone + Debug + Default> = TrivialChoiceLineages<T>;
 }
 
 #[derive(Clone, Debug)]
@@ -181,19 +192,19 @@ impl TrivialSeedGenerator {
 
 #[derive(Derivative)]
 #[derivative(Debug(bound = ""))]
-pub struct SingleSeedView<'a, L: ContainerKind> {
+pub struct SingleSeedView<'a, L: ChoiceLineagesKind> {
   seed: &'a SingleSeed<L>,
-  prior_requests: L::Container<u32>,
+  prior_requests: L::Lineages<u32>,
 }
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""), Debug(bound = ""))]
-pub struct SingleSeedInner<L: ContainerKind> {
-  source_rng: Pcg64Mcg,
-  lineages: L::Container<SingleSeedLineage>,
+pub struct SingleSeedInner<L: ChoiceLineagesKind> {
+  hasher_seeds: [u64; 4],
+  lineages: L::Lineages<SingleSeedLineage>,
 }
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""), Debug(bound = ""))]
-pub struct SingleSeed<L: ContainerKind> {
+pub struct SingleSeed<L: ChoiceLineagesKind> {
   inner: RefCell<SingleSeedInner<L>>,
 }
 #[derive(Debug)]
@@ -201,16 +212,16 @@ pub struct SingleSeedGenerator {
   source_rng: ChaCha8Rng,
 }
 
-impl<L: ContainerKind> SingleSeedInner<L> {
-  pub fn new(source_rng: Pcg64Mcg) -> Self {
+impl<L: ChoiceLineagesKind> SingleSeedInner<L> {
+  pub fn new(source_rng: &mut impl Rng) -> Self {
     SingleSeedInner {
-      source_rng,
+      hasher_seeds: source_rng.gen(),
       lineages: Default::default(),
     }
   }
 }
-impl<L: ContainerKind> SingleSeed<L> {
-  pub fn new(source_rng: Pcg64Mcg) -> Self {
+impl<L: ChoiceLineagesKind> SingleSeed<L> {
+  pub fn new(source_rng: &mut impl Rng) -> Self {
     SingleSeed {
       inner: RefCell::new(SingleSeedInner::new(source_rng)),
     }
@@ -227,24 +238,28 @@ pub struct SingleSeedLineage {
   generated_values: Vec<f64>,
 }
 
-impl<'a, G: GameState, L: ContainerKind> SeedView<G> for SingleSeedView<'a, L>
+impl<'a, G: GameState, L: ChoiceLineagesKind> SeedView<G> for SingleSeedView<'a, L>
 where
-  L::Container<u32>: ChoiceLineages<G, Lineage = u32>,
-  L::Container<SingleSeedLineage>: ChoiceLineages<G, Lineage = SingleSeedLineage>,
+  L::LineageIdentity: ChoiceLineageIdentity<G>,
 {
   fn gen(&mut self, state: &G, fork_type: &G::RandomForkType, choice: &G::RandomChoice) -> f64 {
+    let identity = L::LineageIdentity::lineage_identity(state, fork_type, choice);
     let mut inner_guard = self.seed.inner.borrow_mut();
     let inner = &mut *inner_guard;
-    let source_rng = &mut inner.source_rng;
-    let prior_requests = self.prior_requests.get_mut(state, fork_type, choice);
-    let lineage = inner.lineages.get_mut(state, fork_type, choice);
+    let hasher_seeds = &inner.hasher_seeds;
+    let prior_requests = self.prior_requests.get_mut(identity);
+    let lineage = inner.lineages.get_mut(identity);
     let result = lineage
       .generated_values
       .get((*prior_requests) as usize)
       .copied()
       .unwrap_or_else(|| {
         assert_eq!((*prior_requests) as usize, lineage.generated_values.len());
-        let result = source_rng.gen();
+        let [k1, k2, k3, k4] = *hasher_seeds;
+        let mut hasher = SeaHasher::with_seeds(k1, k2, k3, k4);
+        prior_requests.hash(&mut hasher);
+        identity.hash(&mut hasher);
+        let result = hasher.finish() as f64;
         lineage.generated_values.push(result);
         result
       });
@@ -252,10 +267,9 @@ where
     result
   }
 }
-impl<G: GameState, L: ContainerKind + 'static> Seed<G> for SingleSeed<L>
+impl<G: GameState, L: ChoiceLineagesKind + 'static> Seed<G> for SingleSeed<L>
 where
-  L::Container<u32>: ChoiceLineages<G, Lineage = u32>,
-  L::Container<SingleSeedLineage>: ChoiceLineages<G, Lineage = SingleSeedLineage>,
+  L::LineageIdentity: ChoiceLineageIdentity<G>,
 {
   type View<'a> = SingleSeedView<'a, L>;
   fn view(&self) -> Self::View<'_> {
@@ -265,14 +279,14 @@ where
     }
   }
 }
-impl<L: ContainerKind> SeedGenerator<SingleSeed<L>> for SingleSeedGenerator {
+impl<L: ChoiceLineagesKind> SeedGenerator<SingleSeed<L>> for SingleSeedGenerator {
   fn make_seed(&mut self) -> SingleSeed<L> {
     self.make_seed::<L>()
   }
 }
 impl SingleSeedGenerator {
-  pub fn make_seed<L: ContainerKind>(&mut self) -> SingleSeed<L> {
-    SingleSeed::new(Pcg64Mcg::from_rng(&mut self.source_rng).unwrap())
+  pub fn make_seed<L: ChoiceLineagesKind>(&mut self) -> SingleSeed<L> {
+    SingleSeed::new(&mut self.source_rng)
   }
 }
 
