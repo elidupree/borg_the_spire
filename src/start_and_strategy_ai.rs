@@ -49,7 +49,8 @@ impl Strategy for FastStrategy {
   fn choose_choice(&self, state: &CombatState) -> Vec<Choice> {
     let legal_choices = state.legal_choices();
 
-    let incoming_damage = state.total_monster_attack_intent_damage() - state.player.creature.block;
+    let incoming_damage =
+      (state.total_monster_attack_intent_damage() - state.player.creature.block).max(0);
 
     vec![legal_choices
       .into_iter()
