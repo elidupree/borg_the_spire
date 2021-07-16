@@ -13,12 +13,18 @@ fn slimes_benchmark<S: Strategy, T: Seed<CombatState>>(
   c: &mut Criterion,
   mut seed: impl FnMut() -> T,
   mut strategy: impl FnMut() -> S,
+  runs_per_seed: usize,
 ) {
   let slimes_file = std::fs::File::open("data/slimes_benchmark.json").unwrap();
   let slimes_state: CombatState =
     serde_json::from_reader(std::io::BufReader::new(slimes_file)).unwrap();
   c.bench_function(id, |b| {
-    b.iter(|| playout_result(&slimes_state, seed().view(), &strategy()))
+    b.iter(|| {
+      let seed = seed();
+      for _ in 0..runs_per_seed {
+        playout_result(&slimes_state, seed.view(), &strategy());
+      }
+    })
   });
 }
 
@@ -29,6 +35,7 @@ fn slimes_unseeded_random(c: &mut Criterion) {
     c,
     || generator.make_seed(),
     || PurelyRandomStrategy,
+    1,
   )
 }
 
@@ -39,6 +46,7 @@ fn slimes_seeded_random(c: &mut Criterion) {
     c,
     || generator.make_seed::<CombatChoiceLineagesKind>(),
     || PurelyRandomStrategy,
+    10,
   )
 }
 
@@ -50,6 +58,7 @@ fn slimes_unseeded_faststrategy(c: &mut Criterion) {
     c,
     || seed_generator.make_seed(),
     || FastStrategy::random(&mut strategy_rng),
+    1,
   )
 }
 
@@ -61,6 +70,7 @@ fn slimes_seeded_faststrategy(c: &mut Criterion) {
     c,
     || seed_generator.make_seed::<CombatChoiceLineagesKind>(),
     || FastStrategy::random(&mut strategy_rng),
+    10,
   )
 }
 
