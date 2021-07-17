@@ -430,7 +430,10 @@ powers! {
   ["No Draw", NoDraw, Debuff],
   ["Plated Armor", PlatedArmor, Buff],
 
-  // Relics
+  // Common relics
+  ["InkBottle", InkBottle, Relic],
+
+  // Boss relics
   ["Busted Crown", BustedCrown, Relic],
   ["Coffee Dripper", CoffeeDripper, Relic],
   ["Cursed Key", CursedKey, Relic],
@@ -739,6 +742,17 @@ impl PowerBehavior for PlatedArmor {
   ) {
     if damage > 0 && info.damage_type == DamageType::Normal {
       context.reduce_this_power();
+    }
+  }
+}
+
+impl PowerBehavior for InkBottle {
+  fn on_use_card(&self, context: &mut PowerHookContext<impl Runner>, _card: &SingleCard) {
+    let amount = &mut context.this_power_mut().amount;
+    *amount += 1;
+    if *amount == 10 {
+      *amount = 0;
+      context.action_bottom(DrawCards(1));
     }
   }
 }
