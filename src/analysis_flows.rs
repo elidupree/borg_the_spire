@@ -15,7 +15,7 @@ use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::collections::HashMap;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use typed_html::{html, text};
 
 #[derive(Clone, PartialEq, Serialize, Deserialize, Debug, Default)]
@@ -96,7 +96,9 @@ impl AnalysisFlows {
       component.step(&mut AnalysisFlowContext {
         starting_state: &self.starting_state,
       });
-      component.time_share_used += start.elapsed().as_secs_f64() / component.spec.time_share;
+      let duration = start.elapsed();
+      component.time_used += duration;
+      component.time_share_used += duration.as_secs_f64() / component.spec.time_share;
     }
   }
   pub fn html_report(&self) -> Element {
@@ -106,7 +108,7 @@ impl AnalysisFlows {
       });
       html! {
         <div class="analysis-component">
-          <div class="analysis-component-name">{text!{name}}</div>
+          <div class="analysis-component-name">{text!{"{} ({:?})",name, component.time_used}}</div>
           <div class="analysis-component-report">{report}</div>
         </div>
       }
@@ -129,6 +131,7 @@ pub struct AnalysisComponentSpec {
 pub struct AnalysisComponent {
   spec: AnalysisComponentSpec,
   data: Box<dyn Any>,
+  time_used: Duration,
   time_share_used: f64,
 }
 
@@ -174,6 +177,7 @@ macro_rules! analysis_components {
         AnalysisComponent {
           spec,
           data,
+          time_used: Duration::from_secs(0),
           time_share_used: 0.0,
         }
       }
