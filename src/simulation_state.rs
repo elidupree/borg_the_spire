@@ -75,7 +75,12 @@ pub struct CombatState {
   pub stale_subaction_stack: Vec<DynAction>,
   pub actions: VecDeque<DynAction>,
 
+  #[serde(default)]
   pub num_reshuffles: i32,
+  #[serde(default)]
+  pub num_actions: i32,
+  #[serde(default)]
+  pub num_choices: i32,
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Debug)]
@@ -267,6 +272,8 @@ impl CombatState {
         .map(|monster| Monster::from_communication_mod(monster, observed.ascension_level))
         .collect(),
       num_reshuffles: 0,
+      num_actions: 0,
+      num_choices: 0,
     };
 
     if let Some(previous) = previous {

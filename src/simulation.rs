@@ -21,6 +21,8 @@ pub enum CardChoiceType {
 }
 */
 
+pub const HARD_ACTION_LIMIT: i32 = 10000;
+
 pub type MonsterIndex = usize;
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, Debug)]
@@ -156,6 +158,7 @@ impl<'a, Seed: MaybeSeedView<CombatState>> StandardRunner<'a, Seed> {
     }
   }
   fn apply_impl(&mut self, action: &impl Action) {
+    self.state.num_actions += 1;
     if let Some(hooks) = &mut self.hooks {
       hooks.on_action(&self.state, &action.clone().into());
     }
@@ -254,7 +257,8 @@ impl<'a, Seed: MaybeSeedView<CombatState>> Runner for StandardRunner<'a, Seed> {
     if let Some(hooks) = &mut self.hooks {
       hooks.on_choice(&self.state, choice);
     }
-    self.action_now(choice);
+    self.state.num_choices += 1;
+    self.apply_impl(choice);
     self.run_until_unable();
   }
 }
@@ -292,7 +296,9 @@ impl Creature {
 
 impl CombatState {
   pub fn combat_over(&self) -> bool {
-    self.player.creature.hitpoints <= 0 || self.monsters.iter().all(|monster| monster.gone)
+    self.player.creature.hitpoints <= 0
+      || self.monsters.iter().all(|monster| monster.gone)
+      || self.num_actions >= HARD_ACTION_LIMIT
   }
   pub fn choice_next(&self) -> bool {
     (!self.combat_over()) && self.stale_subaction_stack.is_empty()

@@ -183,14 +183,15 @@ pub struct CombatResult {
 
 impl CombatResult {
   pub fn new(state: &CombatState) -> CombatResult {
+    let mut result;
     if state.player.creature.hitpoints > 0 {
       // TODO punish for stolen gold
-      CombatResult {
+      result = CombatResult {
         score: 1.0 + state.player.creature.hitpoints as f64 * 0.0001,
         hitpoints_left: state.player.creature.hitpoints,
-      }
+      };
     } else {
-      CombatResult {
+      result = CombatResult {
         score: 0.0
           - state
             .monsters
@@ -201,5 +202,13 @@ impl CombatResult {
         hitpoints_left: 0,
       }
     }
+
+    // slightly penalize the AI for wasting time
+    result.score -= state.num_choices as f64 * 0.00000001;
+    if state.num_actions >= crate::simulation::HARD_ACTION_LIMIT {
+      // greatly penalize the AI for non-winning infinite loops
+      result.score -= 2.0;
+    }
+    result
   }
 }
