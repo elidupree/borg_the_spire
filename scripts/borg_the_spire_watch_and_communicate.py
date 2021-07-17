@@ -4,6 +4,9 @@
 # but at least on Windows, you're not allowed to modify the executable while it's being run!
 # So we have this little script to patch it together.
 
+# Actually, this script is now out-of-date, since I now accomplish the division of interests
+# by just dumping the raw CommunicationMod output to a file.
+
 import os
 import subprocess
 import shutil

@@ -10,7 +10,9 @@ use std::time::{Duration, Instant, SystemTime};
 
 use self::rocket_glue::MessageFromFrontend;
 use crate::analysis_flows::{AnalysisFlows, AnalysisFlowsSpec};
+use crate::communication_mod_state;
 use crate::simulation_state::*;
+use std::fs::File;
 use typed_html::dom::DOMTree;
 use typed_html::html;
 
@@ -56,7 +58,7 @@ impl ServerSharedState {
     // it's called while the client is waiting for a response from the server.
     // Those could be improved, but it's not very important.
     change(&mut self.persistent_state);
-    if let Ok(file) = std::fs::File::create(
+    if let Ok(file) = File::create(
       &self
         .constants
         .data_files
@@ -70,10 +72,13 @@ impl ServerSharedState {
 impl ProcessingThreadState {
   pub fn new(server_shared: Arc<Mutex<ServerSharedState>>) -> Self {
     let constants = server_shared.lock().constants.clone();
+    let last_combat_state = File::open(constants.data_files.join("last_combat_state.json"))
+      .ok()
+      .and_then(|file| serde_json::from_reader(std::io::BufReader::new(file)).ok());
     ProcessingThreadState {
       constants,
       server_shared,
-      combat_state: None,
+      combat_state: last_combat_state,
       analysis_flows_spec: None,
       analysis_flows: None,
       last_file_check: Instant::now(),
@@ -89,15 +94,12 @@ impl ProcessingThreadState {
       if let Some(spec) = &self.analysis_flows_spec {
         self.analysis_flows = Some(AnalysisFlows::new(spec, state.clone()));
       }
-      self.combat_state = Some(state);
 
-      // let mut runner = StandardRunner::new(
-      //   &mut playout_state,
-      //   TrivialSeed::new(Pcg64Mcg::from_entropy()),
-      //   true,
-      // );
-      // play_out(&mut runner, &SomethingStrategy {});
-      // self.debug_log = runner.debug_log().to_string();
+      if let Ok(file) = File::create(self.constants.data_files.join("last_combat_state.json")) {
+        let _ = serde_json::to_writer_pretty(std::io::BufWriter::new(file), &state);
+      }
+
+      self.combat_state = Some(state);
     }
   }
   pub fn set_analysis_flows_spec(&mut self, spec: AnalysisFlowsSpec) {
@@ -111,21 +113,37 @@ impl ProcessingThreadState {
     }
   }
 
+  pub fn check_communication_state_file(&mut self) {
+    if let Ok(modified) = fs::metadata(&self.constants.state_file).and_then(|m| m.modified()) {
+      if Some(modified) != self.last_state_last_modified {
+        self.last_state_last_modified = Some(modified);
+        if let Ok(file) = File::open(&self.constants.state_file) {
+          let interpreted: Result<communication_mod_state::CommunicationState, _> =
+            serde_json::from_reader(std::io::BufReader::new(file));
+          match interpreted {
+            Ok(state) => {
+              let state = state.game_state.as_ref().and_then(|game_state| {
+                CombatState::from_communication_mod(game_state, self.combat_state.as_ref())
+              });
+              if let Some(state) = state {
+                self.set_combat_state(state);
+              }
+            }
+            Err(err) => {
+              eprintln!("Error parsing CommunicationState from file: {}", err);
+            }
+          }
+        }
+      }
+    }
+  }
+
   pub fn step(&mut self) {
     // If the state file has been modified, update it.
     if self.last_file_check.elapsed() > Duration::from_millis(200) {
       self.last_file_check = Instant::now();
 
-      if let Ok(modified) = fs::metadata(&self.constants.state_file).and_then(|m| m.modified()) {
-        if Some(modified) != self.last_state_last_modified {
-          self.last_state_last_modified = Some(modified);
-          if let Ok(file) = std::fs::File::open(&self.constants.state_file) {
-            if let Ok(state) = serde_json::from_reader(std::io::BufReader::new(file)) {
-              self.set_combat_state(state);
-            }
-          }
-        }
-      }
+      self.check_communication_state_file();
 
       let analysis_flows_file = self.constants.data_files.join(
         &self
@@ -138,7 +156,7 @@ impl ProcessingThreadState {
         let new_value = Some((analysis_flows_file.clone(), modified));
         if new_value != self.analysis_flows_spec_last_modified {
           self.analysis_flows_spec_last_modified = new_value;
-          if let Ok(file) = std::fs::File::open(&analysis_flows_file) {
+          if let Ok(file) = File::open(&analysis_flows_file) {
             match serde_json::from_reader(std::io::BufReader::new(file)) {
               Ok(spec) => {
                 self.set_analysis_flows_spec(spec);
@@ -186,7 +204,7 @@ pub fn run(
   port: u16,
 ) {
   let mut persistent_state = Default::default();
-  if let Ok(file) = std::fs::File::open(&data_files.join("server_persistent_state.json")) {
+  if let Ok(file) = File::open(&data_files.join("server_persistent_state.json")) {
     if let Ok(state) = serde_json::from_reader(std::io::BufReader::new(file)) {
       persistent_state = state;
     }
@@ -198,7 +216,7 @@ pub fn run(
     }),
     persistent_state,
     inputs: Vec::new(),
-    html_string: r#"<div id="content">Starting...</div>"#.to_string(),
+    html_string: r#"<div id="content">No gamestate loaded yet...</div>"#.to_string(),
   };
 
   let server_state = Arc::new(Mutex::new(server_state));

@@ -3,6 +3,7 @@ use serde_json::Value;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct CommunicationState {
+  #[serde(default)]
   pub available_commands: Vec<String>,
   pub ready_for_command: bool,
   pub in_game: bool,

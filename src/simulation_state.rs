@@ -288,6 +288,18 @@ impl CombatState {
               );
             }
           }*/
+        if new_version.move_history.len() == 3 && monster.move_history.len() > 3 {
+          if new_version.move_history[..] == monster.move_history[monster.move_history.len() - 3..]
+          {
+            new_version.move_history = monster.move_history.clone();
+          } else if new_version.move_history[..2]
+            == monster.move_history[monster.move_history.len() - 2..]
+          {
+            let new_last = new_version.move_history.last().unwrap().clone();
+            new_version.move_history = monster.move_history.clone();
+            new_version.move_history.push(new_last);
+          }
+        }
       }
     }
     Some(result)

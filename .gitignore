@@ -2,6 +2,8 @@
 /modify_noticer
 /data/last_state.json
 /data/server_persistent_state.json
+/data/latest_communication_mod_state.json
+/data/last_combat_state.json
 **/*.rs.bk
 .idea
 *_profdata
