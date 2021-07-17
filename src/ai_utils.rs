@@ -204,6 +204,16 @@ impl CombatResult {
       if state.monsters.iter().all(|m| m.creature.hitpoints > 0) {
         result.score -= 8.0 * hitpoint_value;
       }
+
+      for power in &state.player.creature.powers {
+        match power.power_id {
+          PowerId::InkBottle => {
+            let rewards = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1.0, 2.0, 3.0];
+            result.score += rewards[power.amount as usize] * hitpoint_value;
+          }
+          _ => {}
+        }
+      }
     } else {
       result = CombatResult {
         score: 0.0
