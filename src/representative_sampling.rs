@@ -141,9 +141,9 @@ pub fn representative_seed_subgroup(
 
 #[derive(Clone)]
 pub struct RepresentativeSeedSearchLayerStrategy<S> {
-  strategy: Arc<S>,
-  scores: Vec<f64>,
-  average: f64,
+  pub strategy: Arc<S>,
+  pub scores: Vec<f64>,
+  pub average: f64,
 }
 
 impl<S: Strategy> RepresentativeSeedSearchLayerStrategy<S> {
@@ -170,10 +170,10 @@ impl<S: Strategy> RepresentativeSeedSearchLayerStrategy<S> {
 }
 
 pub struct RepresentativeSeedSearchLayer<S, T> {
-  seeds: Vec<T>,
-  max_exploiters: usize,
-  best_strategy: Arc<RepresentativeSeedSearchLayerStrategy<S>>,
-  exploiters: Vec<Arc<RepresentativeSeedSearchLayerStrategy<S>>>,
+  pub seeds: Vec<T>,
+  pub max_exploiters: usize,
+  pub best_strategy: Arc<RepresentativeSeedSearchLayerStrategy<S>>,
+  pub exploiters: Vec<Arc<RepresentativeSeedSearchLayerStrategy<S>>>,
 }
 
 impl<S: Strategy, T: Seed<CombatState>> RepresentativeSeedSearchLayer<S, T> {
@@ -348,20 +348,20 @@ impl<S: Strategy, T: Seed<CombatState>> RepresentativeSeedSearchLayer<S, T> {
 }
 
 pub struct FractalRepresentativeSeedSearch<S, T, G> {
-  layers: Vec<RepresentativeSeedSearchLayer<S, T>>,
-  lowest_seeds: Vec<T>,
-  seed_generator: G,
-  best_average_on_lowest_seeds: f64,
-  new_strategy: Box<dyn Fn(&[&S]) -> S>,
-  steps: usize,
-  successes_at_lowest: usize,
-  layer_updates: usize,
+  pub layers: Vec<RepresentativeSeedSearchLayer<S, T>>,
+  pub lowest_seeds: Vec<T>,
+  pub seed_generator: G,
+  pub best_average_on_lowest_seeds: f64,
+  pub new_strategy: Box<dyn Fn(&[&S]) -> S>,
+  pub steps: usize,
+  pub successes_at_lowest: usize,
+  pub layer_updates: usize,
 }
 impl<S, T, G> FractalRepresentativeSeedSearch<S, T, G> {
-  fn sublayer_size(index: usize) -> usize {
+  pub fn sublayer_size(index: usize) -> usize {
     4 << index
   }
-  fn layer_size(index: usize) -> usize {
+  pub fn layer_size(index: usize) -> usize {
     Self::sublayer_size(index + 1)
   }
 }
@@ -576,8 +576,8 @@ impl ExplorationOptimizerKind for FractalRepresentativeSeedSearchExplorationOpti
 
 #[derive(Clone, Debug)]
 pub struct RepresentativeSeedsMetaStrategy<S, T> {
-  seeds: Vec<T>,
-  strategies: Vec<Arc<S>>,
+  pub seeds: Vec<T>,
+  pub strategies: Vec<Arc<S>>,
 }
 
 impl<S: Strategy + 'static, T: Seed<CombatState> + Clone + 'static> Strategy

@@ -254,7 +254,39 @@ impl AnalysisComponentBehavior for FractalRepresentativeSeedSearchComponentSpec 
       .step(context.starting_state(), &mut ChaCha8Rng::seed_from_u64(0));
   }
 
-  fn html_report(&self, _context: &AnalysisFlowContext, _data: &Self::Data) -> Option<Element> {
-    unimplemented!()
+  fn html_report(&self, _context: &AnalysisFlowContext, data: &Self::Data) -> Option<Element> {
+    let mut elements = Vec::new();
+    for layer in &data.search.layers {
+      let strategies: Vec<_> = layer.strategies().collect();
+      let scores = strategies
+        .iter()
+        .map(|s| format!("{:.3}", s.average))
+        .collect::<Vec<_>>();
+      let score_with_exploiting = (0..layer.seeds.len())
+        .map(|index| {
+          strategies
+            .iter()
+            .map(|s| s.scores[index])
+            .max_by_key(|&f| OrderedFloat(f))
+            .unwrap()
+        })
+        .sum::<f64>()
+        / (layer.seeds.len() as f64);
+      elements.push(html! {
+        <div class="fractal_report_row">
+          {text!(
+            "{}: [{:.3}] {}",
+            layer.seeds.len(),
+            score_with_exploiting,
+            scores.join(", ")
+          )}
+        </div>
+      });
+    }
+    Some(html! {
+      <div class="fractal_report">
+        {elements}
+      </div>
+    })
   }
 }
