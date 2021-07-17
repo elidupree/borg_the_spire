@@ -108,7 +108,7 @@ impl AnalysisFlows {
       });
       html! {
         <div class="analysis-component">
-          <div class="analysis-component-name">{text!{"{} ({:?})",name, component.time_used}}</div>
+          <div class="analysis-component-name">{text!{"{} ({:?}/{:?})",name, component.time_used, component.when_started.elapsed()}}</div>
           <div class="analysis-component-report">{report}</div>
         </div>
       }
@@ -131,6 +131,7 @@ pub struct AnalysisComponentSpec {
 pub struct AnalysisComponent {
   spec: AnalysisComponentSpec,
   data: Box<dyn Any>,
+  when_started: Instant,
   time_used: Duration,
   time_share_used: f64,
 }
@@ -177,6 +178,7 @@ macro_rules! analysis_components {
         AnalysisComponent {
           spec,
           data,
+          when_started: Instant::now(),
           time_used: Duration::from_secs(0),
           time_share_used: 0.0,
         }
