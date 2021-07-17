@@ -14,20 +14,19 @@ use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
-use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::time::Instant;
 use typed_html::{html, text};
 
 #[derive(Clone, PartialEq, Serialize, Deserialize, Debug, Default)]
 pub struct AnalysisFlowsSpec {
-  components: HashMap<String, AnalysisComponentSpec>,
+  components: Vec<(String, AnalysisComponentSpec)>,
 }
 
 #[derive(Default)]
 pub struct AnalysisFlows {
   starting_state: CombatState,
-  components: HashMap<String, AnalysisComponent>,
+  components: Vec<(String, AnalysisComponent)>,
   // values: HashMap<String, Rc<dyn Any>>,
 }
 
@@ -54,37 +53,45 @@ impl AnalysisFlows {
     }
   }
   pub fn update_from_spec(&mut self, spec: &AnalysisFlowsSpec) {
-    for (name, spec) in &spec.components {
-      match self.components.entry(name.clone()) {
-        Entry::Vacant(entry) => {
-          entry.insert(AnalysisComponent::new(
-            &AnalysisFlowContext {
-              starting_state: &self.starting_state,
-            },
-            spec.clone(),
-          ));
-        }
-        Entry::Occupied(mut entry) => {
-          if entry.get().spec.kind != spec.kind {
-            *entry.get_mut() = AnalysisComponent::new(
+    let mut old_components: HashMap<String, _> = self.components.drain(..).collect();
+    let new_components = spec
+      .components
+      .iter()
+      .map(|(name, spec)| {
+        (
+          name.clone(),
+          match old_components.remove(name) {
+            None => AnalysisComponent::new(
               &AnalysisFlowContext {
                 starting_state: &self.starting_state,
               },
               spec.clone(),
-            )
-          } else {
-            entry.get_mut().spec.time_share = spec.time_share;
-          }
-        }
-      }
-    }
+            ),
+            Some(mut old_component) => {
+              if old_component.spec.kind != spec.kind {
+                AnalysisComponent::new(
+                  &AnalysisFlowContext {
+                    starting_state: &self.starting_state,
+                  },
+                  spec.clone(),
+                )
+              } else {
+                old_component.spec.time_share = spec.time_share;
+                old_component
+              }
+            }
+          },
+        )
+      })
+      .collect();
+    self.components = new_components;
   }
   pub fn step(&mut self) {
     let best_component = self
       .components
-      .values_mut()
-      .min_by_key(|component| OrderedFloat(component.time_share_used));
-    if let Some(component) = best_component {
+      .iter_mut()
+      .min_by_key(|(_, component)| OrderedFloat(component.time_share_used));
+    if let Some((_, component)) = best_component {
       let start = Instant::now();
       component.step(&mut AnalysisFlowContext {
         starting_state: &self.starting_state,

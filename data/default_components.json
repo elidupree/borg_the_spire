@@ -1,12 +1,12 @@
 {
-  "components": {
-    "Starting points": {
-      "time_share": 1.0,
-      "kind": {"CompareStartingPoints": {}}
-    },
-    "Fractal": {
+  "components": [
+    ["Fractal", {
       "time_share": 1.0,
       "kind": {"FractalRepresentativeSeedSearch": {}}
-    }
-  }
+    }],
+    ["Starting points", {
+      "time_share": 1.0,
+      "kind": {"CompareStartingPoints": {}}
+    }]
+  ]
 }

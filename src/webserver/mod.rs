@@ -157,6 +157,9 @@ impl ProcessingThreadState {
       if self.last_report.elapsed() > Duration::from_millis(100) {
         let report: DOMTree<String> = html! {
           <div id="content">
+            <div id="starting_state">
+              {self.combat_state.as_ref().unwrap().view()}
+            </div>
             {flows.html_report()}
           </div>
         };

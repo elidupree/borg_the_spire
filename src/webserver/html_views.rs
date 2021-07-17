@@ -4,7 +4,7 @@ use typed_html::elements::FlowContent;
 use typed_html::{html, text};
 
 use crate::seed_system::TrivialSeed;
-use crate::simulation::{Runner, StandardRunner};
+use crate::simulation::{DisplayChoices, Runner, StandardRunner};
 use crate::simulation_state::CombatState;
 use crate::start_and_strategy_ai::SearchState;
 
@@ -69,7 +69,7 @@ impl SearchState {
       html! {
         <div class="starting-point">
           <div class="starting-point-heading">
-            {text! ("{} visits\n{:?}", start.visits, start.choices)}
+            {text! ("{} visits\n{}", start.visits, DisplayChoices(&start.choices))}
             {start.state.view()}
             {hypothetical_evaluated_state.view()}
             //<pre>{text! (log)}</pre>
