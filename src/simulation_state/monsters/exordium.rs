@@ -43,7 +43,7 @@ impl MonsterBehavior for RedLouse {
     context.else_num(context.with_max_repeats(Repeats(2), Bite, Grow));
   }
   fn after_choosing_intent(runner: &mut impl Runner, monster_index: usize) {
-    if runner.state().monster_intent(monster_index) == 3 {
+    if runner.state().monster_intent(monster_index) == RedLouseIntent::Bite.id() {
       let ascension = runner.state().monsters[monster_index].ascension;
       let bonus = if ascension >= 2 { 1 } else { 0 };
       runner.action_now(&InitializeMonsterInnateDamageAmount {
