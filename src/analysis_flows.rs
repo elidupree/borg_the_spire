@@ -1,7 +1,9 @@
+use crate::ai_utils::starting_choices_made_by_strategy;
 use crate::competing_optimizers::StrategyOptimizer;
 use crate::representative_sampling::FractalRepresentativeSeedSearch;
 use crate::seed_system::{SingleSeed, SingleSeedGenerator};
 use crate::seeds_concrete::CombatChoiceLineagesKind;
+use crate::simulation::DisplayChoices;
 use crate::simulation_state::CombatState;
 use crate::start_and_strategy_ai;
 use crate::start_and_strategy_ai::FastStrategy;
@@ -254,7 +256,7 @@ impl AnalysisComponentBehavior for FractalRepresentativeSeedSearchComponentSpec 
       .step(context.starting_state(), &mut ChaCha8Rng::seed_from_u64(0));
   }
 
-  fn html_report(&self, _context: &AnalysisFlowContext, data: &Self::Data) -> Option<Element> {
+  fn html_report(&self, context: &AnalysisFlowContext, data: &Self::Data) -> Option<Element> {
     let mut elements = Vec::new();
     for layer in &data.search.layers {
       let strategies: Vec<_> = layer.strategies().collect();
@@ -283,9 +285,17 @@ impl AnalysisComponentBehavior for FractalRepresentativeSeedSearchComponentSpec 
         </div>
       });
     }
+    let starting_choices =
+      starting_choices_made_by_strategy(context.starting_state(), &data.search.meta_strategy());
     Some(html! {
       <div class="fractal_report">
         {elements}
+        <div class="fractal_report_row">
+          {text!(
+            "Metastrategy starting choices: {}",
+            DisplayChoices(&starting_choices)
+          )}
+        </div>
       </div>
     })
   }

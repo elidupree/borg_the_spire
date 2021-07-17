@@ -7,6 +7,9 @@ use crate::seed_system::{choose_choice, Distribution, MaybeSeedView};
 pub use crate::simulation_state::cards::CardBehavior;
 pub use crate::simulation_state::monsters::MonsterBehavior;
 use crate::simulation_state::*;
+use smallvec::alloc::fmt::Formatter;
+use std::fmt;
+use std::fmt::Display;
 
 /*
 pub enum CardChoiceType {
@@ -291,6 +294,9 @@ impl CombatState {
   pub fn combat_over(&self) -> bool {
     self.player.creature.hitpoints <= 0 || self.monsters.iter().all(|monster| monster.gone)
   }
+  pub fn choice_next(&self) -> bool {
+    (!self.combat_over()) && self.stale_subaction_stack.is_empty()
+  }
 
   pub fn card_playable(&self, card: &SingleCard) -> bool {
     assert!(X_COST == -1);
@@ -370,4 +376,38 @@ impl Monster {
 
 pub trait ConsiderAction {
   fn consider(&mut self, action: impl Action);
+}
+
+impl Display for Choice {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    match self {
+      Choice::PlayCard(PlayCard { card, target }) => {
+        if card.card_info.has_target {
+          write!(f, "{} {}", card, target)
+        } else {
+          write!(f, "{}", card)
+        }
+      }
+      Choice::EndTurn(_) => {
+        write!(f, "EndTurn")
+      }
+      _ => {
+        write!(f, "<invalid Choice: {:?}>", self)
+      }
+    }
+  }
+}
+
+pub struct DisplayChoices<'a>(pub &'a [Choice]);
+
+impl<'a> Display for DisplayChoices<'a> {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    let list = self
+      .0
+      .iter()
+      .map(ToString::to_string)
+      .collect::<Vec<_>>()
+      .join(", ");
+    write!(f, "[{}]", list)
+  }
 }

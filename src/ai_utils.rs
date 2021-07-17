@@ -158,6 +158,23 @@ pub fn playout_narration(
   writer
 }
 
+pub fn starting_choices_made_by_strategy(
+  state: &CombatState,
+  strategy: &impl Strategy,
+) -> Vec<Choice> {
+  let mut state = state.clone();
+  let mut runner = StandardRunner::new(&mut state, NoRandomness);
+  let mut result = Vec::new();
+  while runner.state().choice_next() {
+    let choices = strategy.choose_choice(runner.state());
+    for choice in choices {
+      runner.apply_choice(&choice);
+      result.push(choice);
+    }
+  }
+  result
+}
+
 #[derive(Clone, Debug)]
 pub struct CombatResult {
   pub score: f64,
