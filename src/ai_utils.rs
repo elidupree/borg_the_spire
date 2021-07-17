@@ -185,7 +185,7 @@ impl CombatResult {
   pub fn new(state: &CombatState) -> CombatResult {
     let mut result;
     if state.player.creature.hitpoints > 0 {
-      let hitpoint_value = 0.0001;
+      let hitpoint_value = 0.01;
       result = CombatResult {
         score: 1.0 + state.player.creature.hitpoints as f64 * hitpoint_value,
         hitpoints_left: state.player.creature.hitpoints,
