@@ -302,6 +302,24 @@ impl CombatState {
     }
     counter.total
   }
+  pub fn monster_is_attacking(&self, monster_index: MonsterIndex) -> bool {
+    struct Visitor {
+      is_attacking: bool,
+    }
+    impl ConsiderAction for Visitor {
+      fn consider(&mut self, action: impl Action) {
+        // It theoretically makes more sense to do this on the type level, but that would make the code more complicated, and I'm almost certain this will be optimized out.
+        if let DynAction::DamageAction(action) = action.clone().into() {
+          self.is_attacking = true;
+        }
+      }
+    }
+    let mut visitor = Visitor {
+      is_attacking: false,
+    };
+    consider_intent_actions(self, monster_index, &mut visitor);
+    visitor.is_attacking
+  }
 }
 
 pub const MAX_INTENTS: usize = 7;

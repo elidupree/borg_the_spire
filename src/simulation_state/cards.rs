@@ -55,6 +55,12 @@ pub trait CardBehaviorContext {
       damage_type: DamageType::Normal,
     });
   }
+  fn attack_random_monster(&mut self, base_damage: i32) {
+    // hack: this is actually NOT where powers are applied to card/monster damage in the actual code
+    self.action(AttackDamageRandomEnemyAction {
+      damage: base_damage,
+    });
+  }
   fn power_monsters(&mut self, power_id: PowerId, amount: i32) {
     for index in 0..self.state().monsters.len() {
       self.action(ApplyPowerAction {
@@ -458,7 +464,9 @@ impl CardBehavior for ShrugItOff {
 
 impl CardBehavior for SwordBoomerang {
   fn behavior(self, context: &mut impl CardBehaviorContext) {
-    //TODO
+    for _ in 0..context.with_upgrade(4, 3) {
+      context.attack_random_monster(3);
+    }
   }
 }
 
@@ -712,7 +720,9 @@ impl CardBehavior for Shockwave {
 
 impl CardBehavior for SpotWeakness {
   fn behavior(self, context: &mut impl CardBehaviorContext) {
-    //TODO
+    if context.state().monster_is_attacking(context.target()) {
+      context.power_self(PowerId::Strength, context.with_upgrade(4, 3));
+    }
   }
 }
 
