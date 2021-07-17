@@ -72,7 +72,7 @@ pub fn playout_result(
 
 pub struct NarrationHooks<'a, W: fmt::Write> {
   writer: &'a mut W,
-  last_hand: ArrayVec<[SingleCard; 10]>,
+  last_hand: ArrayVec<SingleCard, 10>,
   last_hitpoints: i32,
 }
 impl<'a, W: fmt::Write> NarrationHooks<'a, W> {

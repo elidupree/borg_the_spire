@@ -12,13 +12,13 @@ rand_pcg = {version = "0.3.0", features = ["serde1"]}
 rand_chacha = "0.3.1"
 seahash = "4.1.0"
 ordered-float = "1.0"
-arrayvec = { version = "0.4", features = ["serde-1"]}
-smallvec = { version = "0.6", features = ["serde"]}
+arrayvec = { version = "0.7.1", features = ["serde"]}
+smallvec = { version = "1.6.1", features = ["serde","union"]}
 retain_mut = "0.1.0"
 rocket = "0.4.6"
 rocket_contrib = { version = "0.4.6", features = ["json"]}
 typed-html = { git = "https://github.com/bodil/typed-html/", version = "0.2.2" }
-parking_lot = "0.9"
+parking_lot = "0.11.1"
 derivative = "2.2.0"
 enum-map = "0.6.4"
 array_ext = "0.2.0"

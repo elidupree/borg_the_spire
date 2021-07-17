@@ -59,7 +59,7 @@ pub struct CombatState {
     PartialEq(compare_with = "compare_cards_unordered"),
     Hash(hash_with = "hash_cards_unordered")
   )]
-  pub hand: ArrayVec<[SingleCard; 10]>,
+  pub hand: ArrayVec<SingleCard, 10>,
   #[derivative(
     PartialEq(compare_with = "compare_cards_unordered"),
     Hash(hash_with = "hash_cards_unordered")
@@ -67,7 +67,7 @@ pub struct CombatState {
   pub limbo: Vec<SingleCard>,
   pub card_in_play: Option<SingleCard>,
   pub player: Player,
-  pub monsters: ArrayVec<[Monster; MAX_MONSTERS]>,
+  pub monsters: ArrayVec<Monster, MAX_MONSTERS>,
   pub turn_number: i32,
   pub turn_has_ended: bool,
 

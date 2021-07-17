@@ -235,7 +235,7 @@ impl SingleSeedGenerator {
 
 #[derive(Clone, Debug, Default)]
 pub struct SingleSeedLineage {
-  generated_values: Vec<f64>,
+  generated_values: SmallVec<[f64; 2]>,
 }
 
 impl<'a, G: GameState, L: ChoiceLineagesKind> SeedView<G> for SingleSeedView<'a, L>

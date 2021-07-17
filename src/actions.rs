@@ -125,7 +125,7 @@ impl Action for EndTurn {
 
     let state = runner.state_mut();
     state.turn_has_ended = true;
-    let mut actions: ArrayVec<[DamageAction; 10]> = ArrayVec::new();
+    let mut actions: ArrayVec<DamageAction, 10> = ArrayVec::new();
     for card in state.hand.drain(..) {
       if card.card_info.id == CardId::Burn {
         actions.push(DamageAction {
