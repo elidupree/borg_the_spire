@@ -20,13 +20,15 @@ use typed_html::{html, text};
 
 #[derive(Clone, PartialEq, Serialize, Deserialize, Debug, Default)]
 pub struct AnalysisFlowsSpec {
-  components: Vec<(String, AnalysisComponentSpec)>,
+  pub components: Vec<(String, AnalysisComponentSpec)>,
 }
 
 #[derive(Default)]
 pub struct AnalysisFlows {
-  starting_state: CombatState,
-  components: Vec<(String, AnalysisComponent)>,
+  pub starting_state: CombatState,
+  pub components: Vec<(String, AnalysisComponent)>,
+  pub time_used: Duration,
+  pub time_used_for_rendering: Duration,
   // values: HashMap<String, Rc<dyn Any>>,
 }
 
@@ -50,6 +52,8 @@ impl AnalysisFlows {
     AnalysisFlows {
       starting_state,
       components,
+      time_used: Duration::from_secs(0),
+      time_used_for_rendering: Duration::from_secs(0),
     }
   }
   pub fn update_from_spec(&mut self, spec: &AnalysisFlowsSpec) {
@@ -97,11 +101,13 @@ impl AnalysisFlows {
         starting_state: &self.starting_state,
       });
       let duration = start.elapsed();
+      self.time_used += duration;
       component.time_used += duration;
       component.time_share_used += duration.as_secs_f64() / component.spec.time_share;
     }
   }
-  pub fn html_report(&self) -> Element {
+  pub fn html_report(&mut self) -> Element {
+    let start = Instant::now();
     let reports = self.components.iter().map(|(name, component)| {
       let report = component.html_report(&AnalysisFlowContext {
         starting_state: &self.starting_state,
@@ -113,11 +119,14 @@ impl AnalysisFlows {
         </div>
       }
     });
-    html! {
+    let result = html! {
       <div class="analysis-components">
         {reports}
       </div>
-    }
+    };
+    let duration = start.elapsed();
+    self.time_used_for_rendering += duration;
+    result
   }
 }
 

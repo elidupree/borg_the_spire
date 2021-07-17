@@ -172,7 +172,9 @@ impl ProcessingThreadState {
     if let Some(flows) = &mut self.analysis_flows {
       flows.step();
 
-      if self.last_report.elapsed() > Duration::from_millis(100) {
+      if self.last_report.elapsed() > Duration::from_millis(100)
+        && flows.time_used_for_rendering * 20 <= flows.time_used
+      {
         let report: DOMTree<String> = html! {
           <div id="content">
             <div id="starting_state">
