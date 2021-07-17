@@ -108,7 +108,7 @@ impl AnalysisFlows {
       });
       html! {
         <div class="analysis-component">
-          <div class="analysis-component-name">{text!{"{} ({:?}/{:?})",name, component.time_used, component.when_started.elapsed()}}</div>
+          <div class="analysis-component-name">{text!{"{} ({:.1}/{:.1}s)",name, component.time_used.as_secs_f64(), component.when_started.elapsed().as_secs_f64()}}</div>
           <div class="analysis-component-report">{report}</div>
         </div>
       }
