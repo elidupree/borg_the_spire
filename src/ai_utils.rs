@@ -1,7 +1,7 @@
 use crate::actions::{DynAction, PlayCard};
 use crate::seed_system::{NoRandomness, SeedView};
 use crate::simulation::{Choice, Runner, StandardRunner, StandardRunnerHooks};
-use crate::simulation_state::{CombatState, SingleCard};
+use crate::simulation_state::{CombatState, PowerId, SingleCard};
 use arrayvec::ArrayVec;
 use std::collections::{HashSet, VecDeque};
 use std::fmt;
@@ -185,11 +185,25 @@ impl CombatResult {
   pub fn new(state: &CombatState) -> CombatResult {
     let mut result;
     if state.player.creature.hitpoints > 0 {
-      // TODO punish for stolen gold
+      let hitpoint_value = 0.0001;
       result = CombatResult {
-        score: 1.0 + state.player.creature.hitpoints as f64 * 0.0001,
+        score: 1.0 + state.player.creature.hitpoints as f64 * hitpoint_value,
         hitpoints_left: state.player.creature.hitpoints,
       };
+
+      // penalize the player a fixed amount for stolen gold (TODO: choose the value in a more principled way)
+      for monster in &state.monsters {
+        if monster.gone
+          && monster.creature.hitpoints > 0
+          && monster.creature.has_power(PowerId::Thievery)
+        {
+          result.score -= 8.0 * hitpoint_value;
+        }
+      }
+      // ...and extra if you missed out and the combat reward (gold/potion chance) as well
+      if state.monsters.iter().all(|m| m.creature.hitpoints > 0) {
+        result.score -= 8.0 * hitpoint_value;
+      }
     } else {
       result = CombatResult {
         score: 0.0
