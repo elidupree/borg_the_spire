@@ -22,6 +22,7 @@ pub fn watch(executable_original: &str, executable_copy: &str, args: &[&str]) {
             child.wait().unwrap();
           },
         ));
+        println!("STATE");
       }
       std::thread::sleep(Duration::from_millis(100));
     }
