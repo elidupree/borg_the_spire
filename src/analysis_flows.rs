@@ -292,15 +292,36 @@ impl AnalysisComponentBehavior for FractalRepresentativeSeedSearchComponentSpec 
         </div>
       });
     }
-    let starting_choices =
+    let mut all_starting_choices: Vec<Vec<_>> = data
+      .search
+      .layers
+      .last()
+      .unwrap()
+      .strategies()
+      .map(|s| starting_choices_made_by_strategy(context.starting_state(), &*s.strategy))
+      .collect();
+    all_starting_choices.sort();
+    all_starting_choices.dedup();
+    let all_starting_choices = all_starting_choices
+      .into_iter()
+      .map(|c| DisplayChoices(&c).to_string())
+      .collect::<Vec<_>>()
+      .join(", ");
+    let meta_starting_choices =
       starting_choices_made_by_strategy(context.starting_state(), &data.search.meta_strategy());
     Some(html! {
       <div class="fractal_report">
         {elements}
         <div class="fractal_report_row">
           {text!(
+            "All starting choices: {}",
+            all_starting_choices
+          )}
+        </div>
+        <div class="fractal_report_row">
+          {text!(
             "Metastrategy starting choices: {}",
-            DisplayChoices(&starting_choices)
+            DisplayChoices(&meta_starting_choices)
           )}
         </div>
       </div>
