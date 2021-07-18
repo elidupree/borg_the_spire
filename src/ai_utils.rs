@@ -1,7 +1,10 @@
 use crate::actions::{DynAction, PlayCard};
 use crate::seed_system::{NoRandomness, SeedView};
-use crate::simulation::{Choice, Runner, StandardRunner, StandardRunnerHooks};
-use crate::simulation_state::{CombatState, PowerId, SingleCard};
+use crate::simulation::{
+  Action, Choice, ConsiderAction, CreatureIndex, Runner, StandardRunner, StandardRunnerHooks,
+};
+use crate::simulation_state::cards::consider_card_actions;
+use crate::simulation_state::{CombatState, PowerId, SingleCard, MAX_MONSTERS};
 use arrayvec::ArrayVec;
 use std::collections::{HashSet, VecDeque};
 use std::fmt;
@@ -173,6 +176,58 @@ pub fn starting_choices_made_by_strategy(
     }
   }
   result
+}
+
+#[derive(Debug, Default)]
+pub struct CardPlayStats {
+  pub block_amount: i32,
+  pub damage: ArrayVec<f64, MAX_MONSTERS>,
+}
+pub fn card_play_stats(state: &CombatState, card: &SingleCard, target: usize) -> CardPlayStats {
+  struct Consider<'a> {
+    state: &'a CombatState,
+    stats: CardPlayStats,
+  }
+  impl<'a> ConsiderAction for Consider<'a> {
+    fn consider(&mut self, action: impl Action) {
+      // It theoretically makes more sense to do this on the type level, but that would make the code more complicated, and I'm almost certain this will be optimized out.
+      if let DynAction::GainBlockAction(action) = action.clone().into() {
+        self.stats.block_amount += action.amount;
+      }
+      if let DynAction::DamageAction(action) = action.clone().into() {
+        if let CreatureIndex::Monster(index) = action.target {
+          self.stats.damage[index] += action.info.output as f64;
+        }
+      }
+      if let DynAction::DamageAllEnemiesAction(action) = action.clone().into() {
+        for (index, damage) in self.stats.damage.iter_mut().enumerate() {
+          *damage += action
+            .info
+            .apply_target_powers(self.state, CreatureIndex::Monster(index))
+            .output as f64;
+        }
+      }
+      if let DynAction::AttackDamageRandomEnemyAction(action) = action.clone().into() {
+        let num_monsters = self.state.monsters.iter().filter(|m| !m.gone).count() as f64;
+        for (index, damage) in self.stats.damage.iter_mut().enumerate() {
+          *damage += action
+            .info
+            .apply_target_powers(self.state, CreatureIndex::Monster(index))
+            .output as f64
+            / num_monsters;
+        }
+      }
+    }
+  }
+  let mut consider = Consider {
+    state,
+    stats: CardPlayStats {
+      block_amount: 0,
+      damage: state.monsters.iter().map(|_| 0.0).collect(),
+    },
+  };
+  consider_card_actions(state, card, target, &mut consider);
+  consider.stats
 }
 
 #[derive(Clone, Debug)]

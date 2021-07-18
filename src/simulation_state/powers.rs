@@ -183,7 +183,7 @@ pub trait PowerBehavior {
   fn on_attacked(
     &self,
     context: &mut PowerHookContext<impl Runner>,
-    info: DamageInfo,
+    info: DamageInfoAllPowers,
     damage: i32,
   ) {
   }
@@ -325,7 +325,7 @@ macro_rules! powers {
       fn on_attacked(
         &self,
         context: &mut PowerHookContext<impl Runner>,
-        info: DamageInfo,
+        info: DamageInfoAllPowers,
         damage: i32,
       ) {
         match self {
@@ -585,13 +585,14 @@ impl PowerBehavior for Thorns {
   fn on_attacked(
     &self,
     context: &mut PowerHookContext<impl Runner>,
-    info: DamageInfo,
+    info: DamageInfoAllPowers,
     _damage: i32,
   ) {
     if info.owner != context.owner_index() && info.damage_type == DamageType::Normal {
       context.action_top(DamageAction {
         target: info.owner,
-        info: DamageInfo::new(context.owner_index(), context.amount(), DamageType::Thorns),
+        info: DamageInfoNoPowers::new(context.owner_index(), context.amount(), DamageType::Thorns)
+          .ignore_powers(),
       });
     }
   }
@@ -609,7 +610,7 @@ impl PowerBehavior for CurlUp {
   fn on_attacked(
     &self,
     context: &mut PowerHookContext<impl Runner>,
-    info: DamageInfo,
+    info: DamageInfoAllPowers,
     damage: i32,
   ) {
     // hack: using amount == 0 instead of this.triggered
@@ -645,7 +646,7 @@ impl PowerBehavior for Angry {
   fn on_attacked(
     &self,
     context: &mut PowerHookContext<impl Runner>,
-    info: DamageInfo,
+    info: DamageInfoAllPowers,
     damage: i32,
   ) {
     if info.owner == CreatureIndex::Player && damage > 0 && info.damage_type == DamageType::Normal {
@@ -682,7 +683,8 @@ impl PowerBehavior for SharpHide {
     if card.card_info.card_type == CardType::Attack {
       context.action_bottom(DamageAction {
         target: CreatureIndex::Player,
-        info: DamageInfo::new(context.owner_index(), context.amount(), DamageType::Thorns),
+        info: DamageInfoNoPowers::new(context.owner_index(), context.amount(), DamageType::Thorns)
+          .ignore_powers(),
       });
     }
   }
@@ -704,7 +706,7 @@ impl PowerBehavior for Flight {
   fn on_attacked(
     &self,
     context: &mut PowerHookContext<impl Runner>,
-    info: DamageInfo,
+    info: DamageInfoAllPowers,
     damage: i32,
   ) {
     if damage > 0 && info.damage_type == DamageType::Normal {
@@ -737,7 +739,7 @@ impl PowerBehavior for PlatedArmor {
   fn on_attacked(
     &self,
     context: &mut PowerHookContext<impl Runner>,
-    info: DamageInfo,
+    info: DamageInfoAllPowers,
     damage: i32,
   ) {
     if damage > 0 && info.damage_type == DamageType::Normal {
@@ -845,7 +847,7 @@ impl PowerBehavior for FlameBarrier {
   fn on_attacked(
     &self,
     context: &mut PowerHookContext<impl Runner>,
-    info: DamageInfo,
+    info: DamageInfoAllPowers,
     damage: i32,
   ) {
     Thorns.on_attacked(context, info, damage)

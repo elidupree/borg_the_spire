@@ -191,8 +191,8 @@ pub trait IntentEffectsContext {
 
   fn attack(&mut self, base_damage: i32) {
     // hack: this is actually NOT where powers are applied to card/monster damage in the actual code
-    let mut info = DamageInfo::new(self.creature_index(), base_damage, DamageType::Normal);
-    info.apply_powers(self.state(), self.creature_index(), CreatureIndex::Player);
+    let info = DamageInfoNoPowers::new(self.creature_index(), base_damage, DamageType::Normal)
+      .apply_all_powers(self.state(), CreatureIndex::Player);
     self.action(DamageAction {
       info,
       target: CreatureIndex::Player,

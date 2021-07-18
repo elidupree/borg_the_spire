@@ -64,9 +64,9 @@ actions! {
   [EndMonstersTurns;],
 
   // used by many effects
-  [DamageAction {pub target: CreatureIndex, pub info: DamageInfo}],
-  [DamageAllEnemiesAction {pub damage_type: DamageType, pub damage: i32}],
-  [AttackDamageRandomEnemyAction {pub damage: i32}],
+  [DamageAction {pub target: CreatureIndex, pub info: DamageInfoAllPowers}],
+  [DamageAllEnemiesAction {pub info: DamageInfoOwnerPowers}],
+  [AttackDamageRandomEnemyAction {pub info: DamageInfoOwnerPowers}],
   [DrawCardRandom;],
   [DrawCards (pub i32);],
   [ApplyPowerAction {pub source: CreatureIndex, pub target: CreatureIndex, pub power_id: PowerId, pub amount: i32}],
@@ -130,11 +130,12 @@ impl Action for EndTurn {
       if card.card_info.id == CardId::Burn {
         actions.push(DamageAction {
           target: CreatureIndex::Player,
-          info: DamageInfo::new(
+          info: DamageInfoNoPowers::new(
             CreatureIndex::Player,
             2 + card.upgrades * 2,
             DamageType::Thorns,
-          ),
+          )
+          .ignore_powers(),
         });
       }
       if card.card_info.ethereal {
@@ -295,10 +296,9 @@ impl Action for DamageAllEnemiesAction {
   fn execute(&self, runner: &mut impl Runner) {
     for monster_index in 0..runner.state().monsters.len() {
       if !runner.state().monsters[monster_index].gone {
-        runner.action_now(&DamageAction {
-          target: CreatureIndex::Monster(monster_index),
-          info: DamageInfo::new(CreatureIndex::Player, self.damage, self.damage_type),
-        });
+        let target = CreatureIndex::Monster(monster_index);
+        let info = self.info.apply_target_powers(runner.state(), target);
+        runner.action_now(&DamageAction { target, info });
       }
     }
   }
@@ -319,8 +319,7 @@ impl Action for AttackDamageRandomEnemyAction {
   fn execute_random(&self, runner: &mut impl Runner, random_value: i32) {
     // hack: this is not quite where powers are applied to card/monster damage in the actual code
     let target = CreatureIndex::Monster(random_value as usize);
-    let mut info = DamageInfo::new(CreatureIndex::Player, self.damage, DamageType::Normal);
-    info.apply_powers(runner.state(), CreatureIndex::Player, target);
+    let info = self.info.apply_target_powers(runner.state(), target);
     runner.action_now(&DamageAction { target, info });
   }
 }

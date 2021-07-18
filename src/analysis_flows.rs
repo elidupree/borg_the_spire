@@ -256,7 +256,7 @@ impl AnalysisComponentBehavior for FractalRepresentativeSeedSearchComponentSpec 
         // TODO: don't duplicate this from competing_optimizers.rs, probably use a generalization
         // like StrategyAndGeneratorSpecification
         Box::new(|candidates: &[&FastStrategy]| {
-          if candidates.len() < 2 {
+          if candidates.len() < 2 || (rand::random::<f64>() < 0.25) {
             FastStrategy::random(&mut rand::thread_rng())
           } else {
             FastStrategy::offspring(

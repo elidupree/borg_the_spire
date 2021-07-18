@@ -31,12 +31,8 @@ pub trait CardBehaviorContext {
   }
   fn attack_target(&mut self, base_damage: i32) {
     // hack: this is actually NOT where powers are applied to card/monster damage in the actual code
-    let mut info = DamageInfo::new(CreatureIndex::Player, base_damage, DamageType::Normal);
-    info.apply_powers(
-      self.state(),
-      CreatureIndex::Player,
-      self.target_creature_index(),
-    );
+    let info = DamageInfoNoPowers::new(CreatureIndex::Player, base_damage, DamageType::Normal)
+      .apply_all_powers(self.state(), self.target_creature_index());
     self.action(DamageAction {
       target: self.target_creature_index(),
       info,
@@ -44,22 +40,15 @@ pub trait CardBehaviorContext {
   }
   fn attack_monsters(&mut self, base_damage: i32) {
     // hack: this is actually NOT where powers are applied to card/monster damage in the actual code
-    let mut info = DamageInfo::new(CreatureIndex::Player, base_damage, DamageType::Normal);
-    info.apply_powers(
-      self.state(),
-      CreatureIndex::Player,
-      self.target_creature_index(),
-    );
-    self.action(DamageAllEnemiesAction {
-      damage: info.output,
-      damage_type: DamageType::Normal,
-    });
+    let info = DamageInfoNoPowers::new(CreatureIndex::Player, base_damage, DamageType::Normal)
+      .apply_owner_powers(self.state());
+    self.action(DamageAllEnemiesAction { info });
   }
   fn attack_random_monster(&mut self, base_damage: i32) {
     // hack: this is actually NOT where powers are applied to card/monster damage in the actual code
-    self.action(AttackDamageRandomEnemyAction {
-      damage: base_damage,
-    });
+    let info = DamageInfoNoPowers::new(CreatureIndex::Player, base_damage, DamageType::Normal)
+      .apply_owner_powers(self.state());
+    self.action(AttackDamageRandomEnemyAction { info });
   }
   fn power_monsters(&mut self, power_id: PowerId, amount: i32) {
     for index in 0..self.state().monsters.len() {
@@ -170,22 +159,6 @@ pub fn consider_card_actions(
     consider_action,
   };
   card.card_info.id.behavior(&mut context);
-}
-pub fn card_block_amount(state: &CombatState, card: &SingleCard, target: usize) -> i32 {
-  struct CountBlock {
-    total: i32,
-  }
-  impl ConsiderAction for CountBlock {
-    fn consider(&mut self, action: impl Action) {
-      // It theoretically makes more sense to do this on the type level, but that would make the code more complicated, and I'm almost certain this will be optimized out.
-      if let DynAction::GainBlockAction(action) = action.clone().into() {
-        self.total += action.amount;
-      }
-    }
-  }
-  let mut counter = CountBlock { total: 0 };
-  consider_card_actions(state, card, target, &mut counter);
-  counter.total
 }
 
 macro_rules! cards {

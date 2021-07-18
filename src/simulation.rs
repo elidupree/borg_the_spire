@@ -7,6 +7,7 @@ use crate::seed_system::{choose_choice, Distribution, MaybeSeedView};
 pub use crate::simulation_state::cards::CardBehavior;
 pub use crate::simulation_state::monsters::MonsterBehavior;
 use crate::simulation_state::*;
+use ordered_float::OrderedFloat;
 use smallvec::alloc::fmt::Formatter;
 use std::fmt;
 use std::fmt::Display;
@@ -39,30 +40,76 @@ pub enum DamageType {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, Debug)]
-pub struct DamageInfo {
+pub struct DamageInfoNoPowers {
+  pub damage_type: DamageType,
+  pub owner: CreatureIndex,
+  pub base: i32,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, Debug)]
+pub struct DamageInfoOwnerPowers {
+  pub damage_type: DamageType,
+  pub owner: CreatureIndex,
+  pub base: i32,
+  pub intermediate: OrderedFloat<f64>,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, Debug)]
+pub struct DamageInfoAllPowers {
   pub damage_type: DamageType,
   pub owner: CreatureIndex,
   pub base: i32,
   pub output: i32,
 }
 
-impl DamageInfo {
-  pub fn new(source: CreatureIndex, base: i32, damage_type: DamageType) -> DamageInfo {
-    DamageInfo {
+impl DamageInfoNoPowers {
+  pub fn new(source: CreatureIndex, base: i32, damage_type: DamageType) -> DamageInfoNoPowers {
+    DamageInfoNoPowers {
       owner: source,
       base,
       damage_type,
-      output: base,
     }
   }
-  pub fn apply_powers(&mut self, state: &CombatState, owner: CreatureIndex, target: CreatureIndex) {
-    self.output = self.base;
-    let mut damage = self.output as f64;
+  pub fn apply_owner_powers(&self, state: &CombatState) -> DamageInfoOwnerPowers {
+    let mut damage = self.base as f64;
+    let owner = self.owner;
     power_hook!(
       state,
       owner,
       damage = at_damage_give(damage, self.damage_type)
     );
+    DamageInfoOwnerPowers {
+      owner: self.owner,
+      base: self.base,
+      damage_type: self.damage_type,
+      intermediate: OrderedFloat(damage),
+    }
+  }
+  pub fn apply_all_powers(
+    &self,
+    state: &CombatState,
+    target: CreatureIndex,
+  ) -> DamageInfoAllPowers {
+    self
+      .apply_owner_powers(state)
+      .apply_target_powers(state, target)
+  }
+  pub fn ignore_powers(&self) -> DamageInfoAllPowers {
+    DamageInfoAllPowers {
+      owner: self.owner,
+      base: self.base,
+      damage_type: self.damage_type,
+      output: self.base,
+    }
+  }
+}
+impl DamageInfoOwnerPowers {
+  pub fn apply_target_powers(
+    &self,
+    state: &CombatState,
+    target: CreatureIndex,
+  ) -> DamageInfoAllPowers {
+    let mut damage = self.intermediate.0;
     power_hook!(
       state,
       target,
@@ -73,9 +120,15 @@ impl DamageInfo {
       target,
       damage = at_damage_final_receive(damage, self.damage_type)
     );
-    self.output = damage as i32;
-    if self.output < 0 {
-      self.output = 0
+    let mut damage = damage as i32;
+    if damage < 0 {
+      damage = 0;
+    }
+    DamageInfoAllPowers {
+      owner: self.owner,
+      base: self.base,
+      damage_type: self.damage_type,
+      output: damage,
     }
   }
 }

@@ -5,7 +5,7 @@ use ordered_float::OrderedFloat;
 use rand::seq::SliceRandom;
 
 use crate::actions::*;
-use crate::ai_utils::{collect_starting_points, play_out, CombatResult, Strategy};
+use crate::ai_utils::{card_play_stats, collect_starting_points, playout_result, Strategy};
 use crate::seed_system::TrivialSeed;
 use crate::simulation::*;
 use crate::simulation_state::*;
@@ -103,7 +103,7 @@ impl FastStrategy {
       Choice::EndTurn(_) => 0.0,
       Choice::PlayCard(PlayCard { card, target }) => {
         let mut result = self.card_priorities[card.card_info.id];
-        let block_amount = crate::simulation_state::cards::card_block_amount(state, card, *target);
+        let block_amount = card_play_stats(state, card, *target).block_amount;
         result += std::cmp::min(block_amount, incoming_damage) as f64 * self.block_priority * 0.1;
         if card.card_info.has_target {
           result += self.monsters[*target].target_priority * 0.000001;
@@ -242,13 +242,12 @@ impl StartingPoint {
 
     for strategy in &mut self.candidate_strategies {
       if strategy.visits < max_strategy_visits {
-        let mut state = self.state.clone();
-        play_out(
-          &mut StandardRunner::new(&mut state, TrivialSeed::new(Pcg64Mcg::from_entropy())),
+        strategy.total_score += playout_result(
+          &self.state,
+          TrivialSeed::new(Pcg64Mcg::from_entropy()),
           &strategy.strategy,
-        );
-        let result = CombatResult::new(&state);
-        strategy.total_score += result.score;
+        )
+        .score;
         strategy.visits += 1;
       }
     }
