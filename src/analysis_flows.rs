@@ -9,6 +9,7 @@ use crate::simulation_state::CombatState;
 use crate::start_and_strategy_ai;
 use crate::webserver::html_views::Element;
 use ordered_float::OrderedFloat;
+use rand::seq::SliceRandom;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
@@ -255,8 +256,16 @@ impl AnalysisComponentBehavior for FractalRepresentativeSeedSearchComponentSpec 
         SingleSeedGenerator::new(ChaCha8Rng::from_entropy()),
         // TODO: don't duplicate this from competing_optimizers.rs, probably use a generalization
         // like StrategyAndGeneratorSpecification
-        Box::new(move |_candidates: &[&ConditionStrategy]| {
-          ConditionStrategy::fresh_distinctive_candidate(&state, &mut rand::thread_rng())
+        Box::new(move |candidates: &[&ConditionStrategy]| {
+          //ConditionStrategy::fresh_distinctive_candidate(&state, &mut rand::thread_rng())
+          if rand::random() || candidates.is_empty() {
+            ConditionStrategy::fresh_distinctive_candidate(&state, &mut rand::thread_rng())
+          } else {
+            candidates
+              .choose(&mut rand::thread_rng())
+              .unwrap()
+              .hill_climb_candidate(&state, &mut rand::thread_rng(), candidates)
+          }
           // if candidates.len() < 2 || (rand::random::<f64>() < 0.25) {
           //   FastStrategy::random(&mut rand::thread_rng())
           // } else {
