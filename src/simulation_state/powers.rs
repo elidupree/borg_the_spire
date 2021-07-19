@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use std::convert::From;
 
 use crate::simulation::*;
+use crate::simulation_state::monsters::exordium::TheGuardianIntent;
+use crate::simulation_state::monsters::Intent;
 use crate::simulation_state::*;
 use PowerType::{Buff, Debuff, Relic};
 
@@ -484,6 +486,8 @@ powers! {
 
   // Exordium boss powers
   ["Sharp Hide", SharpHide, Buff],
+  ["Mode Shift", ModeShift, Buff],
+  ["Mode Shift Damage Threshold (not a real power)", ModeShiftDamageThreshold, Buff],
 
   // City monster powers
   ["Flight", Flight, Buff],
@@ -706,6 +710,38 @@ impl PowerBehavior for SharpHide {
     }
   }
 }
+
+impl PowerBehavior for ModeShift {
+  // Note: In StS, this behavior is actually part of TheGuardian.damage and not ModeShift
+  fn on_attacked(
+    &self,
+    context: &mut PowerHookContext<impl Runner>,
+    _info: DamageInfoAllPowers,
+    damage: i32,
+  ) {
+    if damage > 0 {
+      context.action_top(ReducePowerAction {
+        target: context.owner_index(),
+        power_id: context.this_power().power_id,
+        amount: damage,
+      });
+    }
+  }
+
+  fn on_remove(&self, context: &mut PowerHookContext<impl Runner>) {
+    context.action_bottom(GainBlockAction {
+      creature_index: context.owner_index(),
+      amount: 20,
+    });
+    if let CreatureIndex::Monster(index) = context.owner_index() {
+      context.state_mut().monsters[index]
+        .move_history
+        .push(TheGuardianIntent::DefensiveMode.id());
+    }
+    context.power_owner_top(PowerId::ModeShiftDamageThreshold, 10);
+  }
+}
+impl PowerBehavior for ModeShiftDamageThreshold {}
 
 impl PowerBehavior for Flight {
   fn at_damage_final_receive(

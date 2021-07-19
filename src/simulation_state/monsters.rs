@@ -456,7 +456,7 @@ monsters! {
   ["Byrd", Byrd],
 }
 
-mod beyond;
-mod city;
-mod ending;
-mod exordium;
+pub mod beyond;
+pub mod city;
+pub mod ending;
+pub mod exordium;

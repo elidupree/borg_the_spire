@@ -310,6 +310,38 @@ impl CombatState {
             new_version.move_history.push(new_last);
           }
         }
+        // TODO reduce duplicate code id 49572jf
+        if new_version.monster_id == MonsterId::TheGuardian {
+          let mut amount = monster
+            .creature
+            .power_amount(PowerId::ModeShiftDamageThreshold)
+            .max(new_version.creature.power_amount(PowerId::ModeShift));
+          if amount == 0 {
+            // if we forgot, just make an assumption I guess?
+            amount = 50;
+          }
+          new_version.creature.powers.push(Power {
+            power_id: PowerId::ModeShiftDamageThreshold,
+            amount,
+            ..Default::default()
+          });
+        }
+      }
+    } else {
+      for new_version in &mut result.monsters {
+        // TODO reduce duplicate code id 49572jf
+        if new_version.monster_id == MonsterId::TheGuardian {
+          let mut amount = new_version.creature.power_amount(PowerId::ModeShift);
+          if amount == 0 {
+            // if we forgot, just make an assumption I guess?
+            amount = 50;
+          }
+          new_version.creature.powers.push(Power {
+            power_id: PowerId::ModeShiftDamageThreshold,
+            amount,
+            ..Default::default()
+          });
+        }
       }
     }
     Some(result)

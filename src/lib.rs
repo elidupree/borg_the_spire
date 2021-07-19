@@ -22,16 +22,17 @@ macro_rules! power_hook {
       power_hook! (runner, AllMonsters, $hook ($($arguments)*));
     }
   };
-  ($runner: expr, $owner: expr, PowerId::$Variant: ident, $hook: ident ( $($arguments:tt)*)) => {
+  ($runner: expr, $owner: expr, power_id: $power_id: expr, $hook: ident ( $($arguments:tt)*)) => {
     {
       let runner = &mut* $runner;
             let owner = $owner;
-            if let Some(index) = runner.state().get_creature (owner).powers.iter().position (| power | power.power_id == PowerId::$Variant) {
-        power_hook! (runner, owner, index, $hook ($($arguments)*)) ;
+            let power_id = $power_id;
+            if let Some(index) = runner.state().get_creature (owner).powers.iter().position (| power | power.power_id == power_id) {
+        power_hook! (runner, owner, index: index, $hook ($($arguments)*)) ;
       }
     }
   };
-  ($runner: expr, $owner: expr, $power_index: expr, $hook: ident ( $($arguments:tt)*)) => {
+  ($runner: expr, $owner: expr, index: $power_index: expr, $hook: ident ( $($arguments:tt)*)) => {
     {
       let runner = &mut* $runner;
       let owner = $owner;
@@ -46,7 +47,7 @@ macro_rules! power_hook {
       let owner = $owner;
       let creature = runner.state().get_creature(owner);
       for index in 0..creature.powers.len() {
-        power_hook! (runner, owner, index, $hook ($($arguments)*)) ;
+        power_hook! (runner, owner, index: index, $hook ($($arguments)*)) ;
       }
     }
   };

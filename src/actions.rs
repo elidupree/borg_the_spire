@@ -416,7 +416,7 @@ impl Action for ApplyPowerAction {
       power_hook!(
         runner,
         self.target,
-        PowerId::Artifact,
+        power_id: PowerId::Artifact,
         on_specific_trigger()
       );
       return;
@@ -471,6 +471,7 @@ impl Action for ReducePowerAction {
 
 impl Action for RemoveSpecificPowerAction {
   fn execute(&self, runner: &mut impl Runner) {
+    power_hook!(runner, self.target, power_id: self.power_id, on_remove());
     let target = runner.state_mut().get_creature_mut(self.target);
     target
       .powers

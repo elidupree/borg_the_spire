@@ -751,18 +751,12 @@ impl MonsterBehavior for TheGuardian {
   type Intent = TheGuardianIntent;
   fn make_intent_distribution(context: &mut IntentChoiceContext) {
     use TheGuardianIntent::*;
-    // TODO
-    context.always(Whirlwind);
+    if context.first_move() {
+      context.always(Whirlwind);
+    }
   }
   fn intent_effects(context: &mut impl IntentEffectsContext) {
     use TheGuardianIntent::*;
-    if context.monster().creature.hitpoints * 2 <= context.monster().creature.max_hitpoints {
-      context.action(SplitAction(
-        context.monster_index(),
-        [MonsterId::SpikeSlimeL, MonsterId::AcidSlimeL],
-      ));
-      return;
-    }
     match context.intent::<Self::Intent>() {
       ChargingUp => {
         context.block(9);
@@ -795,9 +789,13 @@ impl MonsterBehavior for TheGuardian {
         context.set_intent(TwinSlam);
       }
       TwinSlam => {
-        // TODO change mode
+        let amount = context
+          .monster()
+          .creature
+          .power_amount(PowerId::ModeShiftDamageThreshold);
+        context.power_self(PowerId::ModeShift, amount);
         for _ in 0..2 {
-          context.attack(context.with_ascension(Ascension(4), 36, 32));
+          context.attack(8);
         }
         context.action(RemoveSpecificPowerAction {
           target: context.creature_index(),
