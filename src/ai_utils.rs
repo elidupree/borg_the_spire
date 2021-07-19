@@ -1,11 +1,13 @@
 use crate::actions::{DynAction, PlayCard, UsePotion};
 use crate::seed_system::{NoRandomness, SeedView};
 use crate::simulation::{
-  Action, Choice, ConsiderAction, CreatureIndex, Runner, StandardRunner, StandardRunnerHooks,
+  Action, CardBehavior, Choice, ConsiderAction, CreatureIndex, Runner, StandardRunner,
+  StandardRunnerHooks,
 };
 use crate::simulation_state::cards::consider_card_actions;
-use crate::simulation_state::{CombatState, PowerId, SingleCard, MAX_MONSTERS};
+use crate::simulation_state::{CardId, CombatState, PowerId, SingleCard, MAX_MONSTERS};
 use arrayvec::ArrayVec;
+use ordered_float::OrderedFloat;
 use std::collections::{HashSet, VecDeque};
 use std::fmt;
 use std::fmt::{Debug, Write};
@@ -251,6 +253,7 @@ impl CombatResult {
     let mut result;
     if state.player.creature.hitpoints > 0 {
       let hitpoint_value = 0.01;
+      let mut potion_reward_chance = 0.5;
       result = CombatResult {
         score: 1.0 + state.player.creature.hitpoints as f64 * hitpoint_value,
         hitpoints_left: state.player.creature.hitpoints,
@@ -267,7 +270,8 @@ impl CombatResult {
       }
       // ...and extra if you missed out and the combat reward (gold/potion chance) as well
       if state.monsters.iter().all(|m| m.creature.hitpoints > 0) {
-        result.score -= 8.0 * hitpoint_value;
+        result.score -= 2.0 * hitpoint_value;
+        potion_reward_chance = 0.0;
       }
 
       for power in &state.player.creature.powers {
@@ -279,6 +283,27 @@ impl CombatResult {
           _ => {}
         }
       }
+
+      let potion_values: Vec<_> = state
+        .potions
+        .iter()
+        .map(|p| p.id.potion_value(state))
+        .collect();
+
+      if state.potions.len() == state.potion_slots
+        && !state.potions.iter().any(|p| p.id == CardId::BloodPotion)
+      {
+        // TODO: better math
+        let worst_potion = potion_values
+          .iter()
+          .copied()
+          .min_by_key(|&f| OrderedFloat(f))
+          .unwrap();
+        result.score += potion_reward_chance * (12.0 - worst_potion).max(0.0) * hitpoint_value;
+      } else {
+        result.score += potion_reward_chance * 12.0 * hitpoint_value;
+      }
+      result.score += potion_values.into_iter().sum::<f64>() * hitpoint_value;
     } else {
       result = CombatResult {
         score: 0.0

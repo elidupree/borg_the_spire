@@ -21,6 +21,10 @@ pub trait CardBehavior: Sized {
   fn playable(self, state: &CombatState) -> bool {
     true
   }
+  #[allow(unused)]
+  fn potion_value(self, state: &CombatState) -> f64 {
+    12.0
+  }
 }
 
 pub trait CardBehaviorContext {
@@ -230,6 +234,11 @@ macro_rules! cards {
       fn playable(self, state: &CombatState) -> bool {
         match self {
           $(CardId::$Variant => $Variant.playable(state),)*
+        }
+      }
+      fn potion_value(self, state: &CombatState) -> f64 {
+        match self {
+          $(CardId::$Variant => $Variant.potion_value(state),)*
         }
       }
     }
@@ -800,6 +809,9 @@ impl CardBehavior for BlockPotion {
   fn behavior(self, context: &mut impl CardBehaviorContext) {
     context.block(context.potency(12));
   }
+  fn potion_value(self, _state: &CombatState) -> f64 {
+    12.0
+  }
 }
 
 impl CardBehavior for BloodPotion {
@@ -810,11 +822,18 @@ impl CardBehavior for BloodPotion {
         as i32,
     });
   }
+  fn potion_value(self, state: &CombatState) -> f64 {
+    // Holding a blood potion is only worth slightly more than the hitpoints you get from using it:
+    ((state.player.creature.max_hitpoints * 20) as f64 / 100.0).floor() + 1.0
+  }
 }
 
 impl CardBehavior for ExplosivePotion {
   fn behavior(self, context: &mut impl CardBehaviorContext) {
     let info = DamageInfoNoPowers::new(None, context.potency(10), DamageType::Normal);
     context.action(DamageAllEnemiesActionIgnoringPowers { info });
+  }
+  fn potion_value(self, _state: &CombatState) -> f64 {
+    16.0
   }
 }
