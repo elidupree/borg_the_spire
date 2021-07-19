@@ -30,7 +30,7 @@ pub struct GameState {
   pub ascension_level: i32,
   pub relics: Vec<Relic>,
   pub deck: Vec<Card>,
-  pub potions: Value,
+  pub potions: Vec<Potion>,
   pub map: Value,
   pub current_action: Option<Value>,
   pub combat_state: Option<CombatState>,
@@ -121,4 +121,13 @@ pub struct Relic {
   pub name: String,
   pub id: String,
   pub counter: i32,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct Potion {
+  pub name: String,
+  pub id: String,
+  pub can_use: bool,
+  pub can_discard: bool,
+  pub requires_target: bool,
 }

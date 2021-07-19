@@ -1,8 +1,8 @@
-use crate::actions::PlayCard;
+use crate::actions::{PlayCard, UsePotion};
 use crate::ai_utils::{card_play_stats, CardPlayStats, Strategy};
 use crate::simulation::{Choice, CreatureIndex, MonsterIndex};
 use crate::simulation_state::monsters::MAX_INTENTS;
-use crate::simulation_state::{CardId, CombatState, PowerId, MAX_MONSTERS};
+use crate::simulation_state::{CardId, CombatState, PowerId, SingleCard, MAX_MONSTERS};
 use array_ext::Array;
 use enum_map::EnumMap;
 use ordered_float::OrderedFloat;
@@ -221,6 +221,31 @@ impl ConditionStrategy {
             .play_card_global_rules
             .iter()
             .chain(&self.play_specific_card_rules[card.card_info.id])
+            .map(|r| r.applied_priority(state, choice, &context))
+            .sum::<f64>()
+      }
+      &Choice::UsePotion(UsePotion {
+        potion_info,
+        target,
+      }) => {
+        let context = ChoiceEvaluationContext {
+          global: context,
+          stats: card_play_stats(
+            state,
+            &SingleCard {
+              misc: 0,
+              cost: 0,
+              upgrades: 0,
+              card_info: potion_info,
+            },
+            target,
+          ),
+        };
+        -0.4
+          + self
+            .play_card_global_rules
+            .iter()
+            .chain(&self.play_specific_card_rules[potion_info.id])
             .map(|r| r.applied_priority(state, choice, &context))
             .sum::<f64>()
       }

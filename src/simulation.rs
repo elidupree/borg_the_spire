@@ -42,14 +42,14 @@ pub enum DamageType {
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, Debug)]
 pub struct DamageInfoNoPowers {
   pub damage_type: DamageType,
-  pub owner: CreatureIndex,
+  pub owner: Option<CreatureIndex>,
   pub base: i32,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, Debug)]
 pub struct DamageInfoOwnerPowers {
   pub damage_type: DamageType,
-  pub owner: CreatureIndex,
+  pub owner: Option<CreatureIndex>,
   pub base: i32,
   pub intermediate: OrderedFloat<f64>,
 }
@@ -57,13 +57,17 @@ pub struct DamageInfoOwnerPowers {
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, Debug)]
 pub struct DamageInfoAllPowers {
   pub damage_type: DamageType,
-  pub owner: CreatureIndex,
+  pub owner: Option<CreatureIndex>,
   pub base: i32,
   pub output: i32,
 }
 
 impl DamageInfoNoPowers {
-  pub fn new(source: CreatureIndex, base: i32, damage_type: DamageType) -> DamageInfoNoPowers {
+  pub fn new(
+    source: Option<CreatureIndex>,
+    base: i32,
+    damage_type: DamageType,
+  ) -> DamageInfoNoPowers {
     DamageInfoNoPowers {
       owner: source,
       base,
@@ -72,12 +76,13 @@ impl DamageInfoNoPowers {
   }
   pub fn apply_owner_powers(&self, state: &CombatState) -> DamageInfoOwnerPowers {
     let mut damage = self.base as f64;
-    let owner = self.owner;
-    power_hook!(
-      state,
-      owner,
-      damage = at_damage_give(damage, self.damage_type)
-    );
+    if let Some(owner) = self.owner {
+      power_hook!(
+        state,
+        owner,
+        damage = at_damage_give(damage, self.damage_type)
+      );
+    }
     DamageInfoOwnerPowers {
       owner: self.owner,
       base: self.base,
@@ -257,6 +262,10 @@ impl<'a, Seed: MaybeSeedView<CombatState>> Runner for StandardRunner<'a, Seed> {
     self.state
   }
   fn state_mut(&mut self) -> &mut CombatState {
+    assert!(
+      self.state.fresh_subaction_queue.is_empty(),
+      "can't mutate the state after queueing action_nows!"
+    );
     self.state
   }
 
@@ -264,17 +273,14 @@ impl<'a, Seed: MaybeSeedView<CombatState>> Runner for StandardRunner<'a, Seed> {
     if self.state().fresh_subaction_queue.is_empty() && self.can_apply(action) {
       self.apply_impl(action);
     } else {
-      self
-        .state_mut()
-        .fresh_subaction_queue
-        .push(action.clone().into());
+      self.state.fresh_subaction_queue.push(action.clone().into());
     }
   }
   fn action_top(&mut self, action: impl Action) {
-    self.state_mut().actions.push_front(action.into());
+    self.state.actions.push_front(action.into());
   }
   fn action_bottom(&mut self, action: impl Action) {
-    self.state_mut().actions.push_back(action.into());
+    self.state.actions.push_back(action.into());
   }
 
   fn run_until_unable(&mut self) {
@@ -283,19 +289,19 @@ impl<'a, Seed: MaybeSeedView<CombatState>> Runner for StandardRunner<'a, Seed> {
         break;
       }
 
-      while let Some(action) = self.state_mut().fresh_subaction_queue.pop() {
-        self.state_mut().stale_subaction_stack.push(action)
+      while let Some(action) = self.state.fresh_subaction_queue.pop() {
+        self.state.stale_subaction_stack.push(action)
       }
 
-      if let Some(action) = self.state_mut().stale_subaction_stack.pop() {
+      if let Some(action) = self.state.stale_subaction_stack.pop() {
         if self.can_apply(&action) {
           self.action_now(&action);
         } else {
-          self.state_mut().stale_subaction_stack.push(action);
+          self.state.stale_subaction_stack.push(action);
           break;
         }
       } else {
-        if let Some(action) = self.state_mut().actions.pop_front() {
+        if let Some(action) = self.state.actions.pop_front() {
           self.action_now(&action);
         } else {
           break;
@@ -399,6 +405,35 @@ impl CombatState {
         }
       }
     }
+    for (index, potion_info) in self.potions.iter().enumerate() {
+      if self.potions[..index]
+        .iter()
+        .all(|earlier_potion_info| earlier_potion_info.id != potion_info.id)
+        && potion_info.id.playable(self)
+      {
+        if potion_info.has_target {
+          for (monster_index, monster) in self.monsters.iter().enumerate() {
+            if !monster.gone {
+              result.push(
+                UsePotion {
+                  potion_info,
+                  target: monster_index,
+                }
+                .into(),
+              );
+            }
+          }
+        } else {
+          result.push(
+            UsePotion {
+              potion_info,
+              target: 0,
+            }
+            .into(),
+          );
+        }
+      }
+    }
     result
   }
 
@@ -414,6 +449,14 @@ impl CombatState {
       CreatureIndex::Player => &mut self.player.creature,
       CreatureIndex::Monster(index) => &mut self.monsters[index].creature,
     }
+  }
+
+  pub fn heal(&mut self, creature_index: CreatureIndex, amount: i32) {
+    let mut amount = amount;
+    power_hook!(&mut *self, creature_index, amount = on_heal(amount));
+    let creature = self.get_creature_mut(creature_index);
+    creature.hitpoints += amount;
+    creature.hitpoints = creature.hitpoints.min(creature.max_hitpoints);
   }
 
   pub fn monster_intent(&self, monster_index: usize) -> IntentId {
@@ -445,6 +488,16 @@ impl Display for Choice {
           write!(f, "{} {}", card, target)
         } else {
           write!(f, "{}", card)
+        }
+      }
+      Choice::UsePotion(UsePotion {
+        potion_info,
+        target,
+      }) => {
+        if potion_info.has_target {
+          write!(f, "{:?} {}", potion_info.id, target)
+        } else {
+          write!(f, "{:?}", potion_info.id)
         }
       }
       Choice::EndTurn(_) => {

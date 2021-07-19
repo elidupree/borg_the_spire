@@ -66,6 +66,8 @@ pub struct CombatState {
   )]
   pub limbo: Vec<SingleCard>,
   pub card_in_play: Option<SingleCard>,
+  pub potion_slots: usize,
+  pub potions: Vec<&'static CardInfo>,
   pub player: Player,
   pub monsters: ArrayVec<Monster, MAX_MONSTERS>,
   pub turn_number: i32,
@@ -98,6 +100,7 @@ pub enum CardType {
   Power,
   Status,
   Curse,
+  Potion,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Debug)]
@@ -260,6 +263,13 @@ impl CombatState {
       hand: combat.hand.iter().map(From::from).collect(),
       limbo: combat.limbo.iter().map(From::from).collect(),
       card_in_play: combat.card_in_play.as_ref().map(From::from),
+      potion_slots: observed.potions.len(),
+      potions: observed
+        .potions
+        .iter()
+        .filter(|p| &p.id != "Potion Slot")
+        .map(|p| <&CardInfo>::from(CardId::from(&*p.id)))
+        .collect(),
       fresh_subaction_queue: Vec::new(),
       stale_subaction_stack: Vec::new(),
       actions: VecDeque::new(),

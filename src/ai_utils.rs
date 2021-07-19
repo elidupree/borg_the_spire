@@ -1,4 +1,4 @@
-use crate::actions::{DynAction, PlayCard};
+use crate::actions::{DynAction, PlayCard, UsePotion};
 use crate::seed_system::{NoRandomness, SeedView};
 use crate::simulation::{
   Action, Choice, ConsiderAction, CreatureIndex, Runner, StandardRunner, StandardRunnerHooks,
@@ -118,6 +118,16 @@ impl<'a, W: fmt::Write> StandardRunnerHooks for NarrationHooks<'a, W> {
           writeln!(self.writer, "{} {}", card, target).unwrap();
         } else {
           writeln!(self.writer, "{}", card).unwrap();
+        }
+      }
+      Choice::UsePotion(UsePotion {
+        potion_info,
+        target,
+      }) => {
+        if potion_info.has_target {
+          writeln!(self.writer, "{:?} {}", potion_info.id, target).unwrap();
+        } else {
+          writeln!(self.writer, "{:?}", potion_info.id).unwrap();
         }
       }
       Choice::EndTurn(_) => {

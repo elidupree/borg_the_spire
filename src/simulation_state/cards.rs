@@ -8,7 +8,7 @@ use std::convert::From;
 use crate::simulation::*;
 use crate::simulation_state::*;
 
-use self::CardType::{Attack, Curse, Power, Skill, Status};
+use self::CardType::{Attack, Curse, Potion, Power, Skill, Status};
 use self::Rarity::{Basic, Common, Rare, Special, Uncommon};
 
 pub trait CardSpecies: Sized + Copy + Into<CardId> + CardBehavior {
@@ -31,8 +31,9 @@ pub trait CardBehaviorContext {
   }
   fn attack_target(&mut self, base_damage: i32) {
     // hack: this is actually NOT where powers are applied to card/monster damage in the actual code
-    let info = DamageInfoNoPowers::new(CreatureIndex::Player, base_damage, DamageType::Normal)
-      .apply_all_powers(self.state(), self.target_creature_index());
+    let info =
+      DamageInfoNoPowers::new(Some(CreatureIndex::Player), base_damage, DamageType::Normal)
+        .apply_all_powers(self.state(), self.target_creature_index());
     self.action(DamageAction {
       target: self.target_creature_index(),
       info,
@@ -40,14 +41,16 @@ pub trait CardBehaviorContext {
   }
   fn attack_monsters(&mut self, base_damage: i32) {
     // hack: this is actually NOT where powers are applied to card/monster damage in the actual code
-    let info = DamageInfoNoPowers::new(CreatureIndex::Player, base_damage, DamageType::Normal)
-      .apply_owner_powers(self.state());
+    let info =
+      DamageInfoNoPowers::new(Some(CreatureIndex::Player), base_damage, DamageType::Normal)
+        .apply_owner_powers(self.state());
     self.action(DamageAllEnemiesAction { info });
   }
   fn attack_random_monster(&mut self, base_damage: i32) {
     // hack: this is actually NOT where powers are applied to card/monster damage in the actual code
-    let info = DamageInfoNoPowers::new(CreatureIndex::Player, base_damage, DamageType::Normal)
-      .apply_owner_powers(self.state());
+    let info =
+      DamageInfoNoPowers::new(Some(CreatureIndex::Player), base_damage, DamageType::Normal)
+        .apply_owner_powers(self.state());
     self.action(AttackDamageRandomEnemyAction { info });
   }
   fn power_monsters(&mut self, power_id: PowerId, amount: i32) {
@@ -103,6 +106,13 @@ pub trait CardBehaviorContext {
       upgraded
     } else {
       normal
+    }
+  }
+  fn potency(&self, base: i32) -> i32 {
+    if self.state().player.creature.has_power(PowerId::SacredBark) {
+      base * 2
+    } else {
+      base
     }
   }
 }
@@ -308,6 +318,10 @@ cards! {
   ["Dazed", Dazed, Status, Special, UNPLAYABLE, NO_TARGET, {ethereal: true,}],
   ["Slimed", Slimed, Status, Special, 1, NO_TARGET, {exhausts: true,}],
   ["Burn", Burn, Status, Special, UNPLAYABLE, NO_TARGET, {}],
+
+  ["Block Potion", BlockPotion, Potion, Special, 0, NO_TARGET, {}],
+  ["BloodPotion", BloodPotion, Potion, Special, 0, NO_TARGET, {}],
+  ["Explosive Potion", ExplosivePotion, Potion, Special, 0, NO_TARGET, {}],
 }
 
 impl CardBehavior for StrikeR {
@@ -781,3 +795,26 @@ impl CardBehavior for AscendersBane {}
 impl CardBehavior for Dazed {}
 impl CardBehavior for Slimed {}
 impl CardBehavior for Burn {}
+
+impl CardBehavior for BlockPotion {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    context.block(context.potency(12));
+  }
+}
+
+impl CardBehavior for BloodPotion {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    context.action(HealAction {
+      creature_index: CreatureIndex::Player,
+      amount: ((context.state().player.creature.max_hitpoints * context.potency(20)) as f64 / 100.0)
+        as i32,
+    });
+  }
+}
+
+impl CardBehavior for ExplosivePotion {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    let info = DamageInfoNoPowers::new(None, context.potency(10), DamageType::Normal);
+    context.action(DamageAllEnemiesActionIgnoringPowers { info });
+  }
+}

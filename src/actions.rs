@@ -55,6 +55,7 @@ actions! {
   // mainly used by the engine
   // TODO: make these match the actual game a bit closer
   [PlayCard {pub card: SingleCard, pub target: usize}],
+  [UsePotion {pub potion_info: &'static CardInfo, pub target: usize}],
   [FinishPlayingCard;],
   [EndTurn;],
   [StartMonsterTurn (pub usize);],
@@ -66,6 +67,7 @@ actions! {
   // used by many effects
   [DamageAction {pub target: CreatureIndex, pub info: DamageInfoAllPowers}],
   [DamageAllEnemiesAction {pub info: DamageInfoOwnerPowers}],
+  [DamageAllEnemiesActionIgnoringPowers {pub info: DamageInfoNoPowers}],
   [AttackDamageRandomEnemyAction {pub info: DamageInfoOwnerPowers}],
   [DrawCardRandom;],
   [DrawCards (pub i32);],
@@ -74,6 +76,7 @@ actions! {
   [RemoveSpecificPowerAction {pub target: CreatureIndex, pub power_id: PowerId}],
   [DiscardNewCard (pub SingleCard);],
   [GainBlockAction {pub creature_index: CreatureIndex, pub amount: i32}],
+  [HealAction {pub creature_index: CreatureIndex, pub amount: i32}],
   [GainEnergyAction (pub i32);],
 
   // generally card effects
@@ -105,6 +108,22 @@ impl Action for PlayCard {
   }
 }
 
+impl Action for UsePotion {
+  fn execute(&self, runner: &mut impl Runner) {
+    let state = runner.state_mut();
+    let index = state
+      .potions
+      .iter()
+      .position(|p| p.id == self.potion_info.id)
+      .unwrap();
+    state.potions.remove(index);
+    self.potion_info.id.behavior(&mut PlayCardContext {
+      runner,
+      target: self.target,
+    });
+  }
+}
+
 impl Action for FinishPlayingCard {
   fn execute(&self, runner: &mut impl Runner) {
     let state = runner.state_mut();
@@ -131,7 +150,7 @@ impl Action for EndTurn {
         actions.push(DamageAction {
           target: CreatureIndex::Player,
           info: DamageInfoNoPowers::new(
-            CreatureIndex::Player,
+            Some(CreatureIndex::Player),
             2 + card.upgrades * 2,
             DamageType::Thorns,
           )
@@ -304,6 +323,18 @@ impl Action for DamageAllEnemiesAction {
   }
 }
 
+impl Action for DamageAllEnemiesActionIgnoringPowers {
+  fn execute(&self, runner: &mut impl Runner) {
+    for monster_index in 0..runner.state().monsters.len() {
+      if !runner.state().monsters[monster_index].gone {
+        let target = CreatureIndex::Monster(monster_index);
+        let info = self.info.ignore_powers();
+        runner.action_now(&DamageAction { target, info });
+      }
+    }
+  }
+}
+
 impl Action for AttackDamageRandomEnemyAction {
   fn determinism(&self, state: &CombatState) -> Determinism {
     Determinism::Random(Distribution(
@@ -453,6 +484,12 @@ impl Action for GainBlockAction {
     if self.amount > 0 {
       creature.block += self.amount;
     }
+  }
+}
+
+impl Action for HealAction {
+  fn execute(&self, runner: &mut impl Runner) {
+    runner.state_mut().heal(self.creature_index, self.amount);
   }
 }
 

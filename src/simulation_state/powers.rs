@@ -212,6 +212,9 @@ pub trait PowerBehavior {
   fn on_remove(&self, context: &mut PowerHookContext<impl Runner>) {}
   fn on_energy_recharge(&self, context: &mut PowerHookContext<impl Runner>) {}
   fn on_after_card_played(&self, context: &mut PowerHookContext<impl Runner>, card: &SingleCard) {}
+  fn on_heal(&self, context: &PowerNumericHookContext, amount: i32) -> i32 {
+    amount
+  }
 }
 
 //pub fn
@@ -442,6 +445,7 @@ powers! {
   ["Mark of Pain", MarkOfPain, Relic],
   ["Philosopher's Stone", PhilosophersStone, Relic],
   ["Sozu", Sozu, Relic],
+  ["SacredBark", SacredBark, Relic],
 
   // Relic powers
   ["Pen Nib", PenNib, Buff],
@@ -588,12 +592,18 @@ impl PowerBehavior for Thorns {
     info: DamageInfoAllPowers,
     _damage: i32,
   ) {
-    if info.owner != context.owner_index() && info.damage_type == DamageType::Normal {
-      context.action_top(DamageAction {
-        target: info.owner,
-        info: DamageInfoNoPowers::new(context.owner_index(), context.amount(), DamageType::Thorns)
+    if let Some(attacker) = info.owner {
+      if attacker != context.owner_index() && info.damage_type == DamageType::Normal {
+        context.action_top(DamageAction {
+          target: attacker,
+          info: DamageInfoNoPowers::new(
+            Some(context.owner_index()),
+            context.amount(),
+            DamageType::Thorns,
+          )
           .ignore_powers(),
-      });
+        });
+      }
     }
   }
 }
@@ -649,7 +659,10 @@ impl PowerBehavior for Angry {
     info: DamageInfoAllPowers,
     damage: i32,
   ) {
-    if info.owner == CreatureIndex::Player && damage > 0 && info.damage_type == DamageType::Normal {
+    if info.owner == Some(CreatureIndex::Player)
+      && damage > 0
+      && info.damage_type == DamageType::Normal
+    {
       context.power_owner_top(PowerId::Strength, context.amount());
     }
   }
@@ -683,8 +696,12 @@ impl PowerBehavior for SharpHide {
     if card.card_info.card_type == CardType::Attack {
       context.action_bottom(DamageAction {
         target: CreatureIndex::Player,
-        info: DamageInfoNoPowers::new(context.owner_index(), context.amount(), DamageType::Thorns)
-          .ignore_powers(),
+        info: DamageInfoNoPowers::new(
+          Some(context.owner_index()),
+          context.amount(),
+          DamageType::Thorns,
+        )
+        .ignore_powers(),
       });
     }
   }
@@ -791,6 +808,7 @@ impl PowerBehavior for PhilosophersStone {
 impl PowerBehavior for Sozu {
   energy_relic! {}
 }
+impl PowerBehavior for SacredBark {}
 
 impl PowerBehavior for PenNib {
   fn priority(&self) -> i32 {

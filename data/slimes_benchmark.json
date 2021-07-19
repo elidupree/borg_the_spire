@@ -91,6 +91,8 @@
   ],
   "limbo": [],
   "card_in_play": null,
+  "potion_slots": 2,
+  "potions": [],
   "player": {
     "creature": {
       "hitpoints": 68,
