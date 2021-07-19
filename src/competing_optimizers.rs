@@ -516,11 +516,18 @@ impl StrategyAndGeneratorSpecification {
         optimizer: kind.new(
           starting_state,
           rng,
-          Box::new(move |_: &[&ConditionStrategy]| {
-            ConditionStrategy::fresh_distinctive_candidate(
-              &starting_state_clone,
-              &mut rand::thread_rng(),
-            )
+          Box::new(move |candidates: &[&ConditionStrategy]| {
+            if rand::random() || candidates.is_empty() {
+              ConditionStrategy::fresh_distinctive_candidate(
+                &starting_state_clone,
+                &mut rand::thread_rng(),
+              )
+            } else {
+              candidates
+                .choose(&mut rand::thread_rng())
+                .unwrap()
+                .hill_climb_candidate(&starting_state_clone, &mut rand::thread_rng(), candidates)
+            }
           }),
         ),
       }),

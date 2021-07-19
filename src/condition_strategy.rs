@@ -6,16 +6,17 @@ use crate::simulation_state::{CardId, CombatState, PowerId, MAX_MONSTERS};
 use array_ext::Array;
 use enum_map::EnumMap;
 use ordered_float::OrderedFloat;
+use rand::seq::SliceRandom;
 use rand::Rng;
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct Rule {
   pub conditions: Vec<Condition>,
   pub flat_reward: f64,
   pub block_per_energy_reward: f64,
   pub unblocked_damage_per_energy_rewards: [f64; MAX_MONSTERS],
 }
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Condition {
   NumericThreshold {
     threshold: i32,
@@ -33,7 +34,7 @@ pub enum Condition {
     inverted: bool,
   },
 }
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum NumericProperty {
   TurnNumber,
   CreatureHitpoints(CreatureIndex),
@@ -186,7 +187,7 @@ impl NumericProperty {
   }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ConditionStrategy {
   play_card_global_rules: Vec<Rule>,
   play_specific_card_rules: EnumMap<CardId, Vec<Rule>>,
@@ -215,12 +216,13 @@ impl ConditionStrategy {
           global: context,
           stats: card_play_stats(state, card, *target),
         };
-        self
-          .play_card_global_rules
-          .iter()
-          .chain(&self.play_specific_card_rules[card.card_info.id])
-          .map(|r| r.applied_priority(state, choice, &context))
-          .sum::<f64>()
+        1.0
+          + self
+            .play_card_global_rules
+            .iter()
+            .chain(&self.play_specific_card_rules[card.card_info.id])
+            .map(|r| r.applied_priority(state, choice, &context))
+            .sum::<f64>()
       }
       _ => 0.0,
     }
@@ -259,5 +261,76 @@ impl ConditionStrategy {
         rules
       }),
     }
+  }
+
+  pub fn hill_climb_candidate(
+    &self,
+    state: &CombatState,
+    rng: &mut impl Rng,
+    promising_strategies: &[&ConditionStrategy],
+  ) -> ConditionStrategy {
+    fn tweak_rules(
+      rules: &mut Vec<Rule>,
+      state: &CombatState,
+      rng: &mut impl Rng,
+      promising_conditions: &[Condition],
+    ) {
+      let remove_chance = 0.05f64.min(2.0 / rules.len() as f64);
+      rules.retain(|_| rng.gen::<f64>() > remove_chance);
+      for rule in rules.iter_mut() {
+        if rng.gen() {
+          if rule.flat_reward != 0.0 {
+            rule.flat_reward += rng.gen_range(-0.2..0.2);
+          }
+          if rule.block_per_energy_reward != 0.0 {
+            rule.block_per_energy_reward += rng.gen_range(-0.02..0.02);
+          }
+          for value in &mut rule.unblocked_damage_per_energy_rewards {
+            if *value != 0.0 {
+              *value += rng.gen_range(-0.01..0.01);
+            }
+          }
+        }
+      }
+      while rng.gen() {
+        let condition;
+        if rng.gen() || promising_conditions.is_empty() {
+          condition = Condition::random_generally_relevant(state, rng);
+        } else {
+          condition = promising_conditions.choose(rng).unwrap().clone();
+        }
+        if rng.gen() || rules.is_empty() {
+          rules.push(Rule {
+            conditions: vec![condition],
+            flat_reward: rng.gen::<f64>() - 0.5,
+            ..Default::default()
+          })
+        } else {
+          rules.choose_mut(rng).unwrap().conditions.push(condition);
+        }
+      }
+    }
+
+    let promising_conditions: Vec<_> = promising_strategies
+      .iter()
+      .flat_map(|s| {
+        s.play_card_global_rules
+          .iter()
+          .chain(s.play_specific_card_rules.values().flatten())
+          .flat_map(|rule| &rule.conditions)
+          .cloned()
+      })
+      .collect();
+    let mut result = self.clone();
+    tweak_rules(
+      &mut result.play_card_global_rules,
+      state,
+      rng,
+      &promising_conditions,
+    );
+    for rules in result.play_specific_card_rules.values_mut() {
+      tweak_rules(rules, state, rng, &promising_conditions);
+    }
+    result
   }
 }

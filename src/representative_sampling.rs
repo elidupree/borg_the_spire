@@ -304,13 +304,13 @@ impl<S: Strategy, T: Seed<CombatState>> RepresentativeSeedSearchLayer<S, T> {
       let unavoidable_difference =
         (((a * subgroup_size as f64).round() / subgroup_size as f64) - a).abs();
       if (a - b).abs() > unavoidable_difference + (0.2 / subgroup_size as f64) {
-        println!(
-          "A strategy's average score had an unfortunately large difference in the subgroup: {}: {} -> {} ({})",
-          self.seeds.len(),
-          a,
-          b,
-          unavoidable_difference
-        )
+        // println!(
+        //   "A strategy's average score had an unfortunately large difference in the subgroup: {}: {} -> {} ({})",
+        //   self.seeds.len(),
+        //   a,
+        //   b,
+        //   unavoidable_difference
+        // )
       }
     }
     Self::new_with_precalculated_strategies(
