@@ -8,6 +8,7 @@ use enum_map::EnumMap;
 use ordered_float::OrderedFloat;
 use rand::seq::SliceRandom;
 use rand::Rng;
+use rand_distr::{Poisson, StandardNormal};
 
 #[derive(Clone, Debug, Default)]
 pub struct Rule {
@@ -37,6 +38,7 @@ pub enum Condition {
 #[derive(Clone, Debug)]
 pub enum NumericProperty {
   TurnNumber,
+  Energy,
   CreatureHitpoints(CreatureIndex),
   UnblockedDamageToMonster(MonsterIndex),
   IncomingDamage,
@@ -122,14 +124,14 @@ impl Condition {
   pub fn random_generally_relevant(state: &CombatState, rng: &mut impl Rng) -> Condition {
     use Condition::*;
     use NumericProperty::*;
-    match rng.gen_range(0..=4) {
+    match rng.gen_range(0..=5) {
       0 => MonsterIntent {
         monster_index: rng.gen_range(0..state.monsters.len()),
         intent_included: Array::from_fn(|_| rng.gen()),
         gone_included: rng.gen(),
       },
       1 => NumericThreshold {
-        threshold: rng.gen_range(1..5).min(rng.gen_range(1..5)),
+        threshold: rng.sample(Poisson::new(1.0f64).unwrap()) as i32 + 1,
         gt: rng.gen(),
         property: TurnNumber,
       },
@@ -152,6 +154,11 @@ impl Condition {
         gt: rng.gen(),
         property: IncomingDamage,
       },
+      5 => NumericThreshold {
+        threshold: rng.gen_range(0..=3),
+        gt: rng.gen(),
+        property: Energy,
+      },
       _ => unreachable!(),
     }
   }
@@ -166,6 +173,7 @@ impl NumericProperty {
     use NumericProperty::*;
     match self {
       TurnNumber => state.turn_number,
+      Energy => state.player.energy,
       &CreatureHitpoints(creature_index) => {
         // TODO: `gone` handling
         let creature = state.get_creature(creature_index);
@@ -273,13 +281,13 @@ impl ConditionStrategy {
       play_specific_card_rules: EnumMap::from(|_| {
         let mut rules = vec![Rule {
           conditions: vec![],
-          flat_reward: rng.gen::<f64>() - 0.5,
+          flat_reward: rng.sample(StandardNormal),
           ..Default::default()
         }];
         for _ in 0..rng.gen_range(0..=2) {
           rules.push(Rule {
             conditions: vec![Condition::random_generally_relevant(state, rng)],
-            flat_reward: rng.gen::<f64>() - 0.5,
+            flat_reward: rng.sample(StandardNormal),
             ..Default::default()
           })
         }
@@ -305,14 +313,14 @@ impl ConditionStrategy {
       for rule in rules.iter_mut() {
         if rng.gen() {
           if rule.flat_reward != 0.0 {
-            rule.flat_reward += rng.gen_range(-0.2..0.2);
+            rule.flat_reward += rng.sample::<f64, _>(StandardNormal) * 0.2;
           }
           if rule.block_per_energy_reward != 0.0 {
-            rule.block_per_energy_reward += rng.gen_range(-0.02..0.02);
+            rule.block_per_energy_reward += rng.sample::<f64, _>(StandardNormal) * 0.02;
           }
           for value in &mut rule.unblocked_damage_per_energy_rewards {
             if *value != 0.0 {
-              *value += rng.gen_range(-0.01..0.01);
+              *value += rng.sample::<f64, _>(StandardNormal) * 0.01;
             }
           }
         }
@@ -327,7 +335,7 @@ impl ConditionStrategy {
         if rng.gen() || rules.is_empty() {
           rules.push(Rule {
             conditions: vec![condition],
-            flat_reward: rng.gen::<f64>() - 0.5,
+            flat_reward: rng.sample(StandardNormal),
             ..Default::default()
           })
         } else {
