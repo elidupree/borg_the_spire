@@ -93,7 +93,7 @@ impl Action for PlayCard {
     let card_index = state.hand.iter().position(|c| *c == self.card).unwrap();
     let card = state.hand.remove(card_index);
     let card_id = card.card_info.id;
-    state.player.energy -= card.cost;
+    state.player.energy -= card.cost_in_practice(state);
     state.card_in_play = Some(card);
 
     card_id.behavior(&mut PlayCardContext {

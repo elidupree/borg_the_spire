@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 //use crate::actions::*;
 use crate::ai_utils;
 use crate::ai_utils::{collect_starting_points, playout_narration, Strategy};
+use crate::condition_strategy::ConditionStrategy;
 use crate::neural_net_ai::NeuralStrategy;
 use crate::representative_sampling::FractalRepresentativeSeedSearchExplorationOptimizerKind;
 use crate::seed_system::{Seed, SingleSeed, SingleSeedGenerator, TrivialSeed};
@@ -425,6 +426,7 @@ pub enum CompetitorSpecification {
 pub enum StrategyAndGeneratorSpecification {
   FastRandom,
   FastGenetic,
+  ConditionStrategy,
   NeuralRandom,
   NeuralMutating,
 }
@@ -479,6 +481,7 @@ impl StrategyAndGeneratorSpecification {
     rng: &mut ChaCha8Rng,
   ) -> Box<dyn Competitor> {
     let name = format!("{:?}/{:?}", optimizer, self);
+    let starting_state_clone = starting_state.clone();
     match self {
       StrategyAndGeneratorSpecification::FastRandom => Box::new(OptimizerCompetitor {
         name,
@@ -505,6 +508,19 @@ impl StrategyAndGeneratorSpecification {
                 &mut rand::thread_rng(),
               )
             }
+          }),
+        ),
+      }),
+      StrategyAndGeneratorSpecification::ConditionStrategy => Box::new(OptimizerCompetitor {
+        name,
+        optimizer: kind.new(
+          starting_state,
+          rng,
+          Box::new(move |_: &[&ConditionStrategy]| {
+            ConditionStrategy::fresh_distinctive_candidate(
+              &starting_state_clone,
+              &mut rand::thread_rng(),
+            )
           }),
         ),
       }),

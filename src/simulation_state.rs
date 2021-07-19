@@ -432,6 +432,14 @@ impl SingleCard {
       self.upgrades = 1;
     }
   }
+
+  pub fn cost_in_practice(&self, state: &CombatState) -> i32 {
+    match self.cost {
+      X_COST => state.player.energy,
+      0..=999 => self.cost,
+      _ => 0,
+    }
+  }
 }
 
 impl Display for Player {

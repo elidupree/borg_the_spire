@@ -1,15 +1,14 @@
 use crate::ai_utils::starting_choices_made_by_strategy;
 use crate::competing_optimizers::StrategyOptimizer;
+use crate::condition_strategy::ConditionStrategy;
 use crate::representative_sampling::FractalRepresentativeSeedSearch;
 use crate::seed_system::{SingleSeed, SingleSeedGenerator};
 use crate::seeds_concrete::CombatChoiceLineagesKind;
 use crate::simulation::DisplayChoices;
 use crate::simulation_state::CombatState;
 use crate::start_and_strategy_ai;
-use crate::start_and_strategy_ai::FastStrategy;
 use crate::webserver::html_views::Element;
 use ordered_float::OrderedFloat;
-use rand::seq::SliceRandom;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
@@ -239,7 +238,7 @@ impl AnalysisComponentBehavior for CompareStartingPointsComponentSpec {
 pub struct FractalRepresentativeSeedSearchComponentSpec {}
 pub struct FractalRepresentativeSeedSearchComponentData {
   search: FractalRepresentativeSeedSearch<
-    FastStrategy,
+    ConditionStrategy,
     SingleSeed<CombatChoiceLineagesKind>,
     SingleSeedGenerator,
   >,
@@ -249,24 +248,26 @@ impl AnalysisComponentBehavior for FractalRepresentativeSeedSearchComponentSpec 
   type Data = FractalRepresentativeSeedSearchComponentData;
 
   fn initial_data(&self, context: &AnalysisFlowContext) -> Self::Data {
+    let state = context.starting_state.clone();
     FractalRepresentativeSeedSearchComponentData {
       search: FractalRepresentativeSeedSearch::new(
         context.starting_state(),
         SingleSeedGenerator::new(ChaCha8Rng::from_entropy()),
         // TODO: don't duplicate this from competing_optimizers.rs, probably use a generalization
         // like StrategyAndGeneratorSpecification
-        Box::new(|candidates: &[&FastStrategy]| {
-          if candidates.len() < 2 || (rand::random::<f64>() < 0.25) {
-            FastStrategy::random(&mut rand::thread_rng())
-          } else {
-            FastStrategy::offspring(
-              &candidates
-                .choose_multiple(&mut rand::thread_rng(), 2)
-                .copied()
-                .collect::<Vec<_>>(),
-              &mut rand::thread_rng(),
-            )
-          }
+        Box::new(move |_candidates: &[&ConditionStrategy]| {
+          ConditionStrategy::fresh_distinctive_candidate(&state, &mut rand::thread_rng())
+          // if candidates.len() < 2 || (rand::random::<f64>() < 0.25) {
+          //   FastStrategy::random(&mut rand::thread_rng())
+          // } else {
+          //   FastStrategy::offspring(
+          //     &candidates
+          //       .choose_multiple(&mut rand::thread_rng(), 2)
+          //       .copied()
+          //       .collect::<Vec<_>>(),
+          //     &mut rand::thread_rng(),
+          //   )
+          // }
         }),
       ),
     }

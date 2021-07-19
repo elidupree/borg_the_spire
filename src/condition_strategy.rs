@@ -3,10 +3,12 @@ use crate::ai_utils::{card_play_stats, CardPlayStats, Strategy};
 use crate::simulation::{Choice, CreatureIndex, MonsterIndex};
 use crate::simulation_state::monsters::MAX_INTENTS;
 use crate::simulation_state::{CardId, CombatState, PowerId, MAX_MONSTERS};
+use array_ext::Array;
 use enum_map::EnumMap;
 use ordered_float::OrderedFloat;
+use rand::Rng;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Rule {
   pub conditions: Vec<Condition>,
   pub flat_reward: f64,
@@ -64,8 +66,16 @@ impl Rule {
     {
       self.flat_reward;
       result += self.flat_reward;
-      if self.block_per_energy_reward != 0.0 {
-        result += self.block_per_energy_reward * 1.0;
+      if let Choice::PlayCard(choice) = choice {
+        let energy = (choice.card.cost_in_practice(state) as f64).min(0.5);
+        if self.block_per_energy_reward != 0.0 {
+          result += self.block_per_energy_reward * context.stats.block_amount as f64 / energy;
+        }
+        for (index, damage) in context.stats.damage.iter().enumerate() {
+          result += self.unblocked_damage_per_energy_rewards[index]
+            * (damage - state.monsters[index].creature.block as f64).max(0.0)
+            / energy;
+        }
       }
     }
     result
@@ -106,6 +116,42 @@ impl Condition {
         let creature = state.get_creature(*creature_index);
         creature.has_power(*power) != *inverted
       }
+    }
+  }
+  pub fn random_generally_relevant(state: &CombatState, rng: &mut impl Rng) -> Condition {
+    use Condition::*;
+    use NumericProperty::*;
+    match rng.gen_range(0..=4) {
+      0 => MonsterIntent {
+        monster_index: rng.gen_range(0..state.monsters.len()),
+        intent_included: Array::from_fn(|_| rng.gen()),
+        gone_included: rng.gen(),
+      },
+      1 => NumericThreshold {
+        threshold: rng.gen_range(1..5).min(rng.gen_range(1..5)),
+        gt: rng.gen(),
+        property: TurnNumber,
+      },
+      2 => NumericThreshold {
+        threshold: rng.gen_range(1..(state.player.creature.hitpoints - 1).max(2)),
+        gt: rng.gen(),
+        property: CreatureHitpoints(CreatureIndex::Player),
+      },
+      3 => {
+        let monster_index = rng.gen_range(0..state.monsters.len());
+        NumericThreshold {
+          threshold: rng
+            .gen_range(1..(state.monsters[monster_index].creature.hitpoints - 1).max(2)),
+          gt: rng.gen(),
+          property: CreatureHitpoints(CreatureIndex::Monster(monster_index)),
+        }
+      }
+      4 => NumericThreshold {
+        threshold: rng.gen_range(0..30),
+        gt: rng.gen(),
+        property: IncomingDamage,
+      },
+      _ => unreachable!(),
     }
   }
 }
@@ -177,6 +223,41 @@ impl ConditionStrategy {
           .sum::<f64>()
       }
       _ => 0.0,
+    }
+  }
+
+  // not required to be able to generate all POSSIBLE strategies,
+  // just trying to create ones that are well spread over the space of plausibly good strategies,
+  // and might be able to hill-climb to a nearby optimum.
+  pub fn fresh_distinctive_candidate(state: &CombatState, rng: &mut impl Rng) -> ConditionStrategy {
+    ConditionStrategy {
+      play_card_global_rules: vec![
+        Rule {
+          conditions: vec![],
+          block_per_energy_reward: rng.gen::<f64>() * 0.1,
+          ..Default::default()
+        },
+        Rule {
+          conditions: vec![],
+          unblocked_damage_per_energy_rewards: Array::from_fn(|_| rng.gen::<f64>() * 0.05),
+          ..Default::default()
+        },
+      ],
+      play_specific_card_rules: EnumMap::from(|_| {
+        let mut rules = vec![Rule {
+          conditions: vec![],
+          flat_reward: rng.gen::<f64>() - 0.5,
+          ..Default::default()
+        }];
+        for _ in 0..rng.gen_range(0..=2) {
+          rules.push(Rule {
+            conditions: vec![Condition::random_generally_relevant(state, rng)],
+            flat_reward: rng.gen::<f64>() - 0.5,
+            ..Default::default()
+          })
+        }
+        rules
+      }),
     }
   }
 }
