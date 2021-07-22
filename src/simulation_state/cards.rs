@@ -824,7 +824,7 @@ impl CardBehavior for BlockPotion {
     context.block(context.potency(12));
   }
   fn potion_value(self, _state: &CombatState) -> f64 {
-    12.0
+    11.5
   }
 }
 

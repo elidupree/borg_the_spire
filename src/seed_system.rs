@@ -92,7 +92,7 @@ pub trait ChoiceLineagesKind {
   >;
 }
 
-pub trait SeedView<G: GameState>: Debug {
+pub trait SeedView<G: GameState>: Clone + Debug {
   fn gen(&mut self, state: &G, fork_type: &G::RandomForkType, choice: &G::RandomChoice) -> f64;
 }
 pub trait Seed<G: GameState>: Clone + Debug {
@@ -195,6 +195,15 @@ impl TrivialSeedGenerator {
 pub struct SingleSeedView<'a, L: ChoiceLineagesKind> {
   seed: &'a SingleSeed<L>,
   prior_requests: L::Lineages<u32>,
+}
+// neither Rust nor Derivative can currently derive Clone for the above, sigh
+impl<'a, L: ChoiceLineagesKind> Clone for SingleSeedView<'a, L> {
+  fn clone(&self) -> Self {
+    SingleSeedView {
+      seed: self.seed,
+      prior_requests: self.prior_requests.clone(),
+    }
+  }
 }
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""), Debug(bound = ""))]

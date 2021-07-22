@@ -182,9 +182,9 @@ pub trait Runner {
 }
 
 pub struct StandardRunner<'a, Seed> {
-  state: &'a mut CombatState,
-  seed: Seed,
-  hooks: Option<&'a mut dyn StandardRunnerHooks>,
+  pub state: &'a mut CombatState,
+  pub seed_view: Seed,
+  pub hooks: Option<&'a mut dyn StandardRunnerHooks>,
 }
 #[allow(unused)]
 pub trait StandardRunnerHooks {
@@ -193,10 +193,10 @@ pub trait StandardRunnerHooks {
 }
 
 impl<'a, Seed: MaybeSeedView<CombatState>> StandardRunner<'a, Seed> {
-  pub fn new(state: &'a mut CombatState, seed: Seed) -> Self {
+  pub fn new(state: &'a mut CombatState, seed_view: Seed) -> Self {
     StandardRunner {
       state,
-      seed,
+      seed_view,
       hooks: None,
     }
   }
@@ -211,7 +211,7 @@ impl<'a, Seed: MaybeSeedView<CombatState>> StandardRunner<'a, Seed> {
   fn can_apply_impl(&self, action: &impl Action) -> bool {
     match action.determinism(self.state()) {
       Determinism::Deterministic => true,
-      Determinism::Random(distribution) => self.seed.is_seed() || distribution.0.len() == 1,
+      Determinism::Random(distribution) => self.seed_view.is_seed() || distribution.0.len() == 1,
       Determinism::Choice => false,
     }
   }
@@ -232,7 +232,7 @@ impl<'a, Seed: MaybeSeedView<CombatState>> StandardRunner<'a, Seed> {
     match action.determinism(self.state()) {
       Determinism::Deterministic => action.execute(self),
       Determinism::Random(distribution) => {
-        let random_value = match self.seed.as_seed() {
+        let random_value = match self.seed_view.as_seed() {
           Some(seed) => choose_choice(&*self.state, &action.clone().into(), &distribution, seed),
           None => {
             assert_eq!(distribution.0.len(), 1);
