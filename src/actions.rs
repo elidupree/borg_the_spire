@@ -81,6 +81,7 @@ actions! {
 
   // generally card effects
   [ArmamentsAction {pub upgraded: bool}],
+  [VampireDamageAllEnemiesAction {pub info: DamageInfoOwnerPowers}],
 
   // generally monster effects
   [InitializeMonsterInnateDamageAmount{pub monster_index: usize, pub range: (i32, i32)}],
@@ -271,9 +272,36 @@ impl Action for ChooseMonsterIntent {
   }
 }
 
+fn damage_amount_after_block_and_powers(
+  state: &CombatState,
+  target_index: CreatureIndex,
+  mut damage: i32,
+) -> i32 {
+  //TODO reduce duplicate code id 0d9fdje98
+  //TODO: intangible
+  if damage < 0 {
+    damage = 0;
+  }
+
+  let target = state.get_creature(target_index);
+  if damage >= target.block {
+    damage -= target.block;
+  } else {
+    damage = 0;
+  }
+
+  power_hook!(
+    state,
+    target_index,
+    damage = on_attacked_to_change_damage(damage)
+  );
+  damage
+}
+
 impl Action for DamageAction {
   fn execute(&self, runner: &mut impl Runner) {
     let mut damage = self.info.output;
+    //TODO reduce duplicate code id 0d9fdje98
     //TODO: intangible
     if damage < 0 {
       damage = 0;
@@ -288,7 +316,6 @@ impl Action for DamageAction {
       damage = 0;
     }
 
-    // TODO: various relic hooks
     power_hook!(
       runner.state(),
       self.target,
@@ -313,25 +340,55 @@ impl Action for DamageAction {
 
 impl Action for DamageAllEnemiesAction {
   fn execute(&self, runner: &mut impl Runner) {
+    let mut actions: ArrayVec<DamageAction, MAX_MONSTERS> = ArrayVec::new();
     for monster_index in 0..runner.state().monsters.len() {
       if !runner.state().monsters[monster_index].gone {
         let target = CreatureIndex::Monster(monster_index);
         let info = self.info.apply_target_powers(runner.state(), target);
-        runner.action_now(&DamageAction { target, info });
+        actions.push(DamageAction { target, info });
       }
+    }
+    for action in &actions {
+      runner.action_now(action);
     }
   }
 }
 
 impl Action for DamageAllEnemiesActionIgnoringPowers {
   fn execute(&self, runner: &mut impl Runner) {
+    let mut actions: ArrayVec<DamageAction, MAX_MONSTERS> = ArrayVec::new();
     for monster_index in 0..runner.state().monsters.len() {
       if !runner.state().monsters[monster_index].gone {
         let target = CreatureIndex::Monster(monster_index);
         let info = self.info.ignore_powers();
-        runner.action_now(&DamageAction { target, info });
+        actions.push(DamageAction { target, info });
       }
     }
+    for action in &actions {
+      runner.action_now(action);
+    }
+  }
+}
+
+impl Action for VampireDamageAllEnemiesAction {
+  fn execute(&self, runner: &mut impl Runner) {
+    let mut heal_amount = 0;
+    let mut actions: ArrayVec<DamageAction, MAX_MONSTERS> = ArrayVec::new();
+    for monster_index in 0..runner.state().monsters.len() {
+      if !runner.state().monsters[monster_index].gone {
+        let target = CreatureIndex::Monster(monster_index);
+        let info = self.info.apply_target_powers(runner.state(), target);
+        heal_amount += damage_amount_after_block_and_powers(runner.state(), target, info.output);
+        actions.push(DamageAction { target, info });
+      }
+    }
+    for action in &actions {
+      runner.action_now(action);
+    }
+    runner.action_bottom(HealAction {
+      creature_index: CreatureIndex::Player,
+      amount: heal_amount,
+    })
   }
 }
 

@@ -321,6 +321,7 @@ cards! {
   ["Immolate", Immolate, Attack, Rare, 2, NO_TARGET, {}],
   ["Impervious", Impervious, Skill, Rare, 2, NO_TARGET, {exhausts: true,}],
   ["Juggernaut", Juggernaut, Power, Rare, 2, NO_TARGET, {}],
+  ["Reaper", Reaper, Attack, Rare, 2, NO_TARGET, {exhausts: true,}],
 
   ["Injury", Injury, Curse, Special, UNPLAYABLE, NO_TARGET, {}],
   ["AscendersBane", AscendersBane, Curse, Special, UNPLAYABLE, NO_TARGET, {ethereal: true,}],
@@ -782,7 +783,7 @@ impl CardBehavior for DoubleTap {
 
 impl CardBehavior for Immolate {
   fn behavior(self, context: &mut impl CardBehaviorContext) {
-    context.attack_target(context.with_upgrade(28, 21));
+    context.attack_monsters(context.with_upgrade(28, 21));
     context.action(DiscardNewCard(SingleCard::create(CardId::Burn)));
   }
 }
@@ -796,6 +797,18 @@ impl CardBehavior for Impervious {
 impl CardBehavior for Juggernaut {
   fn behavior(self, context: &mut impl CardBehaviorContext) {
     context.power_self(PowerId::Juggernaut, context.with_upgrade(7, 5));
+  }
+}
+
+impl CardBehavior for Reaper {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    let info = DamageInfoNoPowers::new(
+      Some(CreatureIndex::Player),
+      context.with_upgrade(5, 4),
+      DamageType::Normal,
+    )
+    .apply_owner_powers(context.state());
+    context.action(VampireDamageAllEnemiesAction { info });
   }
 }
 
