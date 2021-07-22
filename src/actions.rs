@@ -146,7 +146,13 @@ impl Action for EndTurn {
     let state = runner.state_mut();
     state.turn_has_ended = true;
     let mut actions: ArrayVec<DamageAction, 10> = ArrayVec::new();
-    for card in state.hand.drain(..) {
+    let CombatState {
+      discard_pile,
+      exhaust_pile,
+      player,
+      ..
+    } = state;
+    state.hand.retain(|card| {
       if card.card_info.id == CardId::Burn {
         actions.push(DamageAction {
           target: CreatureIndex::Player,
@@ -157,13 +163,17 @@ impl Action for EndTurn {
           )
           .ignore_powers(),
         });
-      }
-      if card.card_info.ethereal {
-        state.exhaust_pile.push(card);
+      } else if card.card_info.ethereal {
+        exhaust_pile.push(card.clone());
       } else {
-        state.discard_pile.push(card);
+        if player.creature.has_power(PowerId::RunicPyramid) {
+          return true;
+        } else {
+          discard_pile.push(card.clone());
+        }
       }
-    }
+      false
+    });
     for action in actions {
       runner.action_bottom(action);
     }

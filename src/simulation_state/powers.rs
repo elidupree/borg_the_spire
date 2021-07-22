@@ -446,8 +446,9 @@ powers! {
   ["Fusion Hammer", FusionHammer, Relic],
   ["Mark of Pain", MarkOfPain, Relic],
   ["Philosopher's Stone", PhilosophersStone, Relic],
-  ["Sozu", Sozu, Relic],
+  ["Runic Pyramid", RunicPyramid, Relic],
   ["SacredBark", SacredBark, Relic],
+  ["Sozu", Sozu, Relic],
 
   // Relic powers
   ["Pen Nib", PenNib, Buff],
@@ -841,10 +842,11 @@ impl PowerBehavior for MarkOfPain {
 impl PowerBehavior for PhilosophersStone {
   energy_relic! {}
 }
+impl PowerBehavior for RunicPyramid {}
+impl PowerBehavior for SacredBark {}
 impl PowerBehavior for Sozu {
   energy_relic! {}
 }
-impl PowerBehavior for SacredBark {}
 
 impl PowerBehavior for PenNib {
   fn priority(&self) -> i32 {
