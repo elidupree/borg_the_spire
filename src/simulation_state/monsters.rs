@@ -43,6 +43,9 @@ impl<'a> IntentChoiceContext<'a> {
   pub fn first_move(&self) -> bool {
     self.monster.move_history.is_empty()
   }
+  pub fn second_move(&self) -> bool {
+    self.monster.move_history.len() == 1
+  }
   pub fn last_intent<T: Intent>(&self) -> Option<T> {
     self.monster.move_history.last().map(|&id| T::from_id(id))
   }
@@ -454,6 +457,7 @@ monsters! {
   ["SlimeBoss", SlimeBoss],
 
   ["Byrd", Byrd],
+  ["SphericGuardian", SphericGuardian],
 }
 
 pub mod beyond;

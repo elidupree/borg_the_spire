@@ -46,3 +46,44 @@ impl MonsterBehavior for Byrd {
     }
   }
 }
+
+intent! {
+  pub enum SphericGuardianIntent {
+    1: Slam,
+    2: Activate,
+    3: Harden,
+    4: AttackDebuff,
+  }
+}
+impl MonsterBehavior for SphericGuardian {
+  type Intent = SphericGuardianIntent;
+  fn make_intent_distribution(context: &mut IntentChoiceContext) {
+    use SphericGuardianIntent::*;
+    if context.first_move() {
+      context.always(Activate);
+    } else if context.second_move() {
+      context.always(AttackDebuff);
+    } else {
+      context.always(context.with_max_repeats(Repeats(1), Slam, Harden));
+    }
+  }
+  fn intent_effects(context: &mut impl IntentEffectsContext) {
+    use SphericGuardianIntent::*;
+    match context.intent::<Self::Intent>() {
+      Slam => {
+        for _ in 0..2 {
+          context.attack(context.with_ascension(Ascension(2), 11, 10));
+        }
+      }
+      Activate => context.block(context.with_ascension(Ascension(17), 35, 25)),
+      Harden => {
+        context.attack(context.with_ascension(Ascension(2), 11, 10));
+        context.block(15);
+      }
+      AttackDebuff => {
+        context.power_player(PowerId::Frail, 5);
+        context.attack(context.with_ascension(Ascension(2), 11, 10));
+      }
+    }
+  }
+}
