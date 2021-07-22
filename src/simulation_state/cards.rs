@@ -331,6 +331,7 @@ cards! {
 
   ["Block Potion", BlockPotion, Potion, Special, 0, NO_TARGET, {}],
   ["BloodPotion", BloodPotion, Potion, Special, 0, NO_TARGET, {}],
+  ["Energy Potion", EnergyPotion, Potion, Special, 0, NO_TARGET, {}],
   ["Explosive Potion", ExplosivePotion, Potion, Special, 0, NO_TARGET, {}],
 }
 
@@ -848,5 +849,14 @@ impl CardBehavior for ExplosivePotion {
   }
   fn potion_value(self, _state: &CombatState) -> f64 {
     16.0
+  }
+}
+
+impl CardBehavior for EnergyPotion {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    context.action(GainEnergyAction(context.potency(2)));
+  }
+  fn potion_value(self, _state: &CombatState) -> f64 {
+    10.0
   }
 }
