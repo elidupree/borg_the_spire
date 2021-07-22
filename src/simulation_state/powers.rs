@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::convert::From;
 
 use crate::simulation::*;
+use crate::simulation_state::monsters::city::ByrdIntent;
 use crate::simulation_state::monsters::exordium::TheGuardianIntent;
 use crate::simulation_state::monsters::Intent;
 use crate::simulation_state::*;
@@ -131,6 +132,16 @@ impl<'a, R: Runner> PowerHookContext<'a, R> {
       power_id,
       amount,
     });
+  }
+
+  pub fn set_owner_intent(&mut self, intent: impl Intent) {
+    if let CreatureIndex::Monster(index) = self.owner_index() {
+      self.state_mut().monsters[index]
+        .move_history
+        .push(intent.id());
+    } else {
+      panic!("called set_owner_intent on the player")
+    }
   }
 }
 
@@ -734,11 +745,7 @@ impl PowerBehavior for ModeShift {
       creature_index: context.owner_index(),
       amount: 20,
     });
-    if let CreatureIndex::Monster(index) = context.owner_index() {
-      context.state_mut().monsters[index]
-        .move_history
-        .push(TheGuardianIntent::DefensiveMode.id());
-    }
+    context.set_owner_intent(TheGuardianIntent::DefensiveMode);
     context.power_owner_top(PowerId::ModeShiftDamageThreshold, 10);
   }
 }
@@ -773,6 +780,10 @@ impl PowerBehavior for Flight {
     if deficiency > 0 {
       context.power_owner_top(PowerId::Flight, deficiency);
     }
+  }
+
+  fn on_remove(&self, context: &mut PowerHookContext<impl Runner>) {
+    context.set_owner_intent(ByrdIntent::Stunned);
   }
 }
 
