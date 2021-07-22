@@ -770,7 +770,7 @@ impl PowerBehavior for Flight {
     info: DamageInfoAllPowers,
     damage: i32,
   ) {
-    if damage > 0 && info.damage_type == DamageType::Normal {
+    if info.owner.is_some() && damage > 0 && info.damage_type == DamageType::Normal {
       context.reduce_this_power();
     }
   }
