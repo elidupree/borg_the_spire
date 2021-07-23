@@ -225,6 +225,7 @@ impl StrategyOptimizer for StrategyGeneratorsWithSharedRepresenativeSeeds {
   fn report(&self) -> Arc<Self::Strategy> {
     let top_layer = self.seed_search.layers.last().unwrap();
     let result = top_layer.best_strategy.strategy.clone();
+    self.seed_search.report();
     println!("StrategyGeneratorsWithSharedRepresenativeSeeds top strategies:");
     for strategy in top_layer.strategies() {
       println!("{}", strategy.strategy.annotation);
