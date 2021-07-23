@@ -197,8 +197,9 @@ impl NumericProperty {
 
 #[derive(Clone, Debug)]
 pub struct ConditionStrategy {
-  play_card_global_rules: Vec<Rule>,
-  play_specific_card_rules: EnumMap<CardId, Vec<Rule>>,
+  pub annotation: String,
+  pub play_card_global_rules: Vec<Rule>,
+  pub play_specific_card_rules: EnumMap<CardId, Vec<Rule>>,
 }
 
 impl Strategy for ConditionStrategy {
@@ -266,6 +267,7 @@ impl ConditionStrategy {
   // and might be able to hill-climb to a nearby optimum.
   pub fn fresh_distinctive_candidate(state: &CombatState, rng: &mut impl Rng) -> ConditionStrategy {
     ConditionStrategy {
+      annotation: "fresh_distinctive_candidate".to_string(),
       play_card_global_rules: vec![
         Rule {
           conditions: vec![],

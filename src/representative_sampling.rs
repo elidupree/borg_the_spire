@@ -352,7 +352,7 @@ pub struct FractalRepresentativeSeedSearch<S, T, G> {
   pub lowest_seeds: Vec<T>,
   pub seed_generator: G,
   pub best_average_on_lowest_seeds: f64,
-  pub new_strategy: Box<dyn Fn(&[&S]) -> S>,
+  pub starting_state: CombatState,
   pub steps: usize,
   pub successes_at_lowest: usize,
   pub layer_updates: usize,
@@ -369,17 +369,12 @@ impl<S, T, G> FractalRepresentativeSeedSearch<S, T, G> {
 impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> + 'static>
   FractalRepresentativeSeedSearch<S, T, G>
 {
-  pub fn new(
-    starting_state: &CombatState,
-    mut seed_generator: G,
-    new_strategy: Box<dyn Fn(&[&S]) -> S>,
-  ) -> Self {
+  pub fn new(starting_state: CombatState, mut seed_generator: G, first_strategy: Arc<S>) -> Self {
     let seeds = (0..Self::layer_size(0))
       .map(|_| seed_generator.make_seed())
       .collect();
-    let strategy: S = new_strategy(&[]);
     let first_layer =
-      RepresentativeSeedSearchLayer::new(seeds, starting_state, Arc::new(strategy), 16);
+      RepresentativeSeedSearchLayer::new(seeds, &starting_state, first_strategy, 16);
     let below_first_layer =
       first_layer.make_sublayer(Self::sublayer_size(0), &mut rand::thread_rng());
     let lowest_seeds = below_first_layer.seeds;
@@ -389,7 +384,7 @@ impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> 
       lowest_seeds,
       seed_generator,
       best_average_on_lowest_seeds,
-      new_strategy,
+      starting_state,
       steps: 0,
       successes_at_lowest: 0,
       layer_updates: 0,
@@ -413,28 +408,14 @@ impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> 
         .collect(),
     }
   }
-}
 
-impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> + 'static>
-  StrategyOptimizer for FractalRepresentativeSeedSearch<S, T, G>
-{
-  type Strategy = RepresentativeSeedsMetaStrategy<S, T>;
-  fn step(&mut self, state: &CombatState, _rng: &mut ChaCha8Rng) {
+  pub fn consider_strategy(&mut self, strategy: Arc<S>) {
     self.steps += 1;
-    let strategy: S = (self.new_strategy)(
-      &self
-        .layers
-        .last()
-        .unwrap()
-        .strategies()
-        .map(|s| &*s.strategy)
-        .collect::<Vec<_>>(),
-    );
     self.lowest_seeds.shuffle(&mut rand::thread_rng());
     let mut total_score = 0.0;
     let mut average = -999999999999.0;
     for (index, seed) in self.lowest_seeds.iter().enumerate() {
-      let result = playout_result(state, seed.view(), &strategy);
+      let result = playout_result(&self.starting_state, seed.view(), &*strategy);
       total_score += result.score;
       average = total_score / (index + 1) as f64;
       if average < self.best_average_on_lowest_seeds {
@@ -443,7 +424,7 @@ impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> 
     }
     if average >= self.best_average_on_lowest_seeds {
       self.successes_at_lowest += 1;
-      self.layers[0].consider_strategy(state, Arc::new(strategy))
+      self.layers[0].consider_strategy(&self.starting_state, strategy)
     }
     // if there's no new strategy to consider, generally don't reroll the layers,
     // but occasionally we could have a nonrepresentative smallest layer with a pathologically good score,
@@ -462,7 +443,7 @@ impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> 
     }
     for index in 0..(self.layers.len() - 1).min(layer_to_resample_index) {
       for strategy in self.layers[index].strategies().cloned().collect::<Vec<_>>() {
-        self.layers[index + 1].consider_strategy(state, strategy.strategy.clone());
+        self.layers[index + 1].consider_strategy(&self.starting_state, strategy.strategy.clone());
       }
     }
     if layer_to_resample_index >= self.layers.len() {
@@ -476,7 +457,7 @@ impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> 
       let new_layer = last.make_superlayer(
         Self::layer_size(layer_to_resample_index),
         || seed_generator.make_seed(),
-        state,
+        &self.starting_state,
       );
       self.layers.push(new_layer);
     }
@@ -491,7 +472,7 @@ impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> 
     self.best_average_on_lowest_seeds = new_sublayer.best_strategy.average;
   }
 
-  fn report(&self) -> Arc<Self::Strategy> {
+  pub fn report(&self) -> Arc<RepresentativeSeedsMetaStrategy<S, T>> {
     let best = &self.layers.last().unwrap().best_strategy;
 
     println!(
@@ -527,7 +508,7 @@ impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> 
     Arc::new(self.meta_strategy())
   }
 
-  fn print_extra_info(&self, state: &CombatState) {
+  fn diagnose_exploitations(&self) {
     let meta_strategy = self.meta_strategy();
     let last = self.layers.last().unwrap();
     for (index, seed) in last.seeds.iter().take(1000).enumerate() {
@@ -536,10 +517,10 @@ impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> 
         .max_by_key(|s| OrderedFloat(s.scores[index]))
         .unwrap();
       if best_exploiter.scores[index] > 0.5 {
-        if playout_result(state, seed.view(), &meta_strategy).score < 0.5 {
-          let meta_narration = playout_narration(state, seed.view(), &meta_strategy);
+        if playout_result(&self.starting_state, seed.view(), &meta_strategy).score < 0.5 {
+          let meta_narration = playout_narration(&self.starting_state, seed.view(), &meta_strategy);
           let exploiter_narration =
-            playout_narration(state, seed.view(), &*best_exploiter.strategy);
+            playout_narration(&self.starting_state, seed.view(), &*best_exploiter.strategy);
           let diff = difference::Changeset::new(&meta_narration, &exploiter_narration, "\n");
           println!("\n===== Caught meta-strategy playing worse than exploiter =====");
           println!("=== Meta-strategy playout: ===");
@@ -555,10 +536,40 @@ impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> 
   }
 }
 
+impl<S: Strategy + 'static> StrategyOptimizer for FractalRepresentativeSeedSearchOptimizer<S> {
+  type Strategy = RepresentativeSeedsMetaStrategy<S, SingleSeed<CombatChoiceLineagesKind>>;
+  fn step(&mut self, _state: &CombatState, _rng: &mut ChaCha8Rng) {
+    self
+      .seed_search
+      .consider_strategy(Arc::new((self.new_strategy)(
+        &self
+          .seed_search
+          .layers
+          .last()
+          .unwrap()
+          .strategies()
+          .map(|s| &*s.strategy)
+          .collect::<Vec<_>>(),
+      )));
+  }
+
+  fn print_extra_info(&self, _state: &CombatState) {
+    self.seed_search.diagnose_exploitations();
+  }
+
+  fn report(&self) -> Arc<Self::Strategy> {
+    self.seed_search.report()
+  }
+}
+
+pub struct FractalRepresentativeSeedSearchOptimizer<S> {
+  pub seed_search:
+    FractalRepresentativeSeedSearch<S, SingleSeed<CombatChoiceLineagesKind>, SingleSeedGenerator>,
+  pub new_strategy: Box<dyn Fn(&[&S]) -> S>,
+}
 pub struct FractalRepresentativeSeedSearchExplorationOptimizerKind;
 impl ExplorationOptimizerKind for FractalRepresentativeSeedSearchExplorationOptimizerKind {
-  type ExplorationOptimizer<T: Strategy + 'static> =
-    FractalRepresentativeSeedSearch<T, SingleSeed<CombatChoiceLineagesKind>, SingleSeedGenerator>;
+  type ExplorationOptimizer<T: Strategy + 'static> = FractalRepresentativeSeedSearchOptimizer<T>;
 
   fn new<T: Strategy + 'static>(
     self,
@@ -566,11 +577,14 @@ impl ExplorationOptimizerKind for FractalRepresentativeSeedSearchExplorationOpti
     rng: &mut ChaCha8Rng,
     new_strategy: Box<dyn Fn(&[&T]) -> T>,
   ) -> Self::ExplorationOptimizer<T> {
-    FractalRepresentativeSeedSearch::new(
-      starting_state,
-      SingleSeedGenerator::new(ChaCha8Rng::from_rng(rng).unwrap()),
+    FractalRepresentativeSeedSearchOptimizer {
+      seed_search: FractalRepresentativeSeedSearch::<T, _, _>::new(
+        starting_state.clone(),
+        SingleSeedGenerator::new(ChaCha8Rng::from_rng(rng).unwrap()),
+        Arc::new(new_strategy(&[])),
+      ),
       new_strategy,
-    )
+    }
   }
 }
 

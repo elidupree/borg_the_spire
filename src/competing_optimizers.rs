@@ -8,6 +8,7 @@ use std::time::{Duration, Instant};
 use crate::ai_utils;
 use crate::ai_utils::{collect_starting_points, playout_narration, Strategy};
 use crate::condition_strategy::ConditionStrategy;
+use crate::condition_strategy_generators::StrategyGeneratorsWithSharedRepresenativeSeeds;
 use crate::neural_net_ai::NeuralStrategy;
 use crate::representative_sampling::FractalRepresentativeSeedSearchExplorationOptimizerKind;
 use crate::seed_system::{Seed, SingleSeed, SingleSeedGenerator, TrivialSeed};
@@ -421,6 +422,7 @@ pub enum CompetitorSpecification {
     ExplorationOptimizerKindSpecification,
     StrategyAndGeneratorSpecification,
   ),
+  ConditionStrategyGenerators,
 }
 #[derive(Copy, Clone, Serialize, Deserialize, Debug)]
 pub enum StrategyAndGeneratorSpecification {
@@ -443,6 +445,10 @@ impl CompetitorSpecification {
       CompetitorSpecification::ExplorationOptimizer(optimizer, strategy) => {
         optimizer.build(strategy, starting_state, rng)
       }
+      CompetitorSpecification::ConditionStrategyGenerators => Box::new(OptimizerCompetitor {
+        name: "ConditionStrategyGenerators".to_string(),
+        optimizer: StrategyGeneratorsWithSharedRepresenativeSeeds::new(starting_state.clone(), rng),
+      }),
     }
   }
 }

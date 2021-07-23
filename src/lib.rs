@@ -77,6 +77,7 @@ pub mod neural_net_ai;
 //mod omniscient_search;
 pub mod analysis_flows;
 pub mod condition_strategy;
+pub mod condition_strategy_generators;
 pub mod representative_sampling;
 pub mod seed_system;
 pub mod seeds_concrete;

@@ -1,9 +1,9 @@
 use crate::ai_utils::starting_choices_made_by_strategy;
-use crate::competing_optimizers::StrategyOptimizer;
+use crate::competing_optimizers::{ExplorationOptimizerKind, StrategyOptimizer};
 use crate::condition_strategy::ConditionStrategy;
-use crate::representative_sampling::FractalRepresentativeSeedSearch;
-use crate::seed_system::{SingleSeed, SingleSeedGenerator};
-use crate::seeds_concrete::CombatChoiceLineagesKind;
+use crate::representative_sampling::{
+  FractalRepresentativeSeedSearchExplorationOptimizerKind, FractalRepresentativeSeedSearchOptimizer,
+};
 use crate::simulation::DisplayChoices;
 use crate::simulation_state::CombatState;
 use crate::start_and_strategy_ai;
@@ -238,11 +238,7 @@ impl AnalysisComponentBehavior for CompareStartingPointsComponentSpec {
 #[derive(Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub struct FractalRepresentativeSeedSearchComponentSpec {}
 pub struct FractalRepresentativeSeedSearchComponentData {
-  search: FractalRepresentativeSeedSearch<
-    ConditionStrategy,
-    SingleSeed<CombatChoiceLineagesKind>,
-    SingleSeedGenerator,
-  >,
+  search: FractalRepresentativeSeedSearchOptimizer<ConditionStrategy>,
 }
 
 impl AnalysisComponentBehavior for FractalRepresentativeSeedSearchComponentSpec {
@@ -251,9 +247,9 @@ impl AnalysisComponentBehavior for FractalRepresentativeSeedSearchComponentSpec 
   fn initial_data(&self, context: &AnalysisFlowContext) -> Self::Data {
     let state = context.starting_state.clone();
     FractalRepresentativeSeedSearchComponentData {
-      search: FractalRepresentativeSeedSearch::new(
+      search: FractalRepresentativeSeedSearchExplorationOptimizerKind.new(
         context.starting_state(),
-        SingleSeedGenerator::new(ChaCha8Rng::from_entropy()),
+        &mut ChaCha8Rng::from_entropy(),
         // TODO: don't duplicate this from competing_optimizers.rs, probably use a generalization
         // like StrategyAndGeneratorSpecification
         Box::new(move |candidates: &[&ConditionStrategy]| {
@@ -290,7 +286,7 @@ impl AnalysisComponentBehavior for FractalRepresentativeSeedSearchComponentSpec 
 
   fn html_report(&self, context: &AnalysisFlowContext, data: &Self::Data) -> Option<Element> {
     let mut elements = Vec::new();
-    for layer in &data.search.layers {
+    for layer in &data.search.seed_search.layers {
       let strategies: Vec<_> = layer.strategies().collect();
       let scores = strategies
         .iter()
@@ -319,6 +315,7 @@ impl AnalysisComponentBehavior for FractalRepresentativeSeedSearchComponentSpec 
     }
     let mut all_starting_choices: Vec<Vec<_>> = data
       .search
+      .seed_search
       .layers
       .last()
       .unwrap()
@@ -332,8 +329,10 @@ impl AnalysisComponentBehavior for FractalRepresentativeSeedSearchComponentSpec 
       .map(|c| DisplayChoices(&c).to_string())
       .collect::<Vec<_>>()
       .join(", ");
-    let meta_starting_choices =
-      starting_choices_made_by_strategy(context.starting_state(), &data.search.meta_strategy());
+    let meta_starting_choices = starting_choices_made_by_strategy(
+      context.starting_state(),
+      &data.search.seed_search.meta_strategy(),
+    );
     Some(html! {
       <div class="fractal_report">
         {elements}
