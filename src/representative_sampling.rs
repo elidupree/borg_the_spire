@@ -168,10 +168,189 @@ Note that this process means there will be no more than (max_exploiters+1)*(high
 
 A high value of `max_exploiters` slows down the process of reaching a high K – but I think that once you've reached a specific K with `max_exploiters` strategies, submitting *new* strategies is no slower than it would be with a lower value of `max_exploiters`.
 
-The value of R affects how much time is spent at which levels - high R means more time is spent at higher levels compared with lower ones, and vice versa.
+The value of R affects how much time is spent at which levels - high R means more time is spent at higher levels compared with lower ones, and vice versa. (Naively, higher R also increases the total cost incurred by a fixed number of initial playouts for a strategy, but in principle you could also compensate by reducing the number of initial playouts.)
 
 It feels a little nonintuitive that only the exact best strategy is kept, when there's a variable number of exploiters. But keeping e.g. "the best two" could easily just keep two identical strategies. We want some sort of combined metric, keeping strategies that are both distinctive and good - some slightly different formulation of the exploiter-quality function, maybe? (One where the strategy with the highest average always scores highest?)
  */
+
+pub type StrategyId = usize;
+pub struct FRSSLayer {
+  pub spare_credits: f64,
+}
+pub struct FRSSStrategy<S> {
+  pub strategy: Arc<S>,
+  pub scores: Vec<f64>,
+}
+pub struct FRSSConfig<S> {
+  pub smallest_layer_size: usize,
+  pub reserved_credits_factor: f64,
+  pub culling_func: Box<dyn Fn(&[FRSSStrategy<S>]) -> Vec<bool>>,
+}
+pub struct NewFractalRepresentativeSeedSearch<S, T, G> {
+  pub layers: Vec<FRSSLayer>,
+  pub seeds: Vec<T>,
+  pub strategies: Vec<FRSSStrategy<S>>,
+  pub seed_generator: G,
+  pub starting_state: CombatState,
+  pub config: FRSSConfig<S>,
+}
+
+impl<S> Default for FRSSConfig<S> {
+  fn default() -> Self {
+    FRSSConfig {
+      smallest_layer_size: 16,
+      reserved_credits_factor: 4.0,
+      culling_func: Box::new(|strategies| cull_closest_to_dominated(strategies, 32)),
+    }
+  }
+}
+
+pub fn cull_closest_to_dominated<S>(
+  strategies: &[FRSSStrategy<S>],
+  max_survivors: usize,
+) -> Vec<bool> {
+  assert!(max_survivors >= 1);
+  let mut num_survivors = strategies.len();
+  let mut survivors: Vec<bool> = strategies.iter().map(|_| true).collect();
+  if num_survivors <= max_survivors {
+    return survivors;
+  }
+
+  // Make the "domination table".
+  //
+  // This is a score for each ordered pair (s1, s2) of distinct strategies.
+  // The score is equal to the total of how much s1 outperforms s2
+  // on seeds where s1 has a higher score than s2.
+  //
+  // Thus, if s1 is (non-strictly) dominated by s2, then s1 will have
+  // a score of 0 against s2 and will be eliminated (unless another strategy
+  // also scores 0 against somebody and gets eliminated first).
+  //
+  // If no strategy is (non-strictly) dominated, we'll cull the one that's *closest*
+  // to dominated, as defined by having the *minimum* among the scores in the table.
+  //
+  // Note that a strategy  `best` with the highest average score will never be eliminated,
+  // because `domination(best, s2) > domination(s2, best)` for all s2,
+  // so s2 would be eliminated first.
+  let mut domination_table: Vec<Vec<f64>> = strategies
+    .iter()
+    .map(|_| strategies.iter().map(|_| 0.0).collect())
+    .collect();
+  let comparable_size = strategies.iter().map(|s| s.scores.len()).min().unwrap();
+  for (i1, s1) in strategies.iter().enumerate() {
+    for (i2, s2) in strategies[i1 + 1..].iter().enumerate() {
+      for seed_index in 0..comparable_size {
+        let p1 = s1.scores[seed_index];
+        let p2 = s2.scores[seed_index];
+        if p1 > p2 {
+          domination_table[i1][i2] += p1 - p2;
+        } else {
+          domination_table[i2][i1] += p2 - p1;
+        }
+      }
+    }
+  }
+
+  // Note that we can't just cull the N most dominated at once -
+  // we have to do a loop, because otherwise two identical strategies would kill each other
+  // simultaneously, even if they're the best. Instead, we want ONE to die,
+  // after which the other survives because it's no longer (non-strictly) dominated by the other.
+  while num_survivors > max_survivors {
+    let most_dominated = strategies
+      .iter()
+      .zip(&domination_table)
+      .enumerate()
+      .filter(|&(i1, _)| survivors[i1])
+      .min_by_key(|&(i1, (s1, row))| {
+        let lowest_domination_by_s1 = row
+          .iter()
+          .enumerate()
+          .filter(|&(i2, _)| i2 != i1 && survivors[i2])
+          .map(|(_i2, &domination)| OrderedFloat(domination))
+          .min()
+          .unwrap();
+        // include number of playouts as a tiebreaker (having more playouts makes you better,
+        // in cases like "two identical strategies are non-strictly dominating each other"
+        (lowest_domination_by_s1, s1.scores.len())
+      })
+      .unwrap()
+      .0;
+    assert!(survivors[most_dominated]);
+    survivors[most_dominated] = false;
+    num_survivors -= 1;
+  }
+  survivors
+}
+
+impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> + 'static>
+  NewFractalRepresentativeSeedSearch<S, T, G>
+{
+  pub fn new(starting_state: CombatState, seed_generator: G, config: FRSSConfig<S>) -> Self {
+    NewFractalRepresentativeSeedSearch {
+      layers: Vec::new(),
+      seeds: Vec::new(),
+      strategies: Vec::new(),
+      seed_generator,
+      starting_state,
+      config,
+    }
+  }
+
+  pub fn consider_strategy(&mut self, strategy: Arc<S>) {
+    self.strategies.push(FRSSStrategy {
+      strategy,
+      scores: Vec::new(),
+    });
+    for level in 0.. {
+      let level_size = self.config.smallest_layer_size << level;
+      if level == self.layers.len() {
+        self.layers.push(FRSSLayer { spare_credits: 0.0 });
+        let seed_generator = &mut self.seed_generator;
+        self
+          .seeds
+          .extend((self.seeds.len()..level_size).map(|_| seed_generator.make_seed()));
+      }
+      assert!(self.layers.len() > level);
+      assert!(self.seeds.len() >= level_size);
+      let mut layer = self.layers.get_mut(level).unwrap();
+      for strategy in &mut self.strategies {
+        if strategy.scores.len() < level_size {
+          for seed in &self.seeds[strategy.scores.len()..level_size] {
+            strategy
+              .scores
+              .push(playout_result(&self.starting_state, seed.view(), &*strategy.strategy).score)
+          }
+        }
+        assert!(strategy.scores.len() >= level_size);
+      }
+
+      let survivors = (self.config.culling_func)(&self.strategies);
+      let mut index = 0;
+      let config = &self.config;
+      self.strategies.retain(|strategy| {
+        let result = survivors[index] || strategy.scores.len() > level_size;
+        if !result {
+          layer.spare_credits += strategy.scores.len() as f64 * config.reserved_credits_factor
+        }
+        index += 1;
+        result
+      });
+
+      let next_level_size = 1 << (level + 1);
+      let credits_needed_to_advance = self
+        .strategies
+        .iter()
+        .map(|s| next_level_size - s.scores.len())
+        .sum::<usize>() as f64
+        * (1.0 + self.config.reserved_credits_factor);
+      if layer.spare_credits >= credits_needed_to_advance {
+        layer.spare_credits -= credits_needed_to_advance;
+      } else {
+        break;
+      }
+    }
+  }
+}
 
 #[derive(Clone)]
 pub struct RepresentativeSeedSearchLayerStrategy<S> {
