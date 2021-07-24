@@ -239,7 +239,7 @@ pub fn cull_closest_to_dominated<S>(
     .collect();
   let comparable_size = strategies.iter().map(|s| s.scores.len()).min().unwrap();
   for (i1, s1) in strategies.iter().enumerate() {
-    for (i2, s2) in strategies[i1 + 1..].iter().enumerate() {
+    for (i2, s2) in strategies.iter().enumerate().skip(i1 + 1) {
       for seed_index in 0..comparable_size {
         let p1 = s1.scores[seed_index];
         let p2 = s2.scores[seed_index];
@@ -280,6 +280,18 @@ pub fn cull_closest_to_dominated<S>(
     survivors[most_dominated] = false;
     num_survivors -= 1;
   }
+
+  // let averages: Vec<_> = strategies
+  //   .iter()
+  //   .map(|s| OrderedFloat(s.scores[..comparable_size].iter().sum::<f64>()))
+  //   .collect();
+  // let best = averages.iter().max().unwrap();
+  //dbg!(domination_table);
+  // assert!(averages
+  //   .iter()
+  //   .zip(&survivors)
+  //   .any(|(a, &survived)| a == best && survived));
+
   survivors
 }
 
@@ -433,6 +445,7 @@ impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> 
       seeds: self.seeds.iter().take(16).cloned().collect(),
       strategies: strategies
         .iter()
+        .rev()
         .take(16)
         .map(|s| s.strategy.clone())
         .collect(),
@@ -457,7 +470,7 @@ impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> 
         .iter()
         .filter(|s| s.scores.len() == level_size)
         .collect();
-      here_strategies.sort_by_key(|s| OrderedFloat(s.scores.iter().sum::<f64>()));
+      here_strategies.sort_by_key(|s| OrderedFloat(-s.scores.iter().sum::<f64>()));
       let scores = here_strategies
         .iter()
         .map(|s| {
