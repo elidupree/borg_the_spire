@@ -199,7 +199,7 @@ pub struct NewFractalRepresentativeSeedSearch<S, T, G> {
 impl<S> Default for FRSSConfig<S> {
   fn default() -> Self {
     FRSSConfig {
-      min_level_to_leave_strategies_at: 4,
+      min_level_to_leave_strategies_at: 5,
       reserved_credits_factor: 4.0,
       culling_func: Box::new(|strategies| cull_closest_to_dominated(strategies, 32)),
     }
@@ -889,6 +889,39 @@ impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> 
   }
 }
 
+#[derive(Clone, Debug)]
+pub struct RepresentativeSeedsMetaStrategy<S, T> {
+  pub seeds: Vec<T>,
+  pub strategies: Vec<Arc<S>>,
+}
+
+impl<S: Strategy + 'static, T: Seed<CombatState> + Clone + 'static> Strategy
+  for RepresentativeSeedsMetaStrategy<S, T>
+{
+  fn choose_choice(&self, state: &CombatState) -> Vec<Choice> {
+    let best_strategy = self
+      .strategies
+      .iter()
+      .max_by_key(|&strategy| {
+        let score = self
+          .seeds
+          .iter()
+          .map(|seed| playout_result(&state, seed.view(), &**strategy).score)
+          .sum::<f64>();
+        OrderedFloat(score)
+      })
+      .unwrap();
+    best_strategy.choose_choice(state)
+  }
+}
+
+pub struct FractalRepresentativeSeedSearchOptimizer<S> {
+  pub seed_search:
+    FractalRepresentativeSeedSearch<S, SingleSeed<CombatChoiceLineagesKind>, SingleSeedGenerator>,
+  pub new_strategy: Box<dyn Fn(&[&S]) -> S>,
+}
+pub struct FractalRepresentativeSeedSearchExplorationOptimizerKind;
+
 impl<S: Strategy + 'static> StrategyOptimizer for FractalRepresentativeSeedSearchOptimizer<S> {
   type Strategy = RepresentativeSeedsMetaStrategy<S, SingleSeed<CombatChoiceLineagesKind>>;
   fn step(&mut self, _state: &CombatState, _rng: &mut ChaCha8Rng) {
@@ -914,13 +947,6 @@ impl<S: Strategy + 'static> StrategyOptimizer for FractalRepresentativeSeedSearc
     self.seed_search.report()
   }
 }
-
-pub struct FractalRepresentativeSeedSearchOptimizer<S> {
-  pub seed_search:
-    FractalRepresentativeSeedSearch<S, SingleSeed<CombatChoiceLineagesKind>, SingleSeedGenerator>,
-  pub new_strategy: Box<dyn Fn(&[&S]) -> S>,
-}
-pub struct FractalRepresentativeSeedSearchExplorationOptimizerKind;
 impl ExplorationOptimizerKind for FractalRepresentativeSeedSearchExplorationOptimizerKind {
   type ExplorationOptimizer<T: Strategy + 'static> = FractalRepresentativeSeedSearchOptimizer<T>;
 
@@ -941,28 +967,57 @@ impl ExplorationOptimizerKind for FractalRepresentativeSeedSearchExplorationOpti
   }
 }
 
-#[derive(Clone, Debug)]
-pub struct RepresentativeSeedsMetaStrategy<S, T> {
-  pub seeds: Vec<T>,
-  pub strategies: Vec<Arc<S>>,
+pub struct NewFractalRepresentativeSeedSearchOptimizer<S> {
+  pub seed_search: NewFractalRepresentativeSeedSearch<
+    S,
+    SingleSeed<CombatChoiceLineagesKind>,
+    SingleSeedGenerator,
+  >,
+  pub new_strategy: Box<dyn Fn(&[&S]) -> S>,
 }
+pub struct NewFractalRepresentativeSeedSearchExplorationOptimizerKind;
 
-impl<S: Strategy + 'static, T: Seed<CombatState> + Clone + 'static> Strategy
-  for RepresentativeSeedsMetaStrategy<S, T>
-{
-  fn choose_choice(&self, state: &CombatState) -> Vec<Choice> {
-    let best_strategy = self
-      .strategies
-      .iter()
-      .max_by_key(|&strategy| {
-        let score = self
-          .seeds
+impl<S: Strategy + 'static> StrategyOptimizer for NewFractalRepresentativeSeedSearchOptimizer<S> {
+  type Strategy = RepresentativeSeedsMetaStrategy<S, SingleSeed<CombatChoiceLineagesKind>>;
+  fn step(&mut self, _state: &CombatState, rng: &mut ChaCha8Rng) {
+    self.seed_search.consider_strategy(
+      Arc::new((self.new_strategy)(
+        &self
+          .seed_search
+          .strategies
           .iter()
-          .map(|seed| playout_result(&state, seed.view(), &**strategy).score)
-          .sum::<f64>();
-        OrderedFloat(score)
-      })
-      .unwrap();
-    best_strategy.choose_choice(state)
+          .map(|s| &*s.strategy)
+          .collect::<Vec<_>>(),
+      )),
+      0,
+      rng,
+    );
+  }
+
+  fn print_extra_info(&self, _state: &CombatState) {
+    //self.seed_search.diagnose_exploitations();
+  }
+
+  fn report(&self) -> Arc<Self::Strategy> {
+    self.seed_search.report()
+  }
+}
+impl ExplorationOptimizerKind for NewFractalRepresentativeSeedSearchExplorationOptimizerKind {
+  type ExplorationOptimizer<T: Strategy + 'static> = NewFractalRepresentativeSeedSearchOptimizer<T>;
+
+  fn new<T: Strategy + 'static>(
+    self,
+    starting_state: &CombatState,
+    rng: &mut ChaCha8Rng,
+    new_strategy: Box<dyn Fn(&[&T]) -> T>,
+  ) -> Self::ExplorationOptimizer<T> {
+    NewFractalRepresentativeSeedSearchOptimizer {
+      seed_search: NewFractalRepresentativeSeedSearch::<T, _, _>::new(
+        starting_state.clone(),
+        SingleSeedGenerator::new(ChaCha8Rng::from_rng(rng).unwrap()),
+        Default::default(),
+      ),
+      new_strategy,
+    }
   }
 }

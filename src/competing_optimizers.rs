@@ -10,7 +10,10 @@ use crate::ai_utils::{collect_starting_points, playout_narration, Strategy};
 use crate::condition_strategy::ConditionStrategy;
 use crate::condition_strategy_generators::StrategyGeneratorsWithSharedRepresenativeSeeds;
 use crate::neural_net_ai::NeuralStrategy;
-use crate::representative_sampling::FractalRepresentativeSeedSearchExplorationOptimizerKind;
+use crate::representative_sampling::{
+  FractalRepresentativeSeedSearchExplorationOptimizerKind,
+  NewFractalRepresentativeSeedSearchExplorationOptimizerKind,
+};
 use crate::seed_system::{Seed, SingleSeed, SingleSeedGenerator, TrivialSeed};
 use crate::seeds_concrete::CombatChoiceLineagesKind;
 use crate::simulation::*;
@@ -437,6 +440,7 @@ pub enum ExplorationOptimizerKindSpecification {
   Original,
   IndependentSeeds(usize),
   FractalRepresentativeSeedSearch,
+  NewFractalRepresentativeSeedSearch,
 }
 
 impl CompetitorSpecification {
@@ -471,6 +475,12 @@ impl ExplorationOptimizerKindSpecification {
       ),
       ExplorationOptimizerKindSpecification::FractalRepresentativeSeedSearch => strategy.build(
         FractalRepresentativeSeedSearchExplorationOptimizerKind,
+        self,
+        starting_state,
+        rng,
+      ),
+      ExplorationOptimizerKindSpecification::NewFractalRepresentativeSeedSearch => strategy.build(
+        NewFractalRepresentativeSeedSearchExplorationOptimizerKind,
         self,
         starting_state,
         rng,

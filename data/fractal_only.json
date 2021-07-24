@@ -1,3 +1,4 @@
 [
-  {"ExplorationOptimizer": ["FractalRepresentativeSeedSearch","ConditionStrategy"]}
+  {"ExplorationOptimizer": ["FractalRepresentativeSeedSearch","ConditionStrategy"]},
+  {"ExplorationOptimizer": ["NewFractalRepresentativeSeedSearch","ConditionStrategy"]}
 ]
