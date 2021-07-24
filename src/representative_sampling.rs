@@ -8,6 +8,7 @@ use ordered_float::OrderedFloat;
 use rand::seq::{IteratorRandom, SliceRandom};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::sync::Arc;
 
@@ -198,9 +199,12 @@ pub struct NewFractalRepresentativeSeedSearch<S, T, G> {
 
 impl<S> Default for FRSSConfig<S> {
   fn default() -> Self {
+    // Note: Some quick tests in competing_optimizers suggested that the values of these
+    // parameters can be changed by quite a bit in either direction without having much effect
+    // on the quality of the system's output.
     FRSSConfig {
       min_level_to_leave_strategies_at: 5,
-      reserved_credits_factor: 4.0,
+      reserved_credits_factor: 2.0,
       culling_func: Box::new(|strategies| cull_closest_to_dominated(strategies, 32)),
     }
   }
@@ -491,10 +495,19 @@ impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> 
         })
         .sum::<f64>()
         / (level_size as f64);
+      let best_average = self
+        .strategies
+        .iter()
+        .filter(|s| s.scores.len() >= level_size)
+        .map(|s| s.scores[..level_size].iter().sum::<f64>())
+        .max_by_key(|&f| OrderedFloat(f))
+        .unwrap()
+        / (level_size as f64);
       println!(
-        "{}: [{:.3}]({:.1}) {}",
+        "{:>5}: [{:.3} > {:.3}] ({:.1}) {}",
         level_size,
         score_with_exploiting,
+        best_average,
         self.layers[level].spare_credits,
         scores.join(", ")
       );
@@ -989,7 +1002,12 @@ pub struct NewFractalRepresentativeSeedSearchOptimizer<S> {
   >,
   pub new_strategy: Box<dyn Fn(&[&S]) -> S>,
 }
-pub struct NewFractalRepresentativeSeedSearchExplorationOptimizerKind;
+#[derive(Copy, Clone, Serialize, Deserialize, Debug)]
+pub struct NewFractalRepresentativeSeedSearchExplorationOptimizerKind {
+  pub min_level_to_leave_strategies_at: usize,
+  pub reserved_credits_factor: f64,
+  pub max_survivors: usize,
+}
 
 impl<S: Strategy + 'static> StrategyOptimizer for NewFractalRepresentativeSeedSearchOptimizer<S> {
   type Strategy = RepresentativeSeedsMetaStrategy<S, SingleSeed<CombatChoiceLineagesKind>>;
@@ -1029,7 +1047,13 @@ impl ExplorationOptimizerKind for NewFractalRepresentativeSeedSearchExplorationO
       seed_search: NewFractalRepresentativeSeedSearch::<T, _, _>::new(
         starting_state.clone(),
         SingleSeedGenerator::new(ChaCha8Rng::from_rng(rng).unwrap()),
-        Default::default(),
+        FRSSConfig {
+          min_level_to_leave_strategies_at: self.min_level_to_leave_strategies_at,
+          reserved_credits_factor: self.reserved_credits_factor,
+          culling_func: Box::new(move |strategies| {
+            cull_closest_to_dominated(strategies, self.max_survivors)
+          }),
+        },
       ),
       new_strategy,
     }

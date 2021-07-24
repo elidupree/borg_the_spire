@@ -439,7 +439,7 @@ pub enum ExplorationOptimizerKindSpecification {
   Original,
   IndependentSeeds(usize),
   FractalRepresentativeSeedSearch,
-  NewFractalRepresentativeSeedSearch,
+  NewFractalRepresentativeSeedSearch(NewFractalRepresentativeSeedSearchExplorationOptimizerKind),
 }
 
 impl CompetitorSpecification {
@@ -478,12 +478,9 @@ impl ExplorationOptimizerKindSpecification {
         starting_state,
         rng,
       ),
-      ExplorationOptimizerKindSpecification::NewFractalRepresentativeSeedSearch => strategy.build(
-        NewFractalRepresentativeSeedSearchExplorationOptimizerKind,
-        self,
-        starting_state,
-        rng,
-      ),
+      ExplorationOptimizerKindSpecification::NewFractalRepresentativeSeedSearch(kind) => {
+        strategy.build(kind, self, starting_state, rng)
+      }
     }
   }
 }
