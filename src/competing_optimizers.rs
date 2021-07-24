@@ -332,15 +332,6 @@ pub fn optimizer_step(
   };
 
   println!(
-    "Example playout:\n{}",
-    playout_narration(
-      state,
-      TrivialSeed::new(Pcg64Mcg::from_entropy()),
-      &*strategy
-    )
-  );
-
-  println!(
     "Evaluated {} for {:.2?} ({} playouts). Average score: {}",
     name,
     elapsed,
@@ -349,6 +340,14 @@ pub fn optimizer_step(
   );
 
   if last {
+    println!(
+      "Example playout:\n{}",
+      playout_narration(
+        state,
+        TrivialSeed::new(Pcg64Mcg::from_entropy()),
+        &*strategy
+      )
+    );
     optimizer.print_extra_info(state);
   }
 

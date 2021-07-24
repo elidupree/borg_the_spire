@@ -492,9 +492,10 @@ impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> 
         .sum::<f64>()
         / (level_size as f64);
       println!(
-        "{}: [{:.3}] {}",
+        "{}: [{:.3}]({:.1}) {}",
         level_size,
         score_with_exploiting,
+        self.layers[level].spare_credits,
         scores.join(", ")
       );
     }
