@@ -8,6 +8,7 @@ use ordered_float::OrderedFloat;
 use rand::seq::{IteratorRandom, SliceRandom};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
+use std::collections::HashSet;
 use std::sync::Arc;
 
 struct CandidateSubgroup<'a, T> {
@@ -182,7 +183,7 @@ pub struct FRSSStrategy<S> {
   pub scores: Vec<f64>,
 }
 pub struct FRSSConfig<S> {
-  pub smallest_layer_size: usize,
+  pub min_level_to_leave_strategies_at: usize,
   pub reserved_credits_factor: f64,
   pub culling_func: Box<dyn Fn(&[FRSSStrategy<S>]) -> Vec<bool>>,
 }
@@ -198,7 +199,7 @@ pub struct NewFractalRepresentativeSeedSearch<S, T, G> {
 impl<S> Default for FRSSConfig<S> {
   fn default() -> Self {
     FRSSConfig {
-      smallest_layer_size: 16,
+      min_level_to_leave_strategies_at: 4,
       reserved_credits_factor: 4.0,
       culling_func: Box::new(|strategies| cull_closest_to_dominated(strategies, 32)),
     }
@@ -296,13 +297,21 @@ impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> 
     }
   }
 
-  pub fn consider_strategy(&mut self, strategy: Arc<S>) {
+  /// We expect to run at least a certain number of playouts for every generated strategy, to make sure it is bad rather than merely unlucky before we eliminated. Thus, if you are generating a large number of strategies that are extremely cheap to generate, it's best to cull the ones that are not promising before even submitting them to the FractalRepresentativeSeedSearch.
+  ///
+  pub fn consider_strategy(
+    &mut self,
+    strategy: Arc<S>,
+    min_playouts_before_culling: usize,
+    rng: &mut impl Rng,
+  ) {
+    assert!(min_playouts_before_culling <= 1 << self.config.min_level_to_leave_strategies_at);
     self.strategies.push(FRSSStrategy {
       strategy,
       scores: Vec::new(),
     });
     for level in 0.. {
-      let level_size = self.config.smallest_layer_size << level;
+      let level_size = 1 << level;
       if level == self.layers.len() {
         self.layers.push(FRSSLayer { spare_credits: 0.0 });
         let seed_generator = &mut self.seed_generator;
@@ -312,7 +321,6 @@ impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> 
       }
       assert!(self.layers.len() > level);
       assert!(self.seeds.len() >= level_size);
-      let mut layer = self.layers.get_mut(level).unwrap();
       for strategy in &mut self.strategies {
         if strategy.scores.len() < level_size {
           for seed in &self.seeds[strategy.scores.len()..level_size] {
@@ -326,9 +334,14 @@ impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> 
 
       let survivors = (self.config.culling_func)(&self.strategies);
       let mut index = 0;
+      let last_index = self.strategies.len() - 1;
       let config = &self.config;
+      let layer = self.layers.get_mut(level).unwrap();
       self.strategies.retain(|strategy| {
-        let result = survivors[index] || strategy.scores.len() > level_size;
+        let result = survivors[index]
+          || strategy.scores.len() > level_size
+            // up to min_playouts_before_culling, the just-submitted strategy will always be the last:
+          || (level_size < min_playouts_before_culling && index == last_index);
         if !result {
           layer.spare_credits += strategy.scores.len() as f64 * config.reserved_credits_factor
         }
@@ -336,19 +349,146 @@ impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> 
         result
       });
 
-      let next_level_size = 1 << (level + 1);
-      let credits_needed_to_advance = self
+      if level < self.config.min_level_to_leave_strategies_at {
+        continue;
+      }
+
+      let next_level_size = 1usize << (level + 1);
+      let steps_needed_to_advance = self
         .strategies
         .iter()
-        .map(|s| next_level_size - s.scores.len())
-        .sum::<usize>() as f64
-        * (1.0 + self.config.reserved_credits_factor);
-      if layer.spare_credits >= credits_needed_to_advance {
-        layer.spare_credits -= credits_needed_to_advance;
+        .map(|s| next_level_size.saturating_sub(s.scores.len()))
+        .sum::<usize>();
+      if steps_needed_to_advance == 0 {
+        // everyone died, which means we TECHNICALLY have enough credits to advance! Our credits can still be used at higher levels, and it's still useful to do resampling from higher levels. The only concern is if every strategy is dying at a low level, resulting in resampling at higher levels, and the resampling ends up having a performance cost comparable to the playouts. I don't know if this will actually be a problem, so I'm leaving this as "advance unconditionally" for now. If it becomes a problem, I could rate-limit zero-strategy advancements for each level.
+        continue;
       } else {
+        let credits_needed_to_advance =
+          steps_needed_to_advance as f64 * (1.0 + self.config.reserved_credits_factor);
+        let credits_available = self.layers[..=level]
+          .iter()
+          .map(|l| l.spare_credits)
+          .sum::<f64>();
+        if credits_available >= credits_needed_to_advance {
+          let mut credits_left_to_drain = credits_needed_to_advance;
+          for layer in self.layers[..=level].iter_mut().rev() {
+            if layer.spare_credits > credits_left_to_drain {
+              layer.spare_credits -= credits_left_to_drain;
+              break;
+            } else {
+              credits_left_to_drain -= layer.spare_credits;
+              layer.spare_credits = 0.0;
+            }
+          }
+          continue;
+        }
+      }
+
+      // fell through - not able to advance
+      self.resample_below_level(level, rng);
+      break;
+    }
+  }
+
+  pub fn resample_below_level(&mut self, level: usize, rng: &mut impl Rng) {
+    for strategy in &self.strategies {
+      assert!(strategy.scores.len() >= 1 << level);
+    }
+    for lower_level in (0..level).rev() {
+      let subgroup_size = 1 << lower_level;
+      let mut moving_indices = representative_seed_subgroup(
+        &self
+          .strategies
+          .iter()
+          .map(|e| &e.scores[..1 << (lower_level + 1)])
+          .collect::<Vec<_>>(),
+        subgroup_size,
+        rng,
+      );
+      let can_stay_still_indices: HashSet<usize> = moving_indices
+        .drain_filter(|&mut i| i < subgroup_size)
+        .collect();
+      let mut must_move_indices = moving_indices.into_iter();
+      for target_index in 0..subgroup_size {
+        if can_stay_still_indices.contains(&target_index) {
+          // this seed is already in a good location, do nothing
+        } else {
+          let moving_index = must_move_indices.next().unwrap();
+
+          // because strategy scores are in the same order as seeds, we must reorder them too
+          self.seeds.swap(moving_index, target_index);
+          for strategy in &mut self.strategies {
+            strategy.scores.swap(moving_index, target_index)
+          }
+        }
+      }
+      assert!(must_move_indices.next().is_none());
+    }
+  }
+
+  pub fn meta_strategy(&self) -> RepresentativeSeedsMetaStrategy<S, T> {
+    let mut strategies: Vec<&_> = self.strategies.iter().collect();
+    strategies.sort_by_key(|s| (s.scores.len(), OrderedFloat(s.scores.iter().sum::<f64>())));
+    RepresentativeSeedsMetaStrategy {
+      seeds: self.seeds.iter().take(16).cloned().collect(),
+      strategies: strategies
+        .iter()
+        .take(16)
+        .map(|s| s.strategy.clone())
+        .collect(),
+    }
+  }
+
+  pub fn report(&self) -> Arc<RepresentativeSeedsMetaStrategy<S, T>> {
+    //   let best = &self
+    //     .strategies
+    //     .iter()
+    //     .max_by_key(|s| (s.scores.len(), OrderedFloat(s.scores.iter().sum::<f64>())))
+    //     .unwrap();
+
+    println!("NewFractalRepresentativeSeedSearch reporting:",);
+    for level in 0.. {
+      let level_size = 1 << level;
+      if level_size > self.seeds.len() {
         break;
       }
+      let mut here_strategies: Vec<_> = self
+        .strategies
+        .iter()
+        .filter(|s| s.scores.len() == level_size)
+        .collect();
+      here_strategies.sort_by_key(|s| OrderedFloat(s.scores.iter().sum::<f64>()));
+      let scores = here_strategies
+        .iter()
+        .map(|s| {
+          format!(
+            "{:.3}",
+            s.scores.iter().sum::<f64>() / s.scores.len() as f64
+          )
+        })
+        .collect::<Vec<_>>();
+      let score_with_exploiting = (0..level_size)
+        .map(|index| {
+          self
+            .strategies
+            .iter()
+            .filter_map(|s| s.scores.get(index))
+            .max_by_key(|&&f| OrderedFloat(f))
+            .unwrap()
+        })
+        .sum::<f64>()
+        / (level_size as f64);
+      println!(
+        "{}: [{:.3}] {}",
+        level_size,
+        score_with_exploiting,
+        scores.join(", ")
+      );
     }
+
+    //&best.strategy
+
+    Arc::new(self.meta_strategy())
   }
 }
 

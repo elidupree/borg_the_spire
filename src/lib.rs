@@ -1,5 +1,6 @@
 #![feature(proc_macro_hygiene, decl_macro, array_map, generic_associated_types)]
 #![feature(map_first_last)]
+#![feature(drain_filter)]
 
 #[macro_use]
 extern crate rocket;
