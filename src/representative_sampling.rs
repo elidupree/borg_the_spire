@@ -139,6 +139,40 @@ pub fn representative_seed_subgroup(
     .collect()
 }
 
+/*
+New fractal seed search design (not yet implemented):
+
+New, improved strategies want to eventually be tested on a large corpus of seeds. However, there can be a long series of slightly-better strategies, and in this case, we don't want every strategy to be tested on every seed, because that could take too long. Instead, we stop testing at a lower seed-count until more strategies have had a chance to be tested to the same seed-count, and only pass along the best.
+
+We would like there to be an amortized constant number of playouts for each submitted strategy. We achieve this through explicit credit tracking.
+
+Fix a constant R. A strategy that has performed N playouts must also reserve N*R credits. When the strategy dies, the N*R credits are freed up to be spent on other strategies (although of course, it doesn't mean you can do N*R playouts, since each playout also requires reserving R credits - thus, releasing N*R credits means N*R/(R+1) more playouts can be done).
+
+When a new strategy S is submitted, you proceed as follows: first you run a fixed number of playouts on S. Then, for K in 0..:
+– you start with the assumption that all strategies have run at least 2^K playouts.
+– you perform a culling process on those strategies, potentially killing some of them which have only 2^K playouts and seem worse than either their peers or other strategies with more playouts. This may release some credits into the "pool of spare credits at level K".
+– you check whether there are enough spare credits at level K to raise every strategy with only 2^K playouts up to 2^(K+1) playouts. (maybe we can also spend credits from levels below K? not sure the difference is important. spending credits from higher levels would be wasteful though)
+– – If yes, do it and continue the iteration.
+– – If no, we aren't going to run more playouts right now. Since all strategies have run at least K playouts, now is a good time to resample all the representative seed collections at lower levels.
+
+The culling process is something like:
+
+A strategy survives if it meets *any* of the following:
+– It has more than 2^K playouts. (It is an "established strategy"; Its eventual death will be handled at a higher level, not this one.)
+– It is the best known strategy (highest average score) on the seeds on which it's been tested.
+– It is among the best `max_exploiters` among known strategies according to the exploiter-quality function.
+
+For example, a fresh strategy that does not outperform any established strategy in any particular way will die; a collection of up to `max_exploiters` fresh strategies that are meaningfully distinct from the established strategies and each other will survive without killing anything; a new exploiter added to that collection will either die or kill one of the existing exploiters.
+
+Note that this process means there will be no more than (max_exploiters+1)*(highest value of K that has been reached) surviving strategies at any time.
+
+A high value of `max_exploiters` slows down the process of reaching a high K – but I think that once you've reached a specific K with `max_exploiters` strategies, submitting *new* strategies is no slower than it would be with a lower value of `max_exploiters`.
+
+The value of R affects how much time is spent at which levels - high R means more time is spent at higher levels compared with lower ones, and vice versa.
+
+It feels a little nonintuitive that only the exact best strategy is kept, when there's a variable number of exploiters. But keeping e.g. "the best two" could easily just keep two identical strategies. We want some sort of combined metric, keeping strategies that are both distinctive and good - some slightly different formulation of the exploiter-quality function, maybe? (One where the strategy with the highest average always scores highest?)
+ */
+
 #[derive(Clone)]
 pub struct RepresentativeSeedSearchLayerStrategy<S> {
   pub strategy: Arc<S>,
