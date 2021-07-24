@@ -178,6 +178,7 @@ It feels a little nonintuitive that only the exact best strategy is kept, when t
 pub type StrategyId = usize;
 pub struct FRSSLayer {
   pub spare_credits: f64,
+  pub did_last_zero_strategy_ascension: bool,
 }
 pub struct FRSSStrategy<S> {
   pub strategy: Arc<S>,
@@ -329,7 +330,10 @@ impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> 
     for level in 0.. {
       let level_size = 1 << level;
       if level == self.layers.len() {
-        self.layers.push(FRSSLayer { spare_credits: 0.0 });
+        self.layers.push(FRSSLayer {
+          spare_credits: 0.0,
+          did_last_zero_strategy_ascension: false,
+        });
         let seed_generator = &mut self.seed_generator;
         self
           .seeds
@@ -365,6 +369,9 @@ impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> 
         result
       });
 
+      // The rest of this loop is about deciding whether to continue to a larger layer.
+      //
+      // There are various different conditions where you would want to ascend to handling larger layers. For each condition, we either `continue` to proceed to the next layer, or fall through, reaching the `break` at the end of the loop if none of the continue-conditions are met.
       if level < self.config.min_level_to_leave_strategies_at {
         continue;
       }
@@ -376,8 +383,13 @@ impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> 
         .map(|s| next_level_size.saturating_sub(s.scores.len()))
         .sum::<usize>();
       if steps_needed_to_advance == 0 {
-        // everyone died, which means we TECHNICALLY have enough credits to advance! Our credits can still be used at higher levels, and it's still useful to do resampling from higher levels. The only concern is if every strategy is dying at a low level, resulting in resampling at higher levels, and the resampling ends up having a performance cost comparable to the playouts. I don't know if this will actually be a problem, so I'm leaving this as "advance unconditionally" for now. If it becomes a problem, I could rate-limit zero-strategy advancements for each level.
-        continue;
+        // everyone died, which means we TECHNICALLY have enough credits to advance! Our credits can still be used at higher levels, and it's still useful to do resampling from higher levels. However, if every strategy is dying at a low level, and you ascend as far as you can every time, then the resampling ends up having a performance cost comparable to the playouts. I verified this using profiling data. So, in this case, each level only ascends HALF the time, meaning the total amortized cost is more like O(log (biggest level size) than O(biggest level size).
+        if self.layers[level].did_last_zero_strategy_ascension {
+          self.layers[level].did_last_zero_strategy_ascension = false;
+        } else {
+          self.layers[level].did_last_zero_strategy_ascension = true;
+          continue;
+        }
       } else {
         let credits_needed_to_advance =
           steps_needed_to_advance as f64 * (1.0 + self.config.reserved_credits_factor);
