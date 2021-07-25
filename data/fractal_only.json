@@ -1,10 +1,9 @@
 [
-  {"ExplorationOptimizer": ["FractalRepresentativeSeedSearch","ConditionStrategy"]},
   {"ExplorationOptimizer": [
     {"NewFractalRepresentativeSeedSearch": {
       "min_level_to_leave_strategies_at": 1,
       "reserved_credits_factor": 2,
-      "max_survivors": 16
+      "max_survivors": 32
     }},
     "ConditionStrategy"
   ]}

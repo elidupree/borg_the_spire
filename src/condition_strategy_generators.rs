@@ -1,11 +1,11 @@
 use crate::ai_utils::playout_result;
 use crate::competing_optimizers::StrategyOptimizer;
 use crate::condition_strategy::ConditionStrategy;
-use crate::representative_sampling::FractalRepresentativeSeedSearch;
+use crate::representative_sampling::NewFractalRepresentativeSeedSearch;
 use crate::seed_system::{Seed, SingleSeed, SingleSeedGenerator};
 use crate::seeds_concrete::CombatChoiceLineagesKind;
 use crate::simulation_state::CombatState;
-use rand::seq::{IteratorRandom, SliceRandom};
+use rand::seq::SliceRandom;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
@@ -16,7 +16,7 @@ use std::ops::Deref;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-pub type SeedSearch = FractalRepresentativeSeedSearch<
+pub type SeedSearch = NewFractalRepresentativeSeedSearch<
   ConditionStrategy,
   SingleSeed<CombatChoiceLineagesKind>,
   SingleSeedGenerator,
@@ -45,29 +45,27 @@ pub enum GeneratorKind {
 #[derive(Copy, Clone, Serialize, Deserialize, Debug)]
 pub enum HillClimbStart {
   NewRandom,
-  FromBiggestLayer,
+  FromSeedSearch,
 }
 #[derive(Copy, Clone, Serialize, Deserialize, Debug)]
 pub enum HillClimbKind {
   BunchOfRandomChanges,
   BunchOfRandomChangesInspired,
+  OneRelevantRule,
 }
 impl StrategyGeneratorsWithSharedRepresenativeSeeds {
   pub fn new(
     starting_state: CombatState,
     rng: &mut impl Rng,
   ) -> StrategyGeneratorsWithSharedRepresenativeSeeds {
-    let strategy = Arc::new(ConditionStrategy::fresh_distinctive_candidate(
-      &starting_state,
-      rng,
-    ));
     let mut generators = Vec::new();
     for steps in (0..=10).map(|i| 1 << i) {
       for num_verification_seeds in (0..=5).map(|i| 1 << i) {
-        for &start in &[HillClimbStart::NewRandom, HillClimbStart::FromBiggestLayer] {
+        for &start in &[HillClimbStart::NewRandom, HillClimbStart::FromSeedSearch] {
           for &kind in &[
             HillClimbKind::BunchOfRandomChanges,
             HillClimbKind::BunchOfRandomChangesInspired,
+            HillClimbKind::OneRelevantRule,
           ] {
             generators.push(SharingGenerator {
               time_used: Duration::from_secs(0),
@@ -83,10 +81,10 @@ impl StrategyGeneratorsWithSharedRepresenativeSeeds {
       }
     }
     StrategyGeneratorsWithSharedRepresenativeSeeds {
-      seed_search: FractalRepresentativeSeedSearch::new(
+      seed_search: NewFractalRepresentativeSeedSearch::new(
         starting_state,
         SingleSeedGenerator::new(ChaCha8Rng::from_rng(rng).unwrap()),
-        strategy,
+        Default::default(),
       ),
       generators,
     }
@@ -102,11 +100,20 @@ impl StrategyGeneratorsWithSharedRepresenativeSeeds {
     let strategy = generator.generator.gen_strategy(&self.seed_search, rng);
     let duration = start.elapsed();
     generator.time_used += duration;
-    self.seed_search.consider_strategy(Arc::new(strategy));
+    self.seed_search.consider_strategy(
+      Arc::new(strategy),
+      generator.generator.min_playouts_before_culling(),
+      rng,
+    );
   }
 }
 
 impl GeneratorKind {
+  pub fn min_playouts_before_culling(&self) -> usize {
+    match self {
+      &GeneratorKind::HillClimb { steps, .. } => steps.min(32),
+    }
+  }
   pub fn gen_strategy(&self, seed_search: &SeedSearch, rng: &mut impl Rng) -> ConditionStrategy {
     match self {
       &GeneratorKind::HillClimb {
@@ -123,27 +130,30 @@ impl GeneratorKind {
           HillClimbStart::NewRandom => {
             ConditionStrategy::fresh_distinctive_candidate(&seed_search.starting_state, rng)
           }
-          HillClimbStart::FromBiggestLayer => seed_search
-            .layers
-            .last()
-            .unwrap()
-            .strategies()
+          HillClimbStart::FromSeedSearch => seed_search
+            .strategies
             .choose(rng)
             .unwrap()
             .strategy
             .deref()
             .clone(),
         };
-        let mut seeds_source: Vec<_> = std::iter::once(&seed_search.lowest_seeds)
-          .chain(seed_search.layers.iter().map(|l| &l.seeds))
-          .find(|s| s.len() >= num_verification_seeds)
-          .unwrap_or_else(|| &seed_search.layers.last().unwrap().seeds)
+        let mut verification_seeds: Vec<_> = seed_search
+          .seeds
           .iter()
-          .collect();
-        seeds_source.shuffle(rng);
-        let mut verification_seeds: Vec<_> = seeds_source
-          .into_iter()
           .take(num_verification_seeds)
+          .collect();
+
+        // hack - the seed search may not have generated this many (or any) seeds yet
+        let extra_seeds;
+        if verification_seeds.len() < num_verification_seeds {
+          extra_seeds = (verification_seeds.len()..num_verification_seeds)
+            .map(|_| SingleSeed::new(rng))
+            .collect::<Vec<_>>();
+          verification_seeds.extend(extra_seeds.iter());
+        }
+        let mut verification_seeds: Vec<_> = verification_seeds
+          .into_iter()
           .map(|s| SeedInfo {
             seed: s,
             current_score: playout_result(&seed_search.starting_state, s.view(), &current).score,
@@ -160,13 +170,12 @@ impl GeneratorKind {
               &seed_search.starting_state,
               rng,
               &seed_search
-                .layers
-                .last()
-                .unwrap()
-                .strategies()
+                .strategies
+                .iter()
                 .map(|s| &*s.strategy)
                 .collect::<Vec<_>>(),
             ),
+            HillClimbKind::OneRelevantRule => {}
           };
           let first_score =
             playout_result(&seed_search.starting_state, first.seed.view(), &new).score;
@@ -223,11 +232,10 @@ impl StrategyOptimizer for StrategyGeneratorsWithSharedRepresenativeSeeds {
   }
 
   fn report(&self) -> Arc<Self::Strategy> {
-    let top_layer = self.seed_search.layers.last().unwrap();
-    let result = top_layer.best_strategy.strategy.clone();
+    let result = self.seed_search.best_strategy();
     self.seed_search.report();
     println!("StrategyGeneratorsWithSharedRepresenativeSeeds top strategies:");
-    for strategy in top_layer.strategies() {
+    for strategy in &self.seed_search.strategies {
       println!("{}", strategy.strategy.annotation);
     }
     result

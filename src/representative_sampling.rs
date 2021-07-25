@@ -454,6 +454,16 @@ impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> 
     }
   }
 
+  pub fn best_strategy(&self) -> Arc<S> {
+    self
+      .strategies
+      .iter()
+      .max_by_key(|s| (s.scores.len(), OrderedFloat(s.scores.iter().sum::<f64>())))
+      .unwrap()
+      .strategy
+      .clone()
+  }
+
   pub fn meta_strategy(&self) -> RepresentativeSeedsMetaStrategy<S, T> {
     let mut strategies: Vec<&_> = self.strategies.iter().collect();
     strategies.sort_by_key(|s| (s.scores.len(), OrderedFloat(s.scores.iter().sum::<f64>())));
