@@ -56,7 +56,8 @@ actions! {
   // TODO: make these match the actual game a bit closer
   [PlayCard {pub card: SingleCard, pub target: usize}],
   [UsePotion {pub potion_info: &'static CardInfo, pub target: usize}],
-  [FinishPlayingCard;],
+  [UseCardAction {pub card: SingleCard, pub target: usize, pub exhaust: bool, pub rebound: bool, pub energy_on_use: i32, pub purge_on_use: bool}],
+  [FinishPlayingCard(UseCardAction);],
   [EndTurn;],
   [StartMonsterTurn (pub usize);],
   [DoMonsterIntent (pub usize);],
@@ -92,20 +93,45 @@ actions! {
 
 impl Action for PlayCard {
   fn execute(&self, runner: &mut impl Runner) {
-    power_hook!(runner, AllCreatures, on_use_card(&self.card.clone()));
     let state = runner.state_mut();
     let card_index = state.hand.iter().position(|c| *c == self.card).unwrap();
     let card = state.hand.remove(card_index);
     let card_id = card.card_info.id;
-    state.player.energy -= card.cost_in_practice(state);
+    let cost = card.cost_in_practice(state);
+    let use_card_action = UseCardAction::new(card, self.target, state);
+    state.player.energy -= cost;
+    runner.action_now(&use_card_action);
+  }
+}
+impl UseCardAction {
+  pub fn new(card: SingleCard, target: usize, state: &CombatState) -> UseCardAction {
+    let exhaust = card.card_info.exhausts;
+    UseCardAction {
+      card,
+      target,
+      exhaust,
+      rebound: false,
+      energy_on_use: state.player.energy,
+      purge_on_use: false,
+    }
+  }
+}
+
+impl Action for UseCardAction {
+  fn execute(&self, runner: &mut impl Runner) {
+    let card = self.card.clone();
+    let mut this = self.clone();
+    power_hook!(runner, AllCreatures, on_use_card(&card, &mut this));
+    let state = runner.state_mut();
+    let card_id = card.card_info.id;
     state.card_in_play = Some(card);
 
     card_id.behavior(&mut PlayCardContext {
       runner,
-      target: self.target,
+      target: this.target,
     });
 
-    runner.action_now(&FinishPlayingCard);
+    runner.action_now(&FinishPlayingCard(this));
   }
 }
 
@@ -129,9 +155,11 @@ impl Action for FinishPlayingCard {
   fn execute(&self, runner: &mut impl Runner) {
     let state = runner.state_mut();
     let card = state.card_in_play.take().unwrap();
-    if card.card_info.card_type == CardType::Power {
+    if self.0.purge_on_use || card.card_info.card_type == CardType::Power {
       // card disappears
-    } else if card.card_info.exhausts {
+    } else if self.0.rebound {
+      todo!() // on top of deck
+    } else if self.0.exhaust {
       state.exhaust_pile.push(card);
     } else {
       state.discard_pile.push(card);

@@ -303,6 +303,8 @@ impl<'a, Seed: MaybeSeedView<CombatState>> Runner for StandardRunner<'a, Seed> {
       } else {
         if let Some(action) = self.state.actions.pop_front() {
           self.action_now(&action);
+        } else if let Some(action) = self.state.card_queue.pop_front() {
+          self.action_now(&action);
         } else {
           break;
         }

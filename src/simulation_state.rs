@@ -76,6 +76,7 @@ pub struct CombatState {
   pub fresh_subaction_queue: Vec<DynAction>,
   pub stale_subaction_stack: Vec<DynAction>,
   pub actions: VecDeque<DynAction>,
+  pub card_queue: VecDeque<UseCardAction>,
 
   #[serde(default)]
   pub num_reshuffles: i32,
@@ -273,6 +274,7 @@ impl CombatState {
       fresh_subaction_queue: Vec::new(),
       stale_subaction_stack: Vec::new(),
       actions: VecDeque::new(),
+      card_queue: VecDeque::new(),
       player: Player::from_communication_mod(&combat.player, &observed.relics),
       turn_number: combat.turn,
       turn_has_ended: false,

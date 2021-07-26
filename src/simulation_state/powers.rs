@@ -212,7 +212,13 @@ pub trait PowerBehavior {
   }
   fn on_inflict_damage(&self, context: &mut PowerHookContext<impl Runner>) {}
   fn on_card_draw(&self, context: &mut PowerHookContext<impl Runner>, card: &SingleCard) {}
-  fn on_use_card(&self, context: &mut PowerHookContext<impl Runner>, card: &SingleCard) {}
+  fn on_use_card(
+    &self,
+    context: &mut PowerHookContext<impl Runner>,
+    card: &SingleCard,
+    action: &mut UseCardAction,
+  ) {
+  }
   fn on_after_use_card(&self, context: &mut PowerHookContext<impl Runner>, card: &SingleCard) {}
   fn on_specific_trigger(&self, context: &mut PowerHookContext<impl Runner>) {}
   fn on_death(&self, context: &mut PowerHookContext<impl Runner>) {}
@@ -373,9 +379,9 @@ macro_rules! powers {
           $(PowerId::$Variant => $Variant.on_card_draw(context, card),)*
         }
       }
-      fn on_use_card(&self, context: &mut PowerHookContext<impl Runner>, card: &SingleCard) {
+      fn on_use_card(&self, context: &mut PowerHookContext<impl Runner>, card: &SingleCard, action: &mut UseCardAction) {
         match self {
-          $(PowerId::$Variant => $Variant.on_use_card(context, card),)*
+          $(PowerId::$Variant => $Variant.on_use_card(context, card, action),)*
         }
       }
       fn on_after_use_card(&self, context: &mut PowerHookContext<impl Runner>, card: &SingleCard) {
@@ -460,6 +466,9 @@ powers! {
   ["Runic Pyramid", RunicPyramid, Relic],
   ["SacredBark", SacredBark, Relic],
   ["Sozu", Sozu, Relic],
+
+  // Event relics
+  ["Necronomicon", Necronomicon, Relic],
 
   // Relic powers
   ["Pen Nib", PenNib, Buff],
@@ -685,7 +694,12 @@ impl PowerBehavior for Angry {
 }
 
 impl PowerBehavior for Enrage {
-  fn on_use_card(&self, context: &mut PowerHookContext<impl Runner>, card: &SingleCard) {
+  fn on_use_card(
+    &self,
+    context: &mut PowerHookContext<impl Runner>,
+    card: &SingleCard,
+    _action: &mut UseCardAction,
+  ) {
     if card.card_info.card_type == CardType::Skill {
       context.power_owner_top(PowerId::Strength, context.amount());
     }
@@ -708,7 +722,12 @@ impl PowerBehavior for Metallicize {
 }
 
 impl PowerBehavior for SharpHide {
-  fn on_use_card(&self, context: &mut PowerHookContext<impl Runner>, card: &SingleCard) {
+  fn on_use_card(
+    &self,
+    context: &mut PowerHookContext<impl Runner>,
+    card: &SingleCard,
+    _action: &mut UseCardAction,
+  ) {
     if card.card_info.card_type == CardType::Attack {
       context.action_bottom(DamageAction {
         target: CreatureIndex::Player,
@@ -814,7 +833,12 @@ impl PowerBehavior for PlatedArmor {
 }
 
 impl PowerBehavior for InkBottle {
-  fn on_use_card(&self, context: &mut PowerHookContext<impl Runner>, _card: &SingleCard) {
+  fn on_use_card(
+    &self,
+    context: &mut PowerHookContext<impl Runner>,
+    _card: &SingleCard,
+    _action: &mut UseCardAction,
+  ) {
     let amount = &mut context.this_power_mut().amount;
     *amount += 1;
     if *amount == 10 {
@@ -859,11 +883,39 @@ impl PowerBehavior for Sozu {
   energy_relic! {}
 }
 
+impl PowerBehavior for Necronomicon {
+  fn at_start_of_turn(&self, context: &mut PowerHookContext<impl Runner>) {
+    context.this_power_mut().amount = -1;
+  }
+  fn on_use_card(
+    &self,
+    context: &mut PowerHookContext<impl Runner>,
+    card: &SingleCard,
+    action: &mut UseCardAction,
+  ) {
+    if context.amount() != 0
+      && card.card_info.card_type == CardType::Attack
+      && card.cost_in_practice(context.state()) >= 2
+    {
+      context.this_power_mut().amount = 0;
+      let mut new_action = UseCardAction::new(card.clone(), action.target, context.state());
+      new_action.purge_on_use = true;
+      new_action.energy_on_use = action.energy_on_use;
+      context.state_mut().card_queue.push_back(new_action);
+    }
+  }
+}
+
 impl PowerBehavior for PenNib {
   fn priority(&self) -> i32 {
     6
   }
-  fn on_use_card(&self, context: &mut PowerHookContext<impl Runner>, card: &SingleCard) {
+  fn on_use_card(
+    &self,
+    context: &mut PowerHookContext<impl Runner>,
+    card: &SingleCard,
+    _action: &mut UseCardAction,
+  ) {
     if card.card_info.card_type == CardType::Attack {
       context.remove_this_power();
     }
@@ -925,7 +977,12 @@ impl PowerBehavior for FlameBarrier {
 }
 
 impl PowerBehavior for Rage {
-  fn on_use_card(&self, context: &mut PowerHookContext<impl Runner>, card: &SingleCard) {
+  fn on_use_card(
+    &self,
+    context: &mut PowerHookContext<impl Runner>,
+    card: &SingleCard,
+    _action: &mut UseCardAction,
+  ) {
     if card.card_info.card_type == CardType::Attack {
       context.action_bottom(GainBlockAction {
         creature_index: context.owner_index(),
