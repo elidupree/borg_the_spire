@@ -328,6 +328,7 @@ cards! {
   ["Dazed", Dazed, Status, Special, UNPLAYABLE, NO_TARGET, {ethereal: true,}],
   ["Slimed", Slimed, Status, Special, 1, NO_TARGET, {exhausts: true,}],
   ["Burn", Burn, Status, Special, UNPLAYABLE, NO_TARGET, {}],
+  ["Wound", Wound, Status, Special, UNPLAYABLE, NO_TARGET, {}],
 
   ["Block Potion", BlockPotion, Potion, Special, 0, NO_TARGET, {}],
   ["BloodPotion", BloodPotion, Potion, Special, 0, NO_TARGET, {}],
@@ -818,6 +819,7 @@ impl CardBehavior for AscendersBane {}
 impl CardBehavior for Dazed {}
 impl CardBehavior for Slimed {}
 impl CardBehavior for Burn {}
+impl CardBehavior for Wound {}
 
 impl CardBehavior for BlockPotion {
   fn behavior(self, context: &mut impl CardBehaviorContext) {

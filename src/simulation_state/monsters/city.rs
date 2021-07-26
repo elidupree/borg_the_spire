@@ -87,3 +87,31 @@ impl MonsterBehavior for SphericGuardian {
     }
   }
 }
+
+intent! {
+  pub enum TaskmasterIntent {
+    2: ScouringWhip,
+  }
+}
+impl MonsterBehavior for Taskmaster {
+  type Intent = TaskmasterIntent;
+  fn make_intent_distribution(context: &mut IntentChoiceContext) {
+    use TaskmasterIntent::*;
+    context.always(ScouringWhip);
+  }
+  fn intent_effects(context: &mut impl IntentEffectsContext) {
+    use TaskmasterIntent::*;
+    match context.intent::<Self::Intent>() {
+      ScouringWhip => {
+        context.attack(7);
+        context.discard_status(
+          CardId::Wound,
+          context.with_ascensions(Ascension(18), 3, Ascension(3), 2, 1),
+        );
+        if context.ascension() >= 18 {
+          context.power_self(PowerId::Strength, 1);
+        }
+      }
+    }
+  }
+}

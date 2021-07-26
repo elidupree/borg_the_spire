@@ -458,6 +458,8 @@ monsters! {
 
   ["Byrd", Byrd],
   ["SphericGuardian", SphericGuardian],
+
+  ["SlaverBoss", Taskmaster],
 }
 
 pub mod beyond;
