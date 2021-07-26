@@ -1,6 +1,8 @@
 use crate::ai_utils::playout_result;
 use crate::competing_optimizers::StrategyOptimizer;
-use crate::condition_strategy::ConditionStrategy;
+use crate::condition_strategy::{
+  Condition, ConditionStrategy, EvaluatedPriorities, EvaluationData, Rule,
+};
 use crate::representative_sampling::NewFractalRepresentativeSeedSearch;
 use crate::seed_system::{Seed, SingleSeed, SingleSeedGenerator};
 use crate::seeds_concrete::CombatChoiceLineagesKind;
@@ -9,6 +11,7 @@ use crate::simulation_state::CombatState;
 use rand::seq::SliceRandom;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
+use rand_distr::StandardNormal;
 use serde::{Deserialize, Serialize};
 use smallvec::alloc::fmt::Formatter;
 use std::fmt;
@@ -66,7 +69,7 @@ impl StrategyGeneratorsWithSharedRepresenativeSeeds {
           for &kind in &[
             HillClimbKind::BunchOfRandomChanges,
             HillClimbKind::BunchOfRandomChangesInspired,
-            //HillClimbKind::OneRelevantRule,
+            HillClimbKind::OneRelevantRule,
           ] {
             generators.push(SharingGenerator {
               time_used: Duration::from_secs(0),
@@ -177,15 +180,45 @@ impl GeneratorKind {
                 .collect::<Vec<_>>(),
             ),
             HillClimbKind::OneRelevantRule => {
-              todo!()
-              // let mut state = seed_search.starting_state.clone();
-              // let mut runner = StandardRunner::new(&mut state, first.seed.view());
-              // while !runner.state().combat_over() {
-              //   let choices = current.choose_choice(runner.state());
-              //   for choice in choices {
-              //     runner.apply_choice(&choice);
-              //   }
-              // }
+              let mut state = seed_search.starting_state.clone();
+              let mut runner = StandardRunner::new(&mut state, first.seed.view());
+              let mut candidate_rules = Vec::new();
+              while !runner.state().combat_over() {
+                let state = runner.state();
+                let data = EvaluationData::new(state);
+                let priorities = EvaluatedPriorities::evaluated(&current.rules, state, &data);
+                let best_index = priorities.best_index();
+                for _ in 0..50 {
+                  let condition =
+                    Condition::random_generally_relevant_choice_distinguisher(state, rng);
+                  let mut rule = Rule {
+                    conditions: vec![condition],
+                    flat_reward: rng.sample(StandardNormal),
+                    ..Default::default()
+                  };
+                  if priorities.best_index_with_extra_rule(&rule, state, &data) != best_index {
+                    for _ in 0..rng.gen_range(0..=2) {
+                      for _ in 0..50 {
+                        let condition =
+                          Condition::random_generally_relevant_state_distinguisher(state, rng);
+                        if condition.evaluate(state, &data.contexts().next().unwrap()) {
+                          rule.conditions.push(condition);
+                          break;
+                        }
+                      }
+                    }
+                    candidate_rules.push(rule);
+                    break;
+                  }
+                }
+                let choice = &data.choices[best_index].choice;
+                runner.apply_choice(&choice);
+              }
+              let mut new = current.clone();
+              if let Some(new_rule) = candidate_rules.choose(rng) {
+                new.rules.push(new_rule.clone())
+              }
+              new
             }
           };
           let first_score =
