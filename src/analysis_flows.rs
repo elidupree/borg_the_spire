@@ -260,7 +260,7 @@ impl AnalysisComponentBehavior for FractalRepresentativeSeedSearchComponentSpec 
             candidates
               .choose(&mut rand::thread_rng())
               .unwrap()
-              .hill_climb_candidate(&state, &mut rand::thread_rng(), candidates)
+              .bunch_of_random_changes(&state, &mut rand::thread_rng(), candidates)
           }
           // if candidates.len() < 2 || (rand::random::<f64>() < 0.25) {
           //   FastStrategy::random(&mut rand::thread_rng())

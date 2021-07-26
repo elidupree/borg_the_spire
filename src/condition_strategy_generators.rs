@@ -1,7 +1,7 @@
 use crate::ai_utils::playout_result;
 use crate::competing_optimizers::StrategyOptimizer;
 use crate::condition_strategy::{
-  Condition, ConditionStrategy, EvaluatedPriorities, EvaluationData, Rule,
+  Condition, ConditionKind, ConditionStrategy, EvaluatedPriorities, EvaluationData, Rule,
 };
 use crate::representative_sampling::NewFractalRepresentativeSeedSearch;
 use crate::seed_system::{Seed, SingleSeed, SingleSeedGenerator};
@@ -112,6 +112,11 @@ impl StrategyGeneratorsWithSharedRepresenativeSeeds {
   }
 }
 
+pub struct HillClimbSeedInfo<'a> {
+  pub seed: &'a SingleSeed<CombatChoiceLineagesKind>,
+  pub current_score: f64,
+}
+
 impl GeneratorKind {
   pub fn min_playouts_before_culling(&self) -> usize {
     match self {
@@ -126,10 +131,6 @@ impl GeneratorKind {
         start,
         kind,
       } => {
-        struct SeedInfo<'a> {
-          seed: &'a SingleSeed<CombatChoiceLineagesKind>,
-          current_score: f64,
-        }
         let mut current = match start {
           HillClimbStart::NewRandom => {
             ConditionStrategy::fresh_distinctive_candidate(&seed_search.starting_state, rng)
@@ -158,7 +159,7 @@ impl GeneratorKind {
         }
         let mut verification_seeds: Vec<_> = verification_seeds
           .into_iter()
-          .map(|s| SeedInfo {
+          .map(|s| HillClimbSeedInfo {
             seed: s,
             current_score: playout_result(&seed_search.starting_state, s.view(), &current).score,
           })
@@ -169,61 +170,7 @@ impl GeneratorKind {
         for _ in 0..steps {
           verification_seeds.shuffle(rng);
           let (first, rest) = verification_seeds.split_first().unwrap();
-          let new = match kind {
-            HillClimbKind::BunchOfRandomChanges => {
-              current.hill_climb_candidate(&seed_search.starting_state, rng, &[])
-            }
-            HillClimbKind::BunchOfRandomChangesInspired => current.hill_climb_candidate(
-              &seed_search.starting_state,
-              rng,
-              &seed_search
-                .strategies
-                .iter()
-                .map(|s| &*s.strategy)
-                .collect::<Vec<_>>(),
-            ),
-            HillClimbKind::OneRelevantRule => {
-              let mut state = seed_search.starting_state.clone();
-              let mut runner = StandardRunner::new(&mut state, first.seed.view());
-              let mut candidate_rules = Vec::new();
-              while !runner.state().combat_over() {
-                let state = runner.state();
-                let data = EvaluationData::new(state);
-                let priorities = EvaluatedPriorities::evaluated(&current.rules, state, &data);
-                let best_index = priorities.best_index();
-                for _ in 0..50 {
-                  let condition =
-                    Condition::random_generally_relevant_choice_distinguisher(state, rng);
-                  let mut rule = Rule {
-                    conditions: vec![condition],
-                    flat_reward: rng.sample(StandardNormal),
-                    ..Default::default()
-                  };
-                  if priorities.best_index_with_extra_rule(&rule, state, &data) != best_index {
-                    for _ in 0..rng.gen_range(0..=2) {
-                      for _ in 0..50 {
-                        let condition =
-                          Condition::random_generally_relevant_state_distinguisher(state, rng);
-                        if condition.evaluate(state, &data.contexts().next().unwrap()) {
-                          rule.conditions.push(condition);
-                          break;
-                        }
-                      }
-                    }
-                    candidate_rules.push(rule);
-                    break;
-                  }
-                }
-                let choice = &data.choices[best_index].choice;
-                runner.apply_choice(&choice);
-              }
-              let mut new = current.clone();
-              if let Some(new_rule) = candidate_rules.choose(rng) {
-                new.rules.push(new_rule.clone())
-              }
-              new
-            }
-          };
+          let new = kind.hill_climb_candidate(seed_search, &current, &verification_seeds, rng);
           let first_score =
             playout_result(&seed_search.starting_state, first.seed.view(), &new).score;
           if first_score <= verification_seeds[0].current_score {
@@ -262,6 +209,72 @@ impl GeneratorKind {
   }
 }
 
+impl HillClimbKind {
+  fn hill_climb_candidate(
+    &self,
+    seed_search: &SeedSearch,
+    current: &ConditionStrategy,
+    verification_seeds: &[HillClimbSeedInfo],
+    rng: &mut impl Rng,
+  ) -> ConditionStrategy {
+    let (first, _rest) = verification_seeds.split_first().unwrap();
+    match self {
+      HillClimbKind::BunchOfRandomChanges => {
+        current.bunch_of_random_changes(&seed_search.starting_state, rng, &[])
+      }
+      HillClimbKind::BunchOfRandomChangesInspired => current.bunch_of_random_changes(
+        &seed_search.starting_state,
+        rng,
+        &seed_search
+          .strategies
+          .iter()
+          .map(|s| &*s.strategy)
+          .collect::<Vec<_>>(),
+      ),
+      HillClimbKind::OneRelevantRule => {
+        let mut state = seed_search.starting_state.clone();
+        let mut runner = StandardRunner::new(&mut state, first.seed.view());
+        let mut candidate_rules = Vec::new();
+        while !runner.state().combat_over() {
+          let state = runner.state();
+          let data = EvaluationData::new(state);
+          let priorities = EvaluatedPriorities::evaluated(&current.rules, state, &data);
+          let best_index = priorities.best_index();
+          for _ in 0..50 {
+            let condition = Condition::random_generally_relevant_choice_distinguisher(state, rng);
+            let mut rule = Rule {
+              conditions: vec![condition],
+              flat_reward: rng.sample(StandardNormal),
+              ..Default::default()
+            };
+            if priorities.best_index_with_extra_rule(&rule, state, &data) != best_index {
+              for _ in 0..rng.gen_range(0..=2) {
+                for _ in 0..50 {
+                  let condition =
+                    Condition::random_generally_relevant_state_distinguisher(state, rng);
+                  if condition.evaluate(state, &data.contexts().next().unwrap()) {
+                    rule.conditions.push(condition);
+                    break;
+                  }
+                }
+              }
+              candidate_rules.push(rule);
+              break;
+            }
+          }
+          let choice = &data.choices[best_index].choice;
+          runner.apply_choice(&choice);
+        }
+        let mut new = current.clone();
+        if let Some(new_rule) = candidate_rules.choose(rng) {
+          new.rules.push(new_rule.clone())
+        }
+        new
+      }
+    }
+  }
+}
+
 impl Display for GeneratorKind {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
     match self {
@@ -290,6 +303,79 @@ impl StrategyOptimizer for StrategyGeneratorsWithSharedRepresenativeSeeds {
     for strategy in &self.seed_search.strategies {
       println!("{}", strategy.strategy.annotation);
     }
+    result
+  }
+}
+
+impl ConditionStrategy {
+  pub fn bunch_of_random_changes(
+    &self,
+    state: &CombatState,
+    rng: &mut impl Rng,
+    promising_strategies: &[&ConditionStrategy],
+  ) -> ConditionStrategy {
+    fn tweak_rules(
+      rules: &mut Vec<Rule>,
+      state: &CombatState,
+      rng: &mut impl Rng,
+      promising_conditions: &[Condition],
+    ) {
+      let remove_chance = 0.05f64.min(2.0 / rules.len() as f64);
+      rules.retain(|_| rng.gen::<f64>() > remove_chance);
+      for rule in rules.iter_mut() {
+        if rng.gen() {
+          if rule.flat_reward != 0.0 {
+            rule.flat_reward += rng.sample::<f64, _>(StandardNormal) * 0.2;
+          }
+          if rule.block_per_energy_reward != 0.0 {
+            rule.block_per_energy_reward += rng.sample::<f64, _>(StandardNormal) * 0.02;
+          }
+          for value in &mut rule.unblocked_damage_per_energy_rewards {
+            if *value != 0.0 {
+              *value += rng.sample::<f64, _>(StandardNormal) * 0.01;
+            }
+          }
+        }
+      }
+      for _ in 0..rng.gen_range(10..30) {
+        let condition;
+        if rng.gen() || promising_conditions.is_empty() {
+          condition = Condition::random_generally_relevant_state_distinguisher(state, rng);
+        } else {
+          condition = promising_conditions.choose(rng).unwrap().clone();
+        }
+        if rng.gen() || rules.is_empty() {
+          rules.push(Rule {
+            conditions: vec![
+              Condition::random_generally_relevant_choice_distinguisher(state, rng),
+              condition,
+            ],
+            flat_reward: rng.sample(StandardNormal),
+            ..Default::default()
+          })
+        } else {
+          rules.choose_mut(rng).unwrap().conditions.push(condition);
+        }
+      }
+    }
+
+    let promising_conditions: Vec<_> = promising_strategies
+      .iter()
+      .flat_map(|s| {
+        s.rules
+          .iter()
+          .flat_map(|rule| &rule.conditions)
+          .filter(|c| {
+            !matches!(
+              c.kind,
+              ConditionKind::PlayCardId(_) | ConditionKind::UsePotionId(_)
+            )
+          })
+          .cloned()
+      })
+      .collect();
+    let mut result = self.clone();
+    tweak_rules(&mut result.rules, state, rng, &promising_conditions);
     result
   }
 }

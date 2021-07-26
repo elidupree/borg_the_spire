@@ -538,7 +538,7 @@ impl StrategyAndGeneratorSpecification {
               candidates
                 .choose(&mut rand::thread_rng())
                 .unwrap()
-                .hill_climb_candidate(&starting_state_clone, &mut rand::thread_rng(), candidates)
+                .bunch_of_random_changes(&starting_state_clone, &mut rand::thread_rng(), candidates)
             }
           }),
         ),
