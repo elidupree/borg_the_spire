@@ -4,6 +4,7 @@ use crate::condition_strategy::ConditionStrategy;
 use crate::representative_sampling::NewFractalRepresentativeSeedSearch;
 use crate::seed_system::{Seed, SingleSeed, SingleSeedGenerator};
 use crate::seeds_concrete::CombatChoiceLineagesKind;
+use crate::simulation::{Runner, StandardRunner};
 use crate::simulation_state::CombatState;
 use rand::seq::SliceRandom;
 use rand::{Rng, SeedableRng};
@@ -59,13 +60,13 @@ impl StrategyGeneratorsWithSharedRepresenativeSeeds {
     rng: &mut impl Rng,
   ) -> StrategyGeneratorsWithSharedRepresenativeSeeds {
     let mut generators = Vec::new();
-    for steps in (0..=10).map(|i| 1 << i) {
+    for steps in (0..=8).map(|i| 1 << i) {
       for num_verification_seeds in (0..=5).map(|i| 1 << i) {
         for &start in &[HillClimbStart::NewRandom, HillClimbStart::FromSeedSearch] {
           for &kind in &[
             HillClimbKind::BunchOfRandomChanges,
             HillClimbKind::BunchOfRandomChangesInspired,
-            HillClimbKind::OneRelevantRule,
+            //HillClimbKind::OneRelevantRule,
           ] {
             generators.push(SharingGenerator {
               time_used: Duration::from_secs(0),
@@ -175,7 +176,17 @@ impl GeneratorKind {
                 .map(|s| &*s.strategy)
                 .collect::<Vec<_>>(),
             ),
-            HillClimbKind::OneRelevantRule => {}
+            HillClimbKind::OneRelevantRule => {
+              todo!()
+              // let mut state = seed_search.starting_state.clone();
+              // let mut runner = StandardRunner::new(&mut state, first.seed.view());
+              // while !runner.state().combat_over() {
+              //   let choices = current.choose_choice(runner.state());
+              //   for choice in choices {
+              //     runner.apply_choice(&choice);
+              //   }
+              // }
+            }
           };
           let first_score =
             playout_result(&seed_search.starting_state, first.seed.view(), &new).score;
