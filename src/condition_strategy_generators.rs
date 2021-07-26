@@ -163,6 +163,8 @@ impl GeneratorKind {
             current_score: playout_result(&seed_search.starting_state, s.view(), &current).score,
           })
           .collect();
+
+        let mut improvements = 0;
         for _ in 0..steps {
           verification_seeds.shuffle(rng);
           let (first, rest) = verification_seeds.split_first().unwrap();
@@ -243,10 +245,11 @@ impl GeneratorKind {
             for (info, new_score) in verification_seeds.iter_mut().zip(new_scores) {
               info.current_score = new_score;
             }
+            improvements += 1;
           }
         }
 
-        current.annotation = format!("{} + {}", current.annotation, self);
+        current.annotation = format!("{} + {}/{}", current.annotation, improvements, self);
 
         current
       }
