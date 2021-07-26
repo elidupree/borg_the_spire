@@ -165,6 +165,7 @@ impl GeneratorKind {
           .collect();
 
         let mut improvements = 0;
+        let mut improvements_on_first = 0;
         for _ in 0..steps {
           verification_seeds.shuffle(rng);
           let (first, rest) = verification_seeds.split_first().unwrap();
@@ -228,6 +229,7 @@ impl GeneratorKind {
           if first_score <= verification_seeds[0].current_score {
             continue;
           }
+          improvements_on_first += 1;
           let new_scores: Vec<_> = std::iter::once(first_score)
             .chain(
               rest
@@ -249,7 +251,10 @@ impl GeneratorKind {
           }
         }
 
-        current.annotation = format!("{} + {}/{}", current.annotation, improvements, self);
+        current.annotation = format!(
+          "{} + {}/{}/{}",
+          current.annotation, improvements, improvements_on_first, self
+        );
 
         current
       }
