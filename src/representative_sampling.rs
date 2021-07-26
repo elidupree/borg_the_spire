@@ -478,14 +478,8 @@ impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> 
     }
   }
 
-  pub fn report(&self) -> Arc<RepresentativeSeedsMetaStrategy<S, T>> {
-    //   let best = &self
-    //     .strategies
-    //     .iter()
-    //     .max_by_key(|s| (s.scores.len(), OrderedFloat(s.scores.iter().sum::<f64>())))
-    //     .unwrap();
-
-    println!("NewFractalRepresentativeSeedSearch reporting:",);
+  pub fn report_lines(&self) -> Vec<String> {
+    let mut result = Vec::new();
     for level in 0.. {
       let level_size = 1 << level;
       if level_size > self.seeds.len() {
@@ -525,14 +519,29 @@ impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> 
         .max_by_key(|&f| OrderedFloat(f))
         .unwrap()
         / (level_size as f64);
-      println!(
+      result.push(format!(
         "{:>5}: [{:.3} > {:.3}] ({:.1}) {}",
         level_size,
         score_with_exploiting,
         best_average,
         self.layers[level].spare_credits,
         scores.join(", ")
-      );
+      ));
+    }
+    result
+  }
+
+  pub fn report(&self) -> Arc<RepresentativeSeedsMetaStrategy<S, T>> {
+    //   let best = &self
+    //     .strategies
+    //     .iter()
+    //     .max_by_key(|s| (s.scores.len(), OrderedFloat(s.scores.iter().sum::<f64>())))
+    //     .unwrap();
+
+    println!("NewFractalRepresentativeSeedSearch reporting:",);
+
+    for line in self.report_lines() {
+      println!("{}", line);
     }
 
     //&best.strategy

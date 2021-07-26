@@ -7,7 +7,7 @@ use crate::simulation_state::{
 };
 use array_ext::Array;
 use ordered_float::OrderedFloat;
-use rand::seq::SliceRandom;
+use rand::seq::{IteratorRandom, SliceRandom};
 use rand::Rng;
 use rand_distr::{Poisson, StandardNormal};
 use std::collections::HashSet;
@@ -51,8 +51,14 @@ impl WhichMonster {
       .filter(|(_, m)| !m.gone)
   }
   pub fn random(state: &CombatState, rng: &mut impl Rng) -> WhichMonster {
-    let index = rng.gen_range(0..state.monsters.len());
-    let id = state.monsters[index].monster_id;
+    let (index, monster) = state
+      .monsters
+      .iter()
+      .enumerate()
+      .filter(|(_, m)| !m.gone)
+      .choose(rng)
+      .unwrap();
+    let id = monster.monster_id;
     WhichMonster {
       id,
       which_of_this_id: state.monsters[..index]

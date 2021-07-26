@@ -2,7 +2,8 @@ use crate::ai_utils::starting_choices_made_by_strategy;
 use crate::competing_optimizers::{ExplorationOptimizerKind, StrategyOptimizer};
 use crate::condition_strategy::ConditionStrategy;
 use crate::representative_sampling::{
-  FractalRepresentativeSeedSearchExplorationOptimizerKind, FractalRepresentativeSeedSearchOptimizer,
+  NewFractalRepresentativeSeedSearchExplorationOptimizerKind,
+  NewFractalRepresentativeSeedSearchOptimizer,
 };
 use crate::simulation::DisplayChoices;
 use crate::simulation_state::CombatState;
@@ -238,7 +239,7 @@ impl AnalysisComponentBehavior for CompareStartingPointsComponentSpec {
 #[derive(Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub struct FractalRepresentativeSeedSearchComponentSpec {}
 pub struct FractalRepresentativeSeedSearchComponentData {
-  search: FractalRepresentativeSeedSearchOptimizer<ConditionStrategy>,
+  search: NewFractalRepresentativeSeedSearchOptimizer<ConditionStrategy>,
 }
 
 impl AnalysisComponentBehavior for FractalRepresentativeSeedSearchComponentSpec {
@@ -247,7 +248,12 @@ impl AnalysisComponentBehavior for FractalRepresentativeSeedSearchComponentSpec 
   fn initial_data(&self, context: &AnalysisFlowContext) -> Self::Data {
     let state = context.starting_state.clone();
     FractalRepresentativeSeedSearchComponentData {
-      search: FractalRepresentativeSeedSearchExplorationOptimizerKind.new(
+      search: NewFractalRepresentativeSeedSearchExplorationOptimizerKind {
+        min_level_to_leave_strategies_at: 1,
+        reserved_credits_factor: 2.0,
+        max_survivors: 32,
+      }
+      .new(
         context.starting_state(),
         &mut ChaCha8Rng::from_entropy(),
         // TODO: don't duplicate this from competing_optimizers.rs, probably use a generalization
@@ -286,40 +292,18 @@ impl AnalysisComponentBehavior for FractalRepresentativeSeedSearchComponentSpec 
 
   fn html_report(&self, context: &AnalysisFlowContext, data: &Self::Data) -> Option<Element> {
     let mut elements = Vec::new();
-    for layer in &data.search.seed_search.layers {
-      let strategies: Vec<_> = layer.strategies().collect();
-      let scores = strategies
-        .iter()
-        .map(|s| format!("{:.3}", s.average))
-        .collect::<Vec<_>>();
-      let score_with_exploiting = (0..layer.seeds.len())
-        .map(|index| {
-          strategies
-            .iter()
-            .map(|s| s.scores[index])
-            .max_by_key(|&f| OrderedFloat(f))
-            .unwrap()
-        })
-        .sum::<f64>()
-        / (layer.seeds.len() as f64);
+    for line in &data.search.seed_search.report_lines() {
       elements.push(html! {
         <div class="fractal_report_row">
-          {text!(
-            "{}: [{:.3}] {}",
-            layer.seeds.len(),
-            score_with_exploiting,
-            scores.join(", ")
-          )}
+          {text!(line)}
         </div>
       });
     }
     let mut all_starting_choices: Vec<Vec<_>> = data
       .search
       .seed_search
-      .layers
-      .last()
-      .unwrap()
-      .strategies()
+      .strategies
+      .iter()
       .map(|s| starting_choices_made_by_strategy(context.starting_state(), &*s.strategy))
       .collect();
     all_starting_choices.sort();
