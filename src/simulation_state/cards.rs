@@ -324,6 +324,8 @@ cards! {
   ["Juggernaut", Juggernaut, Power, Rare, 2, NO_TARGET, {}],
   ["Reaper", Reaper, Attack, Rare, 2, NO_TARGET, {exhausts: true,}],
 
+  ["J.A.X.", Jax, Skill, Special, 1, NO_TARGET, {}],
+
   ["Injury", Injury, Curse, Special, UNPLAYABLE, NO_TARGET, {}],
   ["AscendersBane", AscendersBane, Curse, Special, UNPLAYABLE, NO_TARGET, {ethereal: true,}],
   ["Dazed", Dazed, Status, Special, UNPLAYABLE, NO_TARGET, {ethereal: true,}],
@@ -607,8 +609,16 @@ impl CardBehavior for GhostlyArmor {
 
 impl CardBehavior for Hemokinesis {
   fn behavior(self, context: &mut impl CardBehaviorContext) {
+    context.action(DamageAction {
+      target: CreatureIndex::Player,
+      info: DamageInfoNoPowers::new(
+        Some(CreatureIndex::Player),
+        context.with_upgrade(2, 3),
+        DamageType::HitpointLoss,
+      )
+      .ignore_powers(),
+    });
     context.attack_target(context.with_upgrade(18, 14));
-    // TODO other effect
   }
 }
 
@@ -826,6 +836,17 @@ impl CardBehavior for Reaper {
     )
     .apply_owner_powers(context.state());
     context.action(VampireDamageAllEnemiesAction { info });
+  }
+}
+
+impl CardBehavior for Jax {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    context.action(DamageAction {
+      target: CreatureIndex::Player,
+      info: DamageInfoNoPowers::new(Some(CreatureIndex::Player), 3, DamageType::HitpointLoss)
+        .ignore_powers(),
+    });
+    context.power_self(PowerId::Strength, context.with_upgrade(3, 2));
   }
 }
 

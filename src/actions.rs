@@ -90,6 +90,7 @@ actions! {
   [GainBlockRandomMonsterAction {pub source: usize, pub amount: i32}],
   [SplitAction (pub usize, pub [MonsterId; 2]);],
   [EscapeAction (pub usize);],
+  [SummonGremlinAction;],
 }
 
 impl Action for PlayCard {
@@ -712,5 +713,41 @@ impl Action for EscapeAction {
     let escaping = &mut state.monsters[self.0];
 
     escaping.gone = true;
+  }
+}
+
+impl Action for SummonGremlinAction {
+  fn determinism(&self, state: &CombatState) -> Determinism {
+    Determinism::Random(Distribution((0..8).map(|n| (1.0, n)).collect()))
+  }
+  fn execute_random(&self, runner: &mut impl Runner, random_value: i32) {
+    use MonsterId::*;
+    let monster_id = [
+      MadGremlin,
+      MadGremlin,
+      SneakyGremlin,
+      SneakyGremlin,
+      FatGremlin,
+      FatGremlin,
+      GremlinWizard,
+      ShieldGremlin,
+    ][random_value as usize];
+
+    // TODO: actually implement summoning monsters properly
+    let gremlin = Monster {
+      monster_id,
+      ascension: 20,
+      creature: Creature {
+        hitpoints: 20,
+        max_hitpoints: 20,
+        ..Default::default()
+      },
+      ..Default::default()
+    };
+    if let Some(slot) = runner.state_mut().monsters.iter_mut().find(|m| m.gone) {
+      *slot = gremlin;
+    } else {
+      runner.state_mut().monsters.push(gremlin);
+    }
   }
 }

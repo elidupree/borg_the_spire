@@ -460,6 +460,13 @@ monsters! {
   ["SphericGuardian", SphericGuardian],
 
   ["SlaverBoss", Taskmaster],
+  ["GremlinLeader", GremlinLeader],
+}
+
+impl Default for MonsterId {
+  fn default() -> Self {
+    MonsterId::Cultist
+  }
 }
 
 pub mod beyond;

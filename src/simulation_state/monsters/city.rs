@@ -115,3 +115,71 @@ impl MonsterBehavior for Taskmaster {
     }
   }
 }
+
+intent! {
+  pub enum GremlinLeaderIntent {
+    2: Rally,
+    3: Encourage,
+    4: Stab,
+  }
+}
+impl MonsterBehavior for GremlinLeader {
+  type Intent = GremlinLeaderIntent;
+  fn make_intent_distribution(context: &mut IntentChoiceContext) {
+    use GremlinLeaderIntent::*;
+    let num_alive_gremlins = context
+      .state()
+      .monsters
+      .iter()
+      .enumerate()
+      .filter(|&(i, m)| !m.gone && i != context.monster_index())
+      .count();
+    if num_alive_gremlins == 0 {
+      context.if_num_lt(75, context.with_max_repeats(Repeats(1), Rally, Stab));
+      context.else_num(context.with_max_repeats(Repeats(1), Stab, Rally));
+    } else if num_alive_gremlins < 2 {
+      let last = context.last_intent::<GremlinLeaderIntent>().unwrap();
+      context.always(match last {
+        Stab => split(0.625, Rally, Encourage),
+        Rally => unreachable!(),
+        Encourage => split(0.5, Rally, Stab),
+      });
+    } else {
+      context.if_num_lt(66, context.with_max_repeats(Repeats(1), Encourage, Stab));
+      context.else_num(context.with_max_repeats(Repeats(1), Stab, Encourage));
+    }
+  }
+  fn intent_effects(context: &mut impl IntentEffectsContext) {
+    use GremlinLeaderIntent::*;
+    match context.intent::<Self::Intent>() {
+      Stab => {
+        for _ in 0..3 {
+          context.attack(6);
+        }
+      }
+      Rally => {
+        context.action(SummonGremlinAction);
+        context.action(SummonGremlinAction);
+      }
+      Encourage => {
+        let source = context.creature_index();
+        let strength_amount = context.with_ascensions(Ascension(18), 5, Ascension(3), 4, 3);
+        let block_amount = context.with_ascension(Ascension(18), 10, 6);
+        for i in 0..context.state().monsters.len() {
+          context.action(ApplyPowerAction {
+            source,
+            target: CreatureIndex::Monster(i),
+            power_id: PowerId::Strength,
+            amount: strength_amount,
+          });
+          if i != context.monster_index() {
+            context.action(GainBlockAction {
+              creature_index: CreatureIndex::Monster(i),
+              amount: block_amount,
+            });
+          }
+        }
+      }
+    }
+  }
+}
