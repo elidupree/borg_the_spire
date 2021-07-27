@@ -318,6 +318,7 @@ cards! {
   ["Dark Embrace", DarkEmbrace, Power, Rare, 2, NO_TARGET, {upgraded_cost: 1,}],
   ["Demon Form", DemonForm, Power, Rare, 3, NO_TARGET, {}],
   ["Double Tap", DoubleTap, Skill, Rare, 1, NO_TARGET, {}],
+  ["Fiend Fire", FiendFire, Attack, Rare, 2, HAS_TARGET, {exhausts: true,}],
   ["Immolate", Immolate, Attack, Rare, 2, NO_TARGET, {}],
   ["Impervious", Impervious, Skill, Rare, 2, NO_TARGET, {exhausts: true,}],
   ["Juggernaut", Juggernaut, Power, Rare, 2, NO_TARGET, {}],
@@ -780,6 +781,20 @@ impl CardBehavior for DemonForm {
 impl CardBehavior for DoubleTap {
   fn behavior(self, context: &mut impl CardBehaviorContext) {
     context.power_self(PowerId::DoubleTap, context.with_upgrade(2, 1));
+  }
+}
+
+impl CardBehavior for FiendFire {
+  fn behavior(self, context: &mut impl CardBehaviorContext) {
+    context.action(FiendFireAction {
+      target: context.target_creature_index(),
+      info: DamageInfoNoPowers::new(
+        Some(CreatureIndex::Player),
+        context.with_upgrade(10, 7),
+        DamageType::Normal,
+      )
+      .apply_all_powers(context.state(), context.target_creature_index()),
+    });
   }
 }
 

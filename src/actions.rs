@@ -83,6 +83,7 @@ actions! {
   // generally card effects
   [ArmamentsAction {pub upgraded: bool}],
   [VampireDamageAllEnemiesAction {pub info: DamageInfoOwnerPowers}],
+  [FiendFireAction {pub target: CreatureIndex, pub info: DamageInfoAllPowers}],
 
   // generally monster effects
   [InitializeMonsterInnateDamageAmount{pub monster_index: usize, pub range: (i32, i32)}],
@@ -427,6 +428,20 @@ impl Action for VampireDamageAllEnemiesAction {
       creature_index: CreatureIndex::Player,
       amount: heal_amount,
     })
+  }
+}
+
+impl Action for FiendFireAction {
+  fn execute(&self, runner: &mut impl Runner) {
+    let state = runner.state_mut();
+    let count = state.hand.len();
+    state.exhaust_pile.extend(state.hand.drain(..));
+    for _ in 0..count {
+      runner.action_top(DamageAction {
+        target: self.target,
+        info: self.info.clone(),
+      })
+    }
   }
 }
 
