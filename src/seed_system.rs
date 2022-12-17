@@ -96,7 +96,9 @@ pub trait SeedView<G: GameState>: Clone + Debug {
   fn gen(&mut self, state: &G, fork_type: &G::RandomForkType, choice: &G::RandomChoice) -> f64;
 }
 pub trait Seed<G: GameState>: Clone + Debug {
-  type View<'a>: SeedView<G>;
+  type View<'a>: SeedView<G>
+  where
+    Self: 'a;
   fn view(&self) -> Self::View<'_>;
 }
 pub trait SeedGenerator<S>: Debug {

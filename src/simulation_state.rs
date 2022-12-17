@@ -76,6 +76,7 @@ pub struct CombatState {
   pub fresh_subaction_queue: Vec<DynAction>,
   pub stale_subaction_stack: Vec<DynAction>,
   pub actions: VecDeque<DynAction>,
+  #[serde(default)]
   pub card_queue: VecDeque<UseCardAction>,
 
   #[serde(default)]
