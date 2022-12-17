@@ -1,12 +1,12 @@
 use derivative::Derivative;
 use ordered_float::NotNan;
+use parking_lot::{Mutex, MutexGuard};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use rand_pcg::Pcg64Mcg;
 use seahash::SeaHasher;
 use serde::{Deserialize, Serialize};
 use smallvec::{smallvec, SmallVec};
-use std::cell::RefCell;
 use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 use std::ops::{Add, AddAssign, Mul};
@@ -72,21 +72,21 @@ impl<Choice: PartialEq + AddAssign<Choice>> Distribution<Choice> {
 }
 
 pub trait GameState {
-  type RandomForkType: Hash;
-  type RandomChoice: Clone + Hash;
+  type RandomForkType: Hash + Debug;
+  type RandomChoice: Clone + Hash + Debug;
 }
 
 pub trait ChoiceLineageIdentity<G: GameState>: Copy + Clone + Hash {
   fn lineage_identity(state: &G, fork_type: &G::RandomForkType, choice: &G::RandomChoice) -> Self;
 }
-pub trait ChoiceLineages: Clone + Debug + Default {
+pub trait ChoiceLineages: Clone + Debug + Default + Send + Sync {
   type LineageIdentity;
-  type Lineage;
+  type Lineage: Debug;
   fn get_mut(&mut self, identity: Self::LineageIdentity) -> &mut Self::Lineage;
 }
 pub trait ChoiceLineagesKind {
-  type LineageIdentity;
-  type Lineages<T: Clone + Debug + Default>: ChoiceLineages<
+  type LineageIdentity: Debug;
+  type Lineages<T: Clone + Debug + Default + Send + Sync>: ChoiceLineages<
     LineageIdentity = Self::LineageIdentity,
     Lineage = T,
   >;
@@ -95,7 +95,7 @@ pub trait ChoiceLineagesKind {
 pub trait SeedView<G: GameState>: Clone + Debug {
   fn gen(&mut self, state: &G, fork_type: &G::RandomForkType, choice: &G::RandomChoice) -> f64;
 }
-pub trait Seed<G: GameState>: Clone + Debug {
+pub trait Seed<G: GameState>: Clone + Debug + Send + Sync {
   type View<'a>: SeedView<G>
   where
     Self: 'a;
@@ -137,7 +137,7 @@ impl<G: GameState> ChoiceLineageIdentity<G> for () {
     ()
   }
 }
-impl<T: Clone + Debug + Default> ChoiceLineages for TrivialChoiceLineages<T> {
+impl<T: Clone + Debug + Default + Send + Sync> ChoiceLineages for TrivialChoiceLineages<T> {
   type LineageIdentity = ();
   type Lineage = T;
   fn get_mut(&mut self, _identity: ()) -> &mut T {
@@ -146,7 +146,7 @@ impl<T: Clone + Debug + Default> ChoiceLineages for TrivialChoiceLineages<T> {
 }
 impl ChoiceLineagesKind for TrivialChoiceLineagesKind {
   type LineageIdentity = ();
-  type Lineages<T: Clone + Debug + Default> = TrivialChoiceLineages<T>;
+  type Lineages<T: Clone + Debug + Default + Send + Sync> = TrivialChoiceLineages<T>;
 }
 
 #[derive(Clone, Debug)]
@@ -197,6 +197,7 @@ impl TrivialSeedGenerator {
 pub struct SingleSeedView<'a, L: ChoiceLineagesKind> {
   seed: &'a SingleSeed<L>,
   prior_requests: L::Lineages<u32>,
+  caches: MutexGuard<'a, L::Lineages<SingleSeedLineage>>,
 }
 // neither Rust nor Derivative can currently derive Clone for the above, sigh
 impl<'a, L: ChoiceLineagesKind> Clone for SingleSeedView<'a, L> {
@@ -204,37 +205,34 @@ impl<'a, L: ChoiceLineagesKind> Clone for SingleSeedView<'a, L> {
     SingleSeedView {
       seed: self.seed,
       prior_requests: self.prior_requests.clone(),
+      caches: panic!(),
     }
   }
 }
 #[derive(Derivative)]
-#[derivative(Clone(bound = ""), Debug(bound = ""))]
-pub struct SingleSeedInner<L: ChoiceLineagesKind> {
-  hasher_seeds: [u64; 4],
-  lineages: L::Lineages<SingleSeedLineage>,
-}
-#[derive(Derivative)]
-#[derivative(Clone(bound = ""), Debug(bound = ""))]
+#[derivative(Debug(bound = ""))]
 pub struct SingleSeed<L: ChoiceLineagesKind> {
-  inner: RefCell<SingleSeedInner<L>>,
+  hasher_seeds: [u64; 4],
+  caches: Mutex<L::Lineages<SingleSeedLineage>>,
+}
+impl<'a, L: ChoiceLineagesKind> Clone for SingleSeed<L> {
+  fn clone(&self) -> Self {
+    SingleSeed {
+      hasher_seeds: self.hasher_seeds,
+      caches: Default::default(),
+    }
+  }
 }
 #[derive(Debug)]
 pub struct SingleSeedGenerator {
   source_rng: ChaCha8Rng,
 }
 
-impl<L: ChoiceLineagesKind> SingleSeedInner<L> {
-  pub fn new(source_rng: &mut impl Rng) -> Self {
-    SingleSeedInner {
-      hasher_seeds: source_rng.gen(),
-      lineages: Default::default(),
-    }
-  }
-}
 impl<L: ChoiceLineagesKind> SingleSeed<L> {
   pub fn new(source_rng: &mut impl Rng) -> Self {
     SingleSeed {
-      inner: RefCell::new(SingleSeedInner::new(source_rng)),
+      hasher_seeds: source_rng.gen(),
+      caches: Default::default(),
     }
   }
 }
@@ -255,23 +253,24 @@ where
 {
   fn gen(&mut self, state: &G, fork_type: &G::RandomForkType, choice: &G::RandomChoice) -> f64 {
     let identity = L::LineageIdentity::lineage_identity(state, fork_type, choice);
-    let mut inner_guard = self.seed.inner.borrow_mut();
-    let inner = &mut *inner_guard;
-    let hasher_seeds = &inner.hasher_seeds;
+    let hasher_seeds = &self.seed.hasher_seeds;
     let prior_requests = self.prior_requests.get_mut(identity);
-    let lineage = inner.lineages.get_mut(identity);
-    let result = lineage
+    let cache = self.caches.get_mut(identity);
+    // if *prior_requests > 3 {
+    //   dbg!((*prior_requests, fork_type, choice, identity));
+    // }
+    let result = cache
       .generated_values
       .get((*prior_requests) as usize)
       .copied()
       .unwrap_or_else(|| {
-        assert_eq!((*prior_requests) as usize, lineage.generated_values.len());
+        //assert_eq!((*prior_requests) as usize, lineage.generated_values.len());
         let [k1, k2, k3, k4] = *hasher_seeds;
         let mut hasher = SeaHasher::with_seeds(k1, k2, k3, k4);
         prior_requests.hash(&mut hasher);
         identity.hash(&mut hasher);
         let result = hasher.finish() as f64;
-        lineage.generated_values.push(result);
+        cache.generated_values.push(result);
         result
       });
     *prior_requests += 1;
@@ -287,6 +286,7 @@ where
     SingleSeedView {
       seed: self,
       prior_requests: Default::default(),
+      caches: self.caches.lock(),
     }
   }
 }

@@ -104,7 +104,7 @@ impl ChoiceLineageIdentity<CombatState> for CombatChoiceLineageIdentity {
   }
 }
 
-impl<T: Clone + Debug + Default> ChoiceLineages for CombatChoiceLineages<T> {
+impl<T: Clone + Debug + Default + Send + Sync> ChoiceLineages for CombatChoiceLineages<T> {
   type LineageIdentity = CombatChoiceLineageIdentity;
   type Lineage = T;
   #[inline(always)]
@@ -144,7 +144,7 @@ impl<T: Clone + Debug + Default> ChoiceLineages for CombatChoiceLineages<T> {
 
 impl ChoiceLineagesKind for CombatChoiceLineagesKind {
   type LineageIdentity = CombatChoiceLineageIdentity;
-  type Lineages<T: Clone + Debug + Default> = CombatChoiceLineages<T>;
+  type Lineages<T: Clone + Debug + Default + Send + Sync> = CombatChoiceLineages<T>;
 }
 
 // This would prefer to live in the seed_system module, but it can't be implemented generically due to details of the orphan rule

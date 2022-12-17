@@ -12,7 +12,7 @@ use std::collections::{HashSet, VecDeque};
 use std::fmt;
 use std::fmt::{Debug, Write};
 
-pub trait Strategy: Debug {
+pub trait Strategy: Debug + Send + Sync {
   fn choose_choice(&self, state: &CombatState) -> Vec<Choice>;
 }
 
