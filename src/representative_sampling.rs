@@ -8,6 +8,7 @@ use ordered_float::OrderedFloat;
 use rand::seq::{IteratorRandom, SliceRandom};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -343,11 +344,12 @@ impl<S: Strategy + 'static, T: Seed<CombatState> + 'static, G: SeedGenerator<T> 
       assert!(self.seeds.len() >= level_size);
       for strategy in &mut self.strategies {
         if strategy.scores.len() < level_size {
-          for seed in &self.seeds[strategy.scores.len()..level_size] {
-            strategy
-              .scores
-              .push(playout_result(&self.starting_state, seed.view(), &*strategy.strategy).score)
-          }
+          let starting_state = &self.starting_state;
+          let strategy_strategy = &*strategy.strategy;
+          let new_scores = self.seeds[strategy.scores.len()..level_size]
+            .par_iter_mut()
+            .map(|seed| playout_result(starting_state, seed.view(), strategy_strategy).score);
+          strategy.scores.par_extend(new_scores);
         }
         assert!(strategy.scores.len() >= level_size);
       }
@@ -953,7 +955,7 @@ pub struct RepresentativeSeedsMetaStrategy<S, T> {
   pub strategies: Vec<Arc<S>>,
 }
 
-impl<S: Strategy + 'static, T: Seed<CombatState> + Clone + 'static> Strategy
+impl<S: Strategy + 'static, T: Seed<CombatState> + 'static> Strategy
   for RepresentativeSeedsMetaStrategy<S, T>
 {
   fn choose_choice(&self, state: &CombatState) -> Vec<Choice> {

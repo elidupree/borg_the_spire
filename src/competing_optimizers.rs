@@ -313,23 +313,36 @@ pub fn optimizer_step(
   let strategy = optimizer.report();
 
   let start = Instant::now();
+  let test_duration = Duration::from_millis(if last { 10000 } else { 500 });
+  let threads: Vec<_> = (0..std::thread::available_parallelism().unwrap().get())
+    .map(|_| {
+      let strategy = strategy.clone();
+      let state = state.clone();
+      std::thread::spawn(move || {
+        let mut steps = 0;
+        let mut total_test_score = 0.0;
+        while start.elapsed() < test_duration {
+          total_test_score += ai_utils::playout_result(
+            &state,
+            TrivialSeed::new(Pcg64Mcg::from_entropy()),
+            &*strategy,
+          )
+          .score;
+          steps += 1;
+        }
+        (steps, total_test_score)
+      })
+    })
+    .collect();
   let mut steps = 0;
   let mut total_test_score = 0.0;
-  let test_duration = Duration::from_millis(if last { 10000 } else { 500 });
-  let elapsed = loop {
-    total_test_score += ai_utils::playout_result(
-      state,
-      TrivialSeed::new(Pcg64Mcg::from_entropy()),
-      &*strategy,
-    )
-    .score;
-    steps += 1;
+  for thread in threads {
+    let (steps1, total_test_score1) = thread.join().unwrap();
+    steps += steps1;
+    total_test_score += total_test_score1;
+  }
 
-    let elapsed = start.elapsed();
-    if elapsed > test_duration {
-      break elapsed;
-    }
-  };
+  let elapsed = start.elapsed();
 
   println!(
     "Evaluated {} for {:.2?} ({} playouts). Average score: {}",
